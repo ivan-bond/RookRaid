@@ -1,0 +1,10 @@
+# Xcode
+xcuserdata/
+*.xcuserstate
+.DS_Store
+# Supabase-Schlüssel der App (siehe Backend/ONLINE-IMPLEMENTIERUNG.md, Schritt 6)
+Config/Secrets.xcconfig
+# Supabase CLI und Tests
+Backend/supabase/.temp/
+Backend/supabase/.branches/
+Backend/tests/node_modules/

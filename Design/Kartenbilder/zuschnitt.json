@@ -1,0 +1,78 @@
+{
+  "shield": {
+    "zoom": 1.0
+  },
+  "freeze": {
+    "zoom": 1.15,
+    "cy": 0.6
+  },
+  "bulwark": {
+    "zoom": 1.08,
+    "cy": 0.53
+  },
+  "sprint": {
+    "zoom": 1.0
+  },
+  "lightning": {
+    "zoom": 1.15,
+    "cx": 0.48,
+    "cy": 0.52
+  },
+  "knighting": {
+    "zoom": 1.0
+  },
+  "reinforce": {
+    "zoom": 1.05,
+    "cy": 0.55
+  },
+  "revive": {
+    "zoom": 1.0
+  },
+  "bishopize": {
+    "zoom": 1.0
+  },
+  "advance": {
+    "zoom": 1.08,
+    "cy": 0.52
+  },
+  "swap": {
+    "zoom": 1.0
+  },
+  "drain": {
+    "zoom": 1.05
+  },
+  "focus": {
+    "zoom": 1.05,
+    "cy": 0.52
+  },
+  "sacrifice": {
+    "zoom": 1.1,
+    "cy": 0.55
+  },
+  "meteor": {
+    "inner": [
+      44,
+      44,
+      884,
+      1110
+    ],
+    "zoom": 1.0
+  },
+  "iceAge": {
+    "zoom": 1.0
+  },
+  "fortress": {
+    "zoom": 1.0
+  },
+  "coronation": {
+    "zoom": 1.1,
+    "cy": 0.55
+  },
+  "rebirth": {
+    "zoom": 1.05,
+    "cy": 0.5
+  },
+  "retreat": {
+    "zoom": 1.0
+  }
+}

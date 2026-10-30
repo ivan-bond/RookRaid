@@ -1,0 +1,5 @@
+// Build-Einstellungen des App-Targets. Secrets.xcconfig ist optional: fehlt sie, bleiben die Werte leer und die App offline.
+RR_SUPABASE_URL =
+RR_SUPABASE_ANON_KEY =
+
+#include? "Secrets.xcconfig"

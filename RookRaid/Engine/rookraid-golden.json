@@ -1,0 +1,1417 @@
+{
+ "rulesVersion": 3,
+ "generated": "2026-10-28",
+ "cases": [
+  {
+   "name": "Kartenschule: shield",
+   "fen": "6k1/6pp/5p2/4N3/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 2,
+    "b": 0
+   },
+   "actions": [
+    "card:shield@e5",
+    "g1f1",
+    "h7h6"
+   ],
+   "hand": {
+    "w": [
+     "shield"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/6p1/5p1p/4N3/8/8/5PPP/5K2",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: freeze",
+   "fen": "1r4k1/5ppp/8/1B6/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 4,
+    "b": 0
+   },
+   "actions": [
+    "card:freeze@b8",
+    "g1f1",
+    "g8f8"
+   ],
+   "hand": {
+    "w": [
+     "freeze"
+    ]
+   },
+   "expect": {
+    "placement": "1r3k2/5ppp/8/1B6/8/8/5PPP/5K2",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: bulwark",
+   "fen": "6k1/5ppp/4n3/8/3P1P2/8/6PP/6K1 w - - 0 1",
+   "mana": {
+    "w": 2,
+    "b": 0
+   },
+   "actions": [
+    "card:bulwark",
+    "g1f1",
+    "g8f8"
+   ],
+   "hand": {
+    "w": [
+     "bulwark"
+    ]
+   },
+   "expect": {
+    "placement": "5k2/5ppp/4n3/8/3P1P2/8/6PP/5K2",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: sprint",
+   "fen": "6k1/6pp/3n1r2/8/8/4P3/6PP/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:sprint@e3",
+    "g2g3"
+   ],
+   "hand": {
+    "w": [
+     "sprint"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/6pp/3n1r2/4P3/8/6P1/7P/6K1",
+    "side": "black",
+    "mana": {
+     "w": 0,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: lightning",
+   "fen": "6k1/5pp1/7p/8/8/2p5/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 2,
+    "b": 0
+   },
+   "actions": [
+    "card:lightning@c3",
+    "g8f8"
+   ],
+   "hand": {
+    "w": [
+     "lightning"
+    ]
+   },
+   "expect": {
+    "placement": "5k2/5pp1/7p/8/8/8/5PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: knighting",
+   "fen": "6k1/2r1r1pp/8/3P4/8/8/6PP/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:knighting@d5",
+    "c7c2",
+    "d5e7"
+   ],
+   "hand": {
+    "w": [
+     "knighting"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/4N1pp/8/8/8/8/2r3PP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 2
+    },
+    "status": "check",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: bishopize",
+   "fen": "6k1/1r5n/8/8/4P3/8/6PP/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:bishopize@e4",
+    "b7b2",
+    "e4h7"
+   ],
+   "hand": {
+    "w": [
+     "bishopize"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/7B/8/8/8/8/1r4PP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 2
+    },
+    "status": "check",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: reinforce",
+   "fen": "6k1/1q3ppp/8/8/8/8/5P1P/6K1 w - - 0 1",
+   "mana": {
+    "w": 1,
+    "b": 0
+   },
+   "actions": [
+    "card:reinforce@g2"
+   ],
+   "hand": {
+    "w": [
+     "reinforce"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/1q3ppp/8/8/8/8/5PPP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 0,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: revive",
+   "fen": "6k1/p4ppp/8/8/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 6,
+    "b": 0
+   },
+   "actions": [
+    "card:revive@e1",
+    "a7a6",
+    "e1e8"
+   ],
+   "hand": {
+    "w": [
+     "revive"
+    ]
+   },
+   "captured": {
+    "w": [
+     "r"
+    ]
+   },
+   "expect": {
+    "placement": "4R1k1/5ppp/p7/8/8/8/5PPP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 2
+    },
+    "status": "mate",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: sacrifice",
+   "fen": "6k1/5ppp/8/8/8/8/PP3PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 0,
+    "b": 0
+   },
+   "actions": [
+    "card:sacrifice@a2",
+    "g1f1"
+   ],
+   "hand": {
+    "w": [
+     "sacrifice"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/5ppp/8/8/8/8/1P3PPP/5K2",
+    "side": "black",
+    "mana": {
+     "w": 3,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: focus",
+   "fen": "6k1/5ppp/8/8/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 1,
+    "b": 0
+   },
+   "actions": [
+    "card:focus"
+   ],
+   "hand": {
+    "w": [
+     "focus"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/5ppp/8/8/8/8/5PPP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 5,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: drain",
+   "fen": "6k1/5ppp/8/8/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 0,
+    "b": 8
+   },
+   "actions": [
+    "card:drain"
+   ],
+   "hand": {
+    "w": [
+     "drain"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/5ppp/8/8/8/8/5PPP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 5
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: advance",
+   "fen": "6k1/5ppp/8/8/8/8/PPP2PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:advance",
+    "g1f1"
+   ],
+   "hand": {
+    "w": [
+     "advance"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/5ppp/8/8/8/PPP2PPP/8/5K2",
+    "side": "black",
+    "mana": {
+     "w": 0,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: swap",
+   "fen": "4r1k1/5ppp/8/8/8/8/4BPPP/4K2R w - - 0 1",
+   "mana": {
+    "w": 4,
+    "b": 0
+   },
+   "actions": [
+    "card:swap@h1",
+    "e2b5"
+   ],
+   "hand": {
+    "w": [
+     "swap"
+    ]
+   },
+   "expect": {
+    "placement": "4r1k1/5ppp/8/1B6/8/8/5PPP/4R2K",
+    "side": "black",
+    "mana": {
+     "w": 0,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: meteor",
+   "fen": "3r2k1/p4ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+   "mana": {
+    "w": 8,
+    "b": 0
+   },
+   "actions": [
+    "ult:meteor@d8",
+    "a7a6",
+    "e1e8"
+   ],
+   "ults": {
+    "w": "meteor"
+   },
+   "expect": {
+    "placement": "4R1k1/5ppp/p7/8/8/8/5PPP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 2
+    },
+    "status": "mate",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: iceAge",
+   "fen": "r5k1/5ppp/8/8/8/8/3Q1PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 8,
+    "b": 0
+   },
+   "actions": [
+    "ult:iceAge",
+    "g8h8",
+    "d2d8"
+   ],
+   "ults": {
+    "w": "iceAge"
+   },
+   "expect": {
+    "placement": "r2Q3k/5ppp/8/8/8/8/5PPP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 2
+    },
+    "status": "mate",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: fortress",
+   "fen": "6k1/5ppp/8/3p4/2B1N3/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 6,
+    "b": 0
+   },
+   "actions": [
+    "ult:fortress",
+    "g1f1",
+    "g8f8"
+   ],
+   "ults": {
+    "w": "fortress"
+   },
+   "expect": {
+    "placement": "5k2/5ppp/8/3p4/2B1N3/8/5PPP/5K2",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: coronation",
+   "fen": "6k1/p4ppp/8/4P3/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 8,
+    "b": 0
+   },
+   "actions": [
+    "ult:coronation@e5",
+    "a7a6",
+    "e5e8"
+   ],
+   "ults": {
+    "w": "coronation"
+   },
+   "expect": {
+    "placement": "4Q1k1/5ppp/p7/8/8/8/5PPP/6K1",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 2
+    },
+    "status": "mate",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: rebirth",
+   "fen": "6k1/5ppp/8/8/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 8,
+    "b": 0
+   },
+   "actions": [
+    "ult:rebirth"
+   ],
+   "ults": {
+    "w": "rebirth"
+   },
+   "captured": {
+    "w": [
+     "q"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/5ppp/8/8/8/8/5PPP/3Q2K1",
+    "side": "black",
+    "mana": {
+     "w": 0,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Blitz trifft keinen Bauern in der gegnerischen Hälfte",
+   "fen": "6k1/5pp1/7p/8/8/2p5/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 2
+   },
+   "hand": {
+    "w": [
+     "lightning"
+    ]
+   },
+   "actions": [
+    "card:lightning@h6"
+   ],
+   "expect": {
+    "placement": "6k1/5pp1/7p/8/8/2p5/5PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 2,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Blitz lädt 3 Züge nach",
+   "fen": "6k1/5pp1/8/8/8/2p1p3/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 9
+   },
+   "hand": {
+    "w": [
+     "lightning"
+    ]
+   },
+   "actions": [
+    "card:lightning@c3",
+    "g8h8",
+    "g1h1",
+    "h8g8",
+    "h1g1",
+    "g8h8",
+    "card:lightning@e3"
+   ],
+   "expect": {
+    "placement": "7k/5pp1/8/8/8/4p3/5PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 10,
+     "b": 3
+    },
+    "status": "ongoing",
+    "rejectedAt": 6
+   }
+  },
+  {
+   "name": "Blitz nach 3 Zügen wieder bereit",
+   "fen": "6k1/5pp1/8/8/8/2p1p3/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 9
+   },
+   "hand": {
+    "w": [
+     "lightning"
+    ]
+   },
+   "actions": [
+    "card:lightning@c3",
+    "g8h8",
+    "g1h1",
+    "h8g8",
+    "h1g1",
+    "g8h8",
+    "g1h1",
+    "h8g8",
+    "card:lightning@e3"
+   ],
+   "expect": {
+    "placement": "6k1/5pp1/8/8/8/8/5PPP/7K",
+    "side": "black",
+    "mana": {
+     "w": 8,
+     "b": 5
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Bollwerk kostet 2 Mana",
+   "fen": "6k1/5ppp/4n3/8/3P1P2/8/6PP/6K1 w - - 0 1",
+   "mana": {
+    "w": 1
+   },
+   "hand": {
+    "w": [
+     "bulwark"
+    ]
+   },
+   "actions": [
+    "card:bulwark"
+   ],
+   "expect": {
+    "placement": "6k1/5ppp/4n3/8/3P1P2/8/6PP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Leibwache kostet 4 Mana",
+   "fen": "4r1k1/5ppp/8/8/8/8/4BPPP/4K2R w - - 0 1",
+   "mana": {
+    "w": 3
+   },
+   "hand": {
+    "w": [
+     "swap"
+    ]
+   },
+   "actions": [
+    "card:swap@h1"
+   ],
+   "expect": {
+    "placement": "4r1k1/5ppp/8/8/8/8/4BPPP/4K2R",
+    "side": "white",
+    "mana": {
+     "w": 3,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Festung ab 6 Mana",
+   "fen": "6k1/5ppp/8/3p4/2B1N3/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 5
+   },
+   "ults": {
+    "w": "fortress"
+   },
+   "actions": [
+    "ult:fortress"
+   ],
+   "expect": {
+    "placement": "6k1/5ppp/8/3p4/2B1N3/8/5PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 5,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Festung: Bonuszug ohne Schlagen",
+   "fen": "6k1/5ppp/8/3p4/2B1N3/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 6
+   },
+   "ults": {
+    "w": "fortress"
+   },
+   "actions": [
+    "ult:fortress",
+    "c4d5"
+   ],
+   "expect": {
+    "placement": "6k1/5ppp/8/3p4/2B1N3/8/5PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 0,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 1
+   }
+  },
+  {
+   "name": "Festung: Bonuszug ohne Schach",
+   "fen": "6k1/5ppp/8/3p4/2B1N3/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 6
+   },
+   "ults": {
+    "w": "fortress"
+   },
+   "actions": [
+    "ult:fortress",
+    "e4f6"
+   ],
+   "expect": {
+    "placement": "6k1/5ppp/8/3p4/2B1N3/8/5PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 0,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 1
+   }
+  },
+  {
+   "name": "Meteor braucht 8 Mana",
+   "fen": "3r2k1/p4ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+   "mana": {
+    "w": 7
+   },
+   "ults": {
+    "w": "meteor"
+   },
+   "actions": [
+    "ult:meteor@d8"
+   ],
+   "expect": {
+    "placement": "3r2k1/p4ppp/8/8/8/8/5PPP/4R1K1",
+    "side": "white",
+    "mana": {
+     "w": 7,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Meteor trifft keine Dame",
+   "fen": "3q2k1/p4ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+   "mana": {
+    "w": 8
+   },
+   "ults": {
+    "w": "meteor"
+   },
+   "actions": [
+    "ult:meteor@d8"
+   ],
+   "expect": {
+    "placement": "3q2k1/p4ppp/8/8/8/8/5PPP/4R1K1",
+    "side": "white",
+    "mana": {
+     "w": 8,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Frost trifft keine Dame",
+   "fen": "3q2k1/p4ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+   "mana": {
+    "w": 4
+   },
+   "hand": {
+    "w": [
+     "freeze"
+    ]
+   },
+   "actions": [
+    "card:freeze@d8"
+   ],
+   "expect": {
+    "placement": "3q2k1/p4ppp/8/8/8/8/5PPP/4R1K1",
+    "side": "white",
+    "mana": {
+     "w": 4,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Nach einer Bonuskarte keine zweite Karte",
+   "fen": "6k1/6pp/5p2/4N3/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 9
+   },
+   "hand": {
+    "w": [
+     "shield",
+     "bulwark"
+    ]
+   },
+   "actions": [
+    "card:shield@e5",
+    "card:bulwark"
+   ],
+   "expect": {
+    "placement": "6k1/6pp/5p2/4N3/8/8/5PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 7,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 1
+   }
+  },
+  {
+   "name": "Geschützte Figur bleibt im Bonuszug stehen",
+   "fen": "6k1/6pp/5p2/4N3/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 2
+   },
+   "hand": {
+    "w": [
+     "shield"
+    ]
+   },
+   "actions": [
+    "card:shield@e5",
+    "e5d7"
+   ],
+   "expect": {
+    "placement": "6k1/6pp/5p2/4N3/8/8/5PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 0,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 1
+   }
+  },
+  {
+   "name": "Mana: +1 pro Zug, Schlagen +1",
+   "fen": "4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1",
+   "mana": {
+    "w": 1,
+    "b": 1
+   },
+   "actions": [
+    "e4d5",
+    "e8d7",
+    "d5d6"
+   ],
+   "expect": {
+    "placement": "8/3k4/3P4/8/8/8/8/4K3",
+    "side": "black",
+    "mana": {
+     "w": 3,
+     "b": 3
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kurze Rochade",
+   "fen": "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1",
+   "actions": [
+    "e1g1",
+    "e8c8"
+   ],
+   "expect": {
+    "placement": "2kr3r/pppppppp/8/8/8/8/PPPPPPPP/R4RK1",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "En passant",
+   "fen": "4k3/3p4/8/4P3/8/8/8/4K3 b - - 0 1",
+   "actions": [
+    "d7d5",
+    "e5d6"
+   ],
+   "expect": {
+    "placement": "4k3/8/3P4/8/8/8/8/4K3",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Umwandlung in einen Springer",
+   "fen": "8/4P1k1/8/8/8/8/8/4K3 w - - 0 1",
+   "actions": [
+    "e7e8n"
+   ],
+   "expect": {
+    "placement": "4N3/6k1/8/8/8/8/8/4K3",
+    "side": "black",
+    "mana": {
+     "w": 1,
+     "b": 1
+    },
+    "status": "check",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Narrenmatt",
+   "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+   "actions": [
+    "f2f3",
+    "e7e5",
+    "g2g4",
+    "d8h4"
+   ],
+   "expect": {
+    "placement": "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR",
+    "side": "white",
+    "mana": {
+     "w": 2,
+     "b": 3
+    },
+    "status": "mate",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Patt",
+   "fen": "7k/4Q3/6K1/8/8/8/8/8 w - - 0 1",
+   "actions": [
+    "e7f7"
+   ],
+   "expect": {
+    "placement": "7k/5Q2/6K1/8/8/8/8/8",
+    "side": "black",
+    "mana": {
+     "w": 0,
+     "b": 1
+    },
+    "status": "stalemate",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Illegaler Zug: König ins Schach",
+   "fen": "4k3/8/8/8/8/8/3r4/4K3 w - - 0 1",
+   "actions": [
+    "e1d1"
+   ],
+   "expect": {
+    "placement": "4k3/8/8/8/8/8/3r4/4K3",
+    "side": "white",
+    "mana": {
+     "w": 0,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Umwandlung verliert den Schild (Festung)",
+   "fen": "r7/4P3/8/8/8/7k/8/6K1 w - - 0 1",
+   "mana": {
+    "w": 6
+   },
+   "ults": {
+    "w": "fortress"
+   },
+   "actions": [
+    "ult:fortress",
+    "e7e8",
+    "a8e8"
+   ],
+   "expect": {
+    "placement": "4r3/8/8/8/8/7k/8/6K1",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 2
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Vormarsch kostet 3 Mana (2 reichen nicht)",
+   "fen": "6k1/5ppp/8/8/8/8/PPP2PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 2,
+    "b": 0
+   },
+   "actions": [
+    "card:advance"
+   ],
+   "hand": {
+    "w": [
+     "advance"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/5ppp/8/8/8/8/PPP2PPP/6K1",
+    "side": "white",
+    "mana": {
+     "w": 2,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Rückzug: Bauer zwei Felder zurück, dann Figurzug",
+   "fen": "6k1/8/8/4P3/8/8/8/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:retreat@e3",
+    "g1f1"
+   ],
+   "hand": {
+    "w": [
+     "retreat"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/8/8/8/8/4P3/8/5K2",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Rückzug: ein Feld zurück",
+   "fen": "6k1/8/8/4P3/8/8/8/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:retreat@e4",
+    "g1f1"
+   ],
+   "hand": {
+    "w": [
+     "retreat"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/8/8/8/4P3/8/8/5K2",
+    "side": "black",
+    "mana": {
+     "w": 2,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Rückzug: nicht auf die Grundreihe",
+   "fen": "6k1/8/8/8/8/4P3/8/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:retreat@e1"
+   ],
+   "hand": {
+    "w": [
+     "retreat"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/8/8/8/8/4P3/8/6K1",
+    "side": "white",
+    "mana": {
+     "w": 3,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Rückzug: Weg muss frei sein",
+   "fen": "6k1/8/8/4P3/4N3/8/8/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:retreat@e3"
+   ],
+   "hand": {
+    "w": [
+     "retreat"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/8/8/4P3/4N3/8/8/6K1",
+    "side": "white",
+    "mana": {
+     "w": 3,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Rückzug: Bauer bleibt im Bonuszug stehen",
+   "fen": "6k1/8/8/4P3/8/8/8/6K1 w - - 0 1",
+   "mana": {
+    "w": 3,
+    "b": 0
+   },
+   "actions": [
+    "card:retreat@e4",
+    "e4e5"
+   ],
+   "hand": {
+    "w": [
+     "retreat"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/8/8/8/4P3/8/8/6K1",
+    "side": "white",
+    "mana": {
+     "w": 2,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 1
+   }
+  },
+  {
+   "name": "Rückzug: Schwarz weicht nach oben zurück",
+   "fen": "6k1/8/8/8/3p4/8/8/6K1 b - - 0 1",
+   "mana": {
+    "w": 0,
+    "b": 3
+   },
+   "actions": [
+    "card:retreat@d6",
+    "g8f8"
+   ],
+   "hand": {
+    "b": [
+     "retreat"
+    ]
+   },
+   "expect": {
+    "placement": "5k2/8/3p4/8/8/8/8/6K1",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 2
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Kartenschule: retreat",
+   "fen": "6k1/5ppp/3p4/4P3/8/8/5PPP/6K1 w - - 0 1",
+   "mana": {
+    "w": 1,
+    "b": 0
+   },
+   "actions": [
+    "card:retreat@e4",
+    "g1f1"
+   ],
+   "hand": {
+    "w": [
+     "retreat"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/5ppp/3p4/8/4P3/8/5PPP/5K2",
+    "side": "black",
+    "mana": {
+     "w": 0,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Rückzug kostet 1 Mana",
+   "fen": "6k1/8/8/4P3/8/8/8/6K1 w - - 0 1",
+   "mana": {
+    "w": 0,
+    "b": 0
+   },
+   "actions": [
+    "card:retreat@e4"
+   ],
+   "hand": {
+    "w": [
+     "retreat"
+    ]
+   },
+   "expect": {
+    "placement": "6k1/8/8/4P3/8/8/8/6K1",
+    "side": "white",
+    "mana": {
+     "w": 0,
+     "b": 0
+    },
+    "status": "ongoing",
+    "rejectedAt": 0
+   }
+  },
+  {
+   "name": "Partie aus Grundstellung: Eröffnung mit Karten",
+   "start": "initial",
+   "decks": {
+    "w": [
+     "shield",
+     "freeze",
+     "sprint",
+     "lightning"
+    ],
+    "b": [
+     "retreat",
+     "bulwark",
+     "reinforce",
+     "focus"
+    ]
+   },
+   "ults": {
+    "w": "meteor",
+    "b": "fortress"
+   },
+   "actions": [
+    "e2e4",
+    "e7e5",
+    "g1f3",
+    "b8c6",
+    "card:shield@f3",
+    "f1c4",
+    "card:focus",
+    "d2d4",
+    "e5d4",
+    "card:lightning@d4",
+    "d7d6",
+    "e1g1",
+    "card:bulwark",
+    "c8g4"
+   ],
+   "expect": {
+    "placement": "r2qkbnr/ppp2ppp/2np4/8/2B1P1b1/5N2/PPP2PPP/RNBQ1RK1",
+    "side": "white",
+    "mana": {
+     "w": 3,
+     "b": 8
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Partie aus Grundstellung: Narrenmatt",
+   "start": "initial",
+   "decks": {
+    "w": [
+     "shield",
+     "freeze",
+     "sprint",
+     "lightning"
+    ],
+    "b": [
+     "shield",
+     "freeze",
+     "sprint",
+     "lightning"
+    ]
+   },
+   "ults": {
+    "w": "meteor",
+    "b": "meteor"
+   },
+   "actions": [
+    "f2f3",
+    "e7e5",
+    "g2g4",
+    "d8h4"
+   ],
+   "expect": {
+    "placement": "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR",
+    "side": "white",
+    "mana": {
+     "w": 3,
+     "b": 3
+    },
+    "status": "mate",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Partie aus Grundstellung: Bonuskarte zählt als eigene Aktion",
+   "start": "initial",
+   "decks": {
+    "w": [
+     "sprint",
+     "shield",
+     "retreat",
+     "bulwark"
+    ],
+    "b": [
+     "sprint",
+     "shield",
+     "retreat",
+     "bulwark"
+    ]
+   },
+   "ults": {
+    "w": "fortress",
+    "b": "fortress"
+   },
+   "actions": [
+    "e2e4",
+    "e7e5",
+    "d2d3",
+    "d7d6",
+    "card:sprint@c2",
+    "b1c3",
+    "card:retreat@d7",
+    "g8f6"
+   ],
+   "expect": {
+    "placement": "rnbqkb1r/pppp1ppp/5n2/4p3/2P1P3/2NP4/PP3PPP/R1BQKBNR",
+    "side": "white",
+    "mana": {
+     "w": 1,
+     "b": 2
+    },
+    "status": "ongoing",
+    "rejectedAt": null
+   }
+  },
+  {
+   "name": "Partie aus Grundstellung: Karte nicht im Deck wird abgelehnt",
+   "start": "initial",
+   "decks": {
+    "w": [
+     "sprint",
+     "shield",
+     "retreat",
+     "bulwark"
+    ],
+    "b": [
+     "sprint",
+     "shield",
+     "retreat",
+     "bulwark"
+    ]
+   },
+   "ults": {
+    "w": "fortress",
+    "b": "fortress"
+   },
+   "actions": [
+    "e2e4",
+    "card:focus"
+   ],
+   "expect": {
+    "placement": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR",
+    "side": "black",
+    "mana": {
+     "w": 1,
+     "b": 1
+    },
+    "status": "ongoing",
+    "rejectedAt": 1
+   }
+  }
+ ]
+}
