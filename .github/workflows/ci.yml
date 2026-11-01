@@ -93,7 +93,7 @@ jobs:
         working-directory: Backend/tests
         run: npm audit --audit-level=high
       - name: Known vulnerabilities in app and test dependencies
-        uses: google/osv-scanner-action/osv-scanner-action@v2.3.2
+        uses: google/osv-scanner-action/osv-scanner-action@v2.7.0
         with:
           scan-args: |-
             --lockfile=Backend/tests/package-lock.json
