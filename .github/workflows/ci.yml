@@ -22,7 +22,7 @@ jobs:
       - name: Block committed secrets
         run: bash Tools/ci/check-secrets.sh
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
