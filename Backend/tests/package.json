@@ -2,5 +2,5 @@
   "name": "rookraid-backend-tests",
   "private": true,
   "description": "Tests der Datenbank-Funktionen gegen ein lokales Postgres (siehe README.md)",
-  "dependencies": { "pg": "8.13.1" }
+  "dependencies": { "pg": "8.23.1" }
 }
