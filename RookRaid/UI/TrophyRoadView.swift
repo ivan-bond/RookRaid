@@ -22,6 +22,7 @@ struct TrophyRoadView: View {
     @State var burst: UInt64?
     /// Gesperrte Belohnung, die gerade angetippt wurde (zeigt kurz „noch X“).
     @State var peek: Int?
+    @State var showGuide = false
 
     struct RoadToast: Equatable {
         var shards = 0
@@ -90,7 +91,146 @@ struct TrophyRoadView: View {
             }
             .navigationBarHidden(true)
             .fullScreenCover(item: $chestToOpen) { c in ChestOpeningView(start: c) }
+            .sheet(isPresented: $showGuide) { pathGuide }
         }
+    }
+
+    /// Kurz erklärt, wie Belohnungen und Arenen auf dem Pfad funktionieren.
+    private var pathGuide: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    pathClimb
+                    pathGuideCard(title: L("Trophäenpfad"), tint: Theme.gold, art: {
+                        HStack(spacing: 8) {
+                            ForEach(Arena.all) { arena in
+                                VStack(spacing: 4) {
+                                    arenaMedal(arena, reached: true, size: 36)
+                                    Text("\(arena.number)")
+                                        .font(.system(size: 10, weight: .black, design: .rounded))
+                                        .foregroundColor(Theme.textMuted)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
+                    }, text: {
+                        Text(L("Sechs Arenen führen nach oben. Tippe ein Wappen, um dorthin zu springen."))
+                    })
+                    pathGuideCard(title: L("Truhen"), tint: Color(hex: 0xC084FC), art: {
+                        HStack(alignment: .bottom, spacing: 14) {
+                            ChestView(rarity: .wood, size: 52)
+                            ChestView(rarity: .gold, size: 58)
+                            ChestView(rarity: .magic, size: 64)
+                            ChestView(rarity: .legendary, size: 70)
+                            Spacer(minLength: 0)
+                            VStack(spacing: 6) {
+                                Image(systemName: "diamond.fill")
+                                    .font(.system(size: 22, weight: .black))
+                                    .foregroundColor(Color(hex: 0x7FE3FF))
+                                Image(systemName: "square.grid.3x3.fill")
+                                    .font(.system(size: 18, weight: .black))
+                                    .foregroundColor(Theme.gold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }, text: {
+                        Text(L("Alle 50 bis 150 Trophäen wartet eine Belohnung: Truhen, Splitter, Sammelbretter und an jeder neuen Arena eine Magische oder Legendäre Truhe. Abgerechnet wird nach deinem Rekord – wer abrutscht, behält seine Stufen."))
+                    })
+                    pathGuideCard(title: L("Rekord"), tint: Theme.gold, art: {
+                        HStack(spacing: 16) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "trophy.fill")
+                                    .font(.system(size: 36, weight: .black))
+                                    .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
+                                Text(L("Rekord"))
+                                    .font(.system(size: 11, weight: .black, design: .rounded))
+                                    .foregroundColor(Theme.gold)
+                            }
+                            Image(systemName: "arrow.down.right")
+                                .font(.system(size: 16, weight: .black))
+                                .foregroundColor(Theme.textMuted)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("2100")
+                                    .font(.system(size: 20, weight: .black, design: .rounded))
+                                    .foregroundColor(Theme.gold)
+                                Text("1800")
+                                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                                    .foregroundColor(Theme.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "gift.fill")
+                                .font(.system(size: 28, weight: .black))
+                                .foregroundColor(Theme.green)
+                        }
+                    }, text: {
+                        Text(L("Auf dem Trophäenpfad zählt dein Rekord – wer abrutscht, behält seine Belohnungen."))
+                    })
+                }
+                .padding(16)
+            }
+            .background(
+                ZStack {
+                    Theme.background.ignoresSafeArea()
+                    RadialGradient(colors: [Theme.gold.opacity(0.22), .clear], center: .top, startRadius: 10, endRadius: 420)
+                        .ignoresSafeArea()
+                }
+            )
+            .navigationTitle(L("So funktioniert der Pfad"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button(L("Fertig")) { showGuide = false } }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    /// Sechs Arenen als aufsteigender Weg, von unten links nach oben rechts.
+    private var pathClimb: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            ForEach(Arena.all) { arena in
+                if arena.number > 1 {
+                    Capsule()
+                        .fill(LinearGradient(colors: [Theme.gold.opacity(0.35), Theme.gold], startPoint: .leading, endPoint: .trailing))
+                        .frame(height: 4)
+                        .padding(.bottom, 22 + CGFloat(arena.number - 1) * 8)
+                }
+                VStack(spacing: 4) {
+                    arenaMedal(arena, reached: true, size: arena.number == 6 ? 46 : 34)
+                    Text("\(arena.number)")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, CGFloat(arena.number - 1) * 16)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 168)
+        .background(
+            RoundedRectangle(cornerRadius: 22)
+                .fill(LinearGradient(colors: [Color(hex: 0x3A2A12), Theme.panelRaised], startPoint: .top, endPoint: .bottom))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.gold.opacity(0.45), lineWidth: 1.5))
+    }
+
+    private func pathGuideCard<Art: View, Copy: View>(title: String, tint: Color, @ViewBuilder art: () -> Art, @ViewBuilder text: () -> Copy) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundColor(.white)
+            art()
+            text()
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Theme.panelRaised))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(tint.opacity(0.4), lineWidth: 1))
     }
 
     private func scrollToFocus(_ proxy: ScrollViewProxy) {
@@ -119,6 +259,17 @@ struct TrophyRoadView: View {
                     .font(.system(size: 30, weight: .black, design: .rounded))
                     .foregroundColor(Theme.textPrimary)
                     .lineLimit(1)
+                Button {
+                    Haptics.shared.play(.select)
+                    showGuide = true
+                } label: {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(Theme.gold)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L("So funktioniert der Pfad"))
                 Spacer(minLength: 8)
                 trophyPill
                     .fixedSize()

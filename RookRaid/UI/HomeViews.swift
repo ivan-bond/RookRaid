@@ -25,6 +25,8 @@ extension Notification.Name {
     static let showLadder = Notification.Name("RookRaidShowLadder")
     /// Zum Spielen-Tab wechseln und sofort „Kampf!“ starten (Ende der Deck-Werkstatt)
     static let startQuickBattle = Notification.Name("RookRaidStartQuickBattle")
+    /// Zu zweit an einem Gerät, ohne Trophäen (aus den Einstellungen)
+    static let startHotSeat = Notification.Name("RookRaidStartHotSeat")
     /// Zum Spielen-Tab wechseln und die erste wartende Truhe öffnen (Rockys Einladung)
     static let openPendingChest = Notification.Name("RookRaidOpenPendingChest")
 }
@@ -92,10 +94,10 @@ struct RootView: View {
     @ObservedObject private var account = OnlineAccount.shared
     @Environment(\.scenePhase) private var scenePhase
 
-    /// Nur der sichtbare Tab animiert – und keiner, solange eine Partie oder ein Puzzle im Vollbild läuft.
-    /// Der neue Tab animiert sofort (v0.9.28), der alte läuft weiter, bis er aus dem Bild geglitten ist.
+    /// Nur der ruhende, sichtbare Tab animiert. Während des Seitenwechsels stehen beide still:
+    /// sonst zeichnen zwei schwere Seiten gleichzeitig und der Wisch ruckelt.
     private func isLive(_ t: RootTab) -> Bool {
-        (tab == t || liveTab == t) && session == nil && puzzleSession == nil
+        tab == t && liveTab == t && session == nil && puzzleSession == nil
     }
 
     var body: some View {
@@ -147,11 +149,11 @@ struct RootView: View {
                 // Wer den Deck-Tab verlässt, hat die neuen Karten gesehen.
                 if lastTab == .deck && newTab != .deck { seenPending = true }
                 lastTab = newTab
-                // Profil speichern und Animationen umschalten erst nach der Seitenbewegung – sonst baut sich
-                // während des Wischens jeder Tab neu auf und die Bewegung ruckelt.
+                // Animationen erst nach dem Wisch. Ein withAnimation um den Tab würde jede Seite
+                // mitinterpolieren – der Pfad und die Startseite sind dafür zu schwer.
                 settleTask?.cancel()
                 settleTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 420_000_000)
+                    try? await Task.sleep(nanoseconds: 320_000_000)
                     guard !Task.isCancelled else { return }
                     if seenPending && tab != .deck {
                         seenPending = false
@@ -177,10 +179,10 @@ struct RootView: View {
                 RockyInviteOverlay(chestsWaiting: !store.pendingChests.isEmpty, onPrimary: {
                     if store.pendingChests.isEmpty {
                         withAnimation(.easeOut(duration: 0.25)) { showRockyInvite = false }
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = .deck }
+                        tab = .deck
                     } else {
                         withAnimation(.easeOut(duration: 0.25)) { showRockyInvite = false }
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = .play }
+                        tab = .play
                         NotificationCenter.default.post(name: .openPendingChest, object: nil)
                     }
                 }, onSecondary: {
@@ -188,7 +190,7 @@ struct RootView: View {
                     if store.pendingChests.isEmpty {
                         inviteSnoozed = true
                     } else {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = .deck }
+                        tab = .deck
                     }
                 })
                 .transition(.opacity)
@@ -219,21 +221,11 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsSheet() }
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in showSettings = true }
-        .onReceive(NotificationCenter.default.publisher(for: .showPuzzles)) { _ in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = .puzzles }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .showTrophyRoad)) { _ in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = .arena }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .showDeck)) { _ in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = .deck }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .showLadder)) { _ in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = .play }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .startQuickBattle)) { _ in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = .play }
-        }
+        .onReceive(NotificationCenter.default.publisher(for: .showPuzzles)) { _ in tab = .puzzles }
+        .onReceive(NotificationCenter.default.publisher(for: .showTrophyRoad)) { _ in tab = .arena }
+        .onReceive(NotificationCenter.default.publisher(for: .showDeck)) { _ in tab = .deck }
+        .onReceive(NotificationCenter.default.publisher(for: .showLadder)) { _ in tab = .play }
+        .onReceive(NotificationCenter.default.publisher(for: .startQuickBattle)) { _ in tab = .play }
         // Rockys Einladung: nach jeder geschlossenen Partie bzw. sobald alle Truhen offen sind
         .onChange(of: session?.id) { id in
             if id == nil {
@@ -309,21 +301,17 @@ struct RootTabBar: View {
         }
     }
 
-    private let left: [(RootTab, String, String)] = [
+    private let items: [(RootTab, String, String)] = [
         (.arena, L("Pfad"), "trophy.fill"),
-        (.puzzles, L("Puzzles"), "puzzlepiece.fill")
-    ]
-    private let right: [(RootTab, String, String)] = [
+        (.puzzles, L("Puzzles"), "puzzlepiece.fill"),
+        (.play, L("Spielen"), "bolt.fill"),
         (.deck, L("Deck"), "rectangle.stack.fill"),
         (.profile, L("Profil"), "person.crop.circle.fill")
     ]
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(left.indices, id: \.self) { i in sideItem(left[i]) }
-            // Platzhalter für den Spielen-Knopf – feste Höhe, sonst dehnt er sich über den halben Bildschirm aus
-            Color.clear.frame(width: 76, height: 1)
-            ForEach(right.indices, id: \.self) { i in sideItem(right[i]) }
+            ForEach(items.indices, id: \.self) { i in sideItem(items[i]) }
         }
         .fixedSize(horizontal: false, vertical: true)
         .padding(.top, 8)
@@ -333,11 +321,7 @@ struct RootTabBar: View {
                 .overlay(Rectangle().fill(Theme.panelHighlight).frame(height: 1), alignment: .top)
                 .ignoresSafeArea(edges: .bottom)
         )
-        // Der Spielen-Knopf ragt über die Leiste hinaus, ohne den Seiteninhalt zu verkleinern
-        .overlay(alignment: .bottom) {
-            playButton
-                .padding(.bottom, 4)
-        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: tab)
         .animation(.spring(response: 0.35, dampingFraction: 0.6), value: store.pendingChests.count)
         .animation(.spring(response: 0.35, dampingFraction: 0.6), value: store.claimableRoadSteps.count)
     }
@@ -345,7 +329,9 @@ struct RootTabBar: View {
     private func sideItem(_ item: (RootTab, String, String)) -> some View {
         let active = tab == item.0
         return Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = item.0 }
+            // Ohne withAnimation: der Seitenwechsel selbst gleitet, der Inhalt wird nicht mitanimiert.
+            guard tab != item.0 else { return }
+            tab = item.0
         } label: {
             VStack(spacing: 3) {
                 ZStack {
@@ -377,61 +363,6 @@ struct RootTabBar: View {
         .buttonStyle(.plain)
         .accessibilityLabel(item.1)
         .accessibilityValue(badge(item.0).count > 0 ? L("{0} neu", badge(item.0).count) : "")
-        .accessibilityAddTraits(active ? .isSelected : [])
-    }
-
-    /// „Spielen“ in der Mitte (v0.9.26 kleiner): Aktiv ist der Knopf eine goldene Scheibe mit Strahlenkranz und
-    /// goldenem Balken unter der Schrift; inaktiv ein dunkler Knopf mit goldenem Ring, gedämpftem Rocky und grauer Schrift.
-    private var playButton: some View {
-        let active = tab == .play
-        let disc: CGFloat = 48
-        return Button {
-            Haptics.shared.play(active ? .select : .cardWhoosh)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { tab = .play }
-        } label: {
-            VStack(spacing: 2) {
-                ZStack {
-                    // Strahlenkranz nur, wenn „Spielen“ aktiv ist
-                    LightRays(color: Theme.gold, count: 10, speed: 0.35, paused: !active)
-                        .frame(width: 72, height: 72)
-                        .clipShape(Circle())
-                        .opacity(active ? 0.6 : 0)
-                    Circle()
-                        .fill(active
-                              ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold, Color(hex: 0xD9861C)], startPoint: .top, endPoint: .bottom))
-                              : AnyShapeStyle(LinearGradient(colors: [Theme.panelRaised, Theme.backgroundDeep], startPoint: .top, endPoint: .bottom)))
-                        .frame(width: disc, height: disc)
-                        .shadow(color: active ? Color(hex: 0x8A5410) : .black.opacity(0.5), radius: 0, y: 3)
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: disc - 10, height: disc - 10)
-                        .clipShape(Circle())
-                        .overlay(Circle().strokeBorder(Theme.navy, lineWidth: 2))
-                        .saturation(active ? 1 : 0.55)
-                        .opacity(active ? 1 : 0.85)
-                    Circle()
-                        .strokeBorder(active ? Color.white.opacity(0.9) : Theme.gold.opacity(0.7), lineWidth: 2)
-                        .frame(width: disc, height: disc)
-                }
-                .frame(width: 72, height: 50)
-                .scaleEffect(active ? 1.06 : 1)
-                .overlay(alignment: .topTrailing) {
-                    badgeView(badge(.play))
-                        .offset(x: -6, y: 2)
-                }
-                Text(L("Spielen"))
-                    .font(.system(size: 10, weight: active ? .black : .semibold, design: .rounded))
-                    .foregroundColor(active ? Theme.gold : Theme.textMuted)
-                Capsule()
-                    .fill(Theme.gold)
-                    .frame(width: active ? 20 : 0, height: 3)
-                    .opacity(active ? 1 : 0)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(badge(.play).count > 0 ? L("{0}, {1} neu", L("Spielen"), badge(.play).count) : L("Spielen"))
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
@@ -467,7 +398,6 @@ struct HomeView: View {
     @Binding var session: GameSession?
     @Binding var puzzleSession: PuzzleSession?
     @Binding var tab: RootTab
-    @State var showSetup = false
     @State var showLadder = false
     @State var chestToOpen: Chest?
     @State var showDaily = false
@@ -527,22 +457,12 @@ struct HomeView: View {
                                                             timeControl: .none))
                 }
             }
-            .sheet(isPresented: $showSetup) {
-                PlaySetupSheet(onSave: { time, white in
-                    var settings = store.profile.settings
-                    settings.timeControl = time
-                    settings.playAsWhite = white
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { store.profile.settings = settings }
-                    Haptics.shared.play(.select)
-                    showSetup = false
-                }, onHotSeat: {
-                    showSetup = false
-                    afterSheet { start(mode: .hotSeat, humanColor: .white) }
-                })
+            .onReceive(NotificationCenter.default.publisher(for: .startHotSeat)) { _ in
+                afterSheet { start(mode: .hotSeat, humanColor: .white) }
             }
             // Ohne volles Deck kein Spiel (v0.9.31) – falls ein Weg am Kampf-Knopf vorbeiführt (Tagesziel, Zu zweit)
             .alert(L("Dein Deck braucht 4 Karten"), isPresented: $showEmptyDeck) {
-                Button(L("Zum Deck")) { withAnimation { tab = .deck } }
+                Button(L("Zum Deck")) { tab = .deck }
                 Button(L("Abbrechen"), role: .cancel) {}
             } message: {
                 Text(L("Du hast {0} von {1} Karten. Stell dein Deck fertig, dann geht's los.", store.activeDeck.count, PlayerDeck.size))
@@ -601,15 +521,10 @@ struct HomeView: View {
             }
             BattleHeroCard(compact: compact, large: large,
                            onBattle: quickBattle,
-                           onSettings: { showSetup = true },
-                           onDeck: { withAnimation { tab = .deck } },
-                           onArena: { withAnimation { tab = .arena } })
-            ChestSlotsBar(compact: compact, onOpen: { chestToOpen = $0 }, onDaily: { showDaily = true })
-            HStack(alignment: .top, spacing: 10) {
-                LadderTile(compact: compact) { showLadder = true }
-                RockyTipCard(compact: compact)
-            }
-            .fixedSize(horizontal: false, vertical: true)
+                           onChests: { showDaily = true },
+                           onDeck: { tab = .deck },
+                           onArena: { tab = .arena })
+            LadderTile(compact: compact) { showLadder = true }
         }
         .padding(.horizontal, 16)
         .padding(.top, compact ? 4 : 8)
@@ -631,7 +546,7 @@ struct HomeView: View {
                     .minimumScaleFactor(0.8)
             }
             .layoutPriority(-1)
-            Spacer(minLength: 2)
+            Spacer(minLength: 8)
             FlameBadge()
             ShardPill()
             HStack(spacing: 4) {
@@ -644,7 +559,7 @@ struct HomeView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Capsule().fill(Theme.panelRaised))
-            .onTapGesture { withAnimation { tab = .arena } }
+            .onTapGesture { tab = .arena }
         }
     }
 
@@ -783,7 +698,11 @@ struct HomeView: View {
             return
         }
         store.clearGame()
-        let tc = mode.isBot ? store.profile.settings.timeControl : .none
+        // Kampf ist fest 5 | 0. Zu zweit am Gerät läuft ohne Uhr und ohne Trophäen.
+        let tc: TimeControl = {
+            if case .bot = mode { return .blitz5 }
+            return .none
+        }()
         session = GameSession(vm: GameViewModel(mode: mode, humanColor: humanColor, timeControl: tc))
     }
 
@@ -807,7 +726,7 @@ struct BounceOnlyIfNeeded: ViewModifier {
     }
 }
 
-/// Level im Kreis mit XP-Ring.
+/// Level-Zahl im Kreis mit XP-Ring. Die Zahl selbst ist das Zeichen, ohne Logo.
 struct LevelBadge: View {
     let level: Int
     let progress: Double
@@ -815,26 +734,17 @@ struct LevelBadge: View {
     var body: some View {
         ZStack {
             Circle().fill(Theme.panelRaised)
-            Circle().stroke(Theme.panelHighlight, lineWidth: 4)
+            Circle().stroke(Theme.panelHighlight, lineWidth: 3.5)
             Circle()
                 .trim(from: 0, to: progress)
-                .stroke(Theme.manaLight, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .stroke(Theme.manaLight, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            Image("Logo")
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .clipShape(Circle())
-                .padding(6)
             Text("\(level)")
-                .font(.system(size: 11, weight: .black, design: .rounded))
-                .foregroundColor(Theme.manaText)
-                .frame(minWidth: 18, minHeight: 18)
-                .background(Circle().fill(Theme.manaLight))
-                .overlay(Circle().strokeBorder(Theme.background, lineWidth: 2))
-                .offset(x: 17, y: 17)
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundColor(.white)
+                .minimumScaleFactor(0.6)
         }
-        .frame(width: 48, height: 48)
+        .frame(width: 40, height: 40)
         .accessibilityLabel(L("Level {0}", level))
     }
 }
@@ -871,7 +781,7 @@ struct ContinueBanner: View {
 }
 
 /// Das Herzstück der Startseite: eine Bühne in der Landschaft deiner Arena. Oben der Weg zur nächsten Belohnung,
-/// in der Mitte du auf deinem Podest mit deinem Deck als aufgefächerter Hand, darunter der große Kampf-Knopf.
+/// darunter du und dein Deck untereinander, dann der große Kampf-Knopf. Die Truhen sitzen klein in der Ecke.
 /// Seit v0.9.24 ohne festen Gegner („vs Bot …“): Gegner werden nach Trophäen gesucht – bereit für Online-Kämpfe.
 struct BattleHeroCard: View {
     @Environment(\.liveAnimations) private var live
@@ -881,14 +791,14 @@ struct BattleHeroCard: View {
     /// Viel Platz: größerer Avatar und größere Karten, die Bühne wächst mit
     var large = false
     let onBattle: () -> Void
-    let onSettings: () -> Void
+    let onChests: () -> Void
     let onDeck: () -> Void
     let onArena: () -> Void
 
     var body: some View {
         let arena = store.arena
         let colors = ArenaPalette.colors(arena.number)
-        VStack(spacing: compact ? 10 : 14) {
+        VStack(spacing: compact ? 12 : 16) {
             arenaRow
             stage(colors: colors)
                 .frame(maxHeight: .infinity)
@@ -910,41 +820,72 @@ struct BattleHeroCard: View {
 
     // MARK: Bühne
 
-    /// Links du auf einem leuchtenden Podest, rechts dein Deck – beides tippbar.
+    /// Du auf dem Podest, darunter das Deck – der leere Platz in der Bühne wird dafür genutzt.
     private func stage(colors: [Color]) -> some View {
         let s = store.profile.settings
-        let avatarSize: CGFloat = compact ? 66 : (large ? 108 : 86)
-        return HStack(alignment: .center, spacing: 10) {
-            VStack(spacing: 3) {
-                ZStack(alignment: .bottom) {
-                    // Podest in Arenafarbe
-                    Ellipse()
-                        .fill(RadialGradient(colors: [colors[0].opacity(0.75), colors[0].opacity(0)], center: .center,
-                                             startRadius: 2, endRadius: avatarSize * 0.6))
-                        .frame(width: avatarSize * 1.35, height: avatarSize * 0.32)
-                        .offset(y: avatarSize * 0.1)
-                    PlayerAvatar(size: avatarSize, pieceColor: s.playAsWhite ? .white : .black)
-                        .modifier(RoadBob(active: true, amplitude: 2.5, speed: 2.2))
-                        .padding(.bottom, avatarSize * 0.06)
+        let avatarSize: CGFloat = compact ? 92 : (large ? 128 : 112)
+        return ZStack(alignment: .topTrailing) {
+            VStack(spacing: compact ? 14 : 18) {
+                Spacer(minLength: 0)
+                VStack(spacing: 6) {
+                    ZStack(alignment: .bottom) {
+                        Ellipse()
+                            .fill(RadialGradient(colors: [colors[0].opacity(0.75), colors[0].opacity(0)], center: .center,
+                                                 startRadius: 2, endRadius: avatarSize * 0.7))
+                            .frame(width: avatarSize * 1.5, height: avatarSize * 0.36)
+                            .offset(y: avatarSize * 0.1)
+                        PlayerAvatar(size: avatarSize, pieceColor: s.playAsWhite ? .white : .black)
+                            .modifier(RoadBob(active: true, amplitude: 3, speed: 2.2))
+                            .padding(.bottom, avatarSize * 0.06)
+                    }
+                    Text(store.profile.name)
+                        .font(.system(size: compact ? 18 : 22, weight: .heavy, design: .rounded))
+                        .foregroundColor(Theme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    Text((store.activeTitle ?? ProfileStore.rank(for: store.level)).uppercased())
+                        .font(.system(size: compact ? 11 : 13, weight: .black, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundColor(Theme.blueLight)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
-                Text(store.profile.name)
-                    .font(.system(size: compact ? 14 : 16, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Text((store.activeTitle ?? ProfileStore.rank(for: store.level)).uppercased())
-                    .font(.system(size: 9, weight: .black, design: .rounded))
-                    .tracking(1)
-                    .foregroundColor(Theme.blueLight)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                .accessibilityElement(children: .combine)
+                deckFan
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .combine)
-
-            deckFan
-                .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            chestButton
         }
+    }
+
+    /// Kleines Truhen-Symbol in der Bühne, nicht in der Kopfzeile.
+    private var chestButton: some View {
+        let waiting = store.pendingChests.count + (store.dailyChestReady ? 1 : 0)
+        return Button {
+            Haptics.shared.play(.select)
+            onChests()
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(waiting > 0 ? Theme.gold : Theme.textSecondary)
+                    .frame(width: 40, height: 36)
+                    .background(Capsule().fill(Color.black.opacity(0.35)))
+                    .overlay(Capsule().strokeBorder(Theme.gold.opacity(waiting > 0 ? 0.7 : 0.25), lineWidth: 1))
+                if waiting > 0 {
+                    Text("\(min(waiting, 9))")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
+                        .frame(width: 16, height: 16)
+                        .background(Circle().fill(Theme.red))
+                        .offset(x: 4, y: -4)
+                }
+            }
+            .modifier(Jiggle(active: waiting > 0, amplitude: 3, period: 1.4))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L("Truhen"))
     }
 
     // MARK: Deck
@@ -960,19 +901,19 @@ struct BattleHeroCard: View {
         let avgMana = store.activeDeck.isEmpty ? 0 : Double(store.activeDeck.map(\.cost).reduce(0, +)) / Double(store.activeDeck.count)
         return Button(action: onDeck) {
             VStack(spacing: compact ? 4 : 6) {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Text(L("DEIN DECK"))
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .tracking(1.2)
+                        .font(.system(size: compact ? 11 : 13, weight: .black, design: .rounded))
+                        .tracking(1.4)
                         .foregroundColor(Theme.gold)
                     Image(systemName: "pencil.circle.fill")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: compact ? 14 : 16, weight: .bold))
                         .foregroundColor(Theme.blueLight)
                 }
-                HStack(spacing: compact ? -12 : -10) {
+                HStack(spacing: compact ? -16 : -14) {
                     ForEach(Array(deck.enumerated()), id: \.offset) { i, item in
                         let k = Double(i) - mid
-                        let w: CGFloat = compact ? 34 : (large ? 50 : 40)
+                        let w: CGFloat = compact ? 48 : (large ? 68 : 60)
                         Group {
                             if item.0.isEmpty {
                                 RoundedRectangle(cornerRadius: w * 0.2)
@@ -1009,32 +950,27 @@ struct BattleHeroCard: View {
 
     // MARK: Gegnersuche
 
-    /// Unter dem Kampf-Knopf: wie gesucht wird (Trophäen) und mit welcher Uhr und Farbe – Tipp öffnet die Einstellungen.
+    /// Unter dem Kampf-Knopf: feste Zeit 5 | 0 und wie der Gegner gesucht wird.
     private var matchRow: some View {
-        let s = store.profile.settings
-        return Button(action: onSettings) {
-            HStack(spacing: 6) {
-                HStack(spacing: 4) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 10, weight: .black))
-                    Text(L("Gegner mit ähnlich vielen Trophäen"))
-                        .font(.system(size: 11, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                .foregroundColor(Theme.textSecondary)
-                .layoutPriority(-1)
-                Spacer(minLength: 4)
-                if OnlineConfig.isLive, let notice = rules.lock.title {
-                    SettingChip(icon: "exclamationmark.triangle.fill", text: notice, gold: true)
-                } else {
-                    SettingChip(icon: "timer", text: OnlineConfig.isLive ? OnlineConfig.timeControl.name : s.timeControl.name)
-                }
-                SettingChip(icon: "circle.lefthalf.filled", text: s.playAsWhite ? L("Weiß") : L("Schwarz"))
+        HStack(spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 11, weight: .black))
+                Text(L("Gegner mit ähnlich vielen Trophäen"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundColor(Theme.textSecondary)
+            .layoutPriority(-1)
+            Spacer(minLength: 4)
+            if OnlineConfig.isLive, let notice = rules.lock.title {
+                SettingChip(icon: "exclamationmark.triangle.fill", text: notice, gold: true)
+            } else {
+                SettingChip(icon: "timer", text: TimeControl.blitz5.name, gold: true)
             }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(L("Einstellungen: {0}, {1}. Tippen zum Ändern", s.timeControl.name, s.playAsWhite ? L("Weiß") : L("Schwarz")))
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Kampf-Knopf
@@ -1184,71 +1120,6 @@ struct BattleHeroCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(ready > 0 ? L("Trophäenpfad: {0} Belohnungen abholen", ready) : L("Trophäenpfad öffnen"))
-    }
-}
-
-/// Rocky gibt Tipps – ein Tipp auf die Kachel zeigt den nächsten. Seit v0.9.24 eine halbe Kachel neben der Bot-Leiter.
-struct RockyTipCard: View {
-    var compact = false
-    @State private var index = Int.random(in: 0..<8)
-
-    private var tips: [String] {
-        [L("Frost stoppt eine gegnerische Figur – und danach ziehst du trotzdem noch selbst."),
-         L("Jeder Zug bringt +1 Mana – schlägst du, gibst Schach oder spielst eine Taktik, gibt es +1 extra."),
-         L("Gabeln, Fesselungen und Spieße bringen dir extra Mana."),
-         L("Der König ist immun gegen Karten – gegen ein gutes Matt aber nicht."),
-         L("Spar dir Mana für deine Ultimate: Zur rechten Zeit dreht sie jede Partie."),
-         L("Jedes 5. gelöste Puzzle bringt eine Truhe."),
-         L("Auf dem Trophäenpfad zählt dein Rekord – wer abrutscht, behält seine Belohnungen."),
-         L("Schild schützt eine Figur bis zum Ende des nächsten gegnerischen Zugs.")]
-    }
-
-    var body: some View {
-        let list = tips
-        Button {
-            Haptics.shared.play(.select)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { index = (index + 1) % list.count }
-        } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 6) {
-                    Image("Logo")
-                        .resizable()
-                        .interpolation(.high)
-                        .scaledToFit()
-                        .frame(width: 26, height: 26)
-                        .clipShape(Circle())
-                        .overlay(Circle().strokeBorder(Theme.gold, lineWidth: 1.5))
-                        .modifier(Jiggle(active: true, amplitude: 4, period: 2.6))
-                    Text(L("ROCKYS TIPP"))
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundColor(Theme.gold)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Spacer(minLength: 0)
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(Theme.textMuted)
-                }
-                Text(list[index % list.count])
-                    .font(.system(size: compact ? 11 : 12, weight: .semibold))
-                    .foregroundColor(Theme.textPrimary)
-                    .lineLimit(compact ? 3 : 4)
-                    .minimumScaleFactor(0.85)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .id(index)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
-                Spacer(minLength: 0)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .frame(height: compact ? 92 : 108)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.panelRaised))
-            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.gold.opacity(0.25), lineWidth: 1))
-            .clipped()
-        }
-        .buttonStyle(PressScaleStyle())
-        .accessibilityHint(L("Tippen für den nächsten Tipp"))
     }
 }
 
@@ -1469,114 +1340,6 @@ struct MiniBoardHero: View {
         .aspectRatio(1, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .shadow(color: .black.opacity(0.4), radius: 10, y: 6)
-    }
-}
-
-// MARK: - Spiel einrichten
-
-struct PlaySetupSheet: View {
-    @ObservedObject private var store = ProfileStore.shared
-    /// Speichert die Auswahl – gestartet wird auf der Startseite mit „Kampf!“.
-    let onSave: (TimeControl, Bool) -> Void
-    /// „Zu zweit an einem Gerät“ starten
-    var onHotSeat: (() -> Void)? = nil
-    @State private var time: TimeControl = .blitz3
-    @State private var white = true
-
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack {
-            Theme.background.ignoresSafeArea()
-            // Passt der Inhalt auf den Bildschirm, gibt es keinen ScrollView – dann greift
-            // das Herunterwischen des Fensters immer. Nur bei großer Schrift wird gescrollt.
-            ViewThatFits(in: .vertical) {
-                content
-                ScrollView { content }
-            }
-        }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(false)
-        .onAppear {
-            time = store.profile.settings.timeControl
-            white = store.profile.settings.playAsWhite
-        }
-    }
-
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(L("Partie einstellen"))
-                    .font(.system(size: 24, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(Theme.textSecondary)
-                        .frame(width: 44, height: 44)
-                        .background(Circle().fill(Theme.panelRaised))
-                }
-                .accessibilityLabel(L("Schließen"))
-            }
-            .padding(.top, 20)
-
-            SectionHeader(title: L("Bedenkzeit"))
-            segmented(TimeControl.offlineChoices.map { t in (t.name, t == time, { time = t }) })
-
-            SectionHeader(title: L("Deine Farbe"))
-            segmented([(L("Weiß"), white, { white = true }), (L("Schwarz"), !white, { white = false })])
-
-            Text(L("Deck und Ultimate stellst du im Tab „Deck“ ein. Den Gegner bestimmen deine Trophäen."))
-                .font(.footnote)
-                .foregroundColor(Theme.textSecondary)
-
-            Button {
-                onSave(time, white)
-            } label: {
-                Label(L("Speichern"), systemImage: "checkmark")
-            }
-            .buttonStyle(ChunkyButtonStyle())
-            .padding(.top, 6)
-
-            if let onHotSeat {
-                Button(action: onHotSeat) {
-                    Label(L("Zu zweit an einem Gerät spielen"), systemImage: "person.2.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(Theme.textPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
-                }
-                .buttonStyle(.plain)
-                .padding(.bottom, 10)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 20)
-    }
-
-    private func segmented(_ items: [(String, Bool, () -> Void)]) -> some View {
-        HStack(spacing: 6) {
-            ForEach(0..<items.count, id: \.self) { i in
-                let item = items[i]
-                Button {
-                    item.2()
-                    Haptics.shared.play(.select)
-                } label: {
-                    Text(item.0)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(item.1 ? .white : Theme.textSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 42)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(item.1 ? Theme.greenDark : Theme.panelRaised))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(item.1 ? Theme.green : .clear, lineWidth: 2))
-                }
-                .buttonStyle(.plain)
-            }
-        }
     }
 }
 

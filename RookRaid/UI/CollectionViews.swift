@@ -5,7 +5,6 @@ import SwiftUI
 /// Deck bauen – aufgeräumt in drei klaren Teilen:
 /// 1. Oben angeheftet dein Kampfdeck (4 Karten + Ultimate) mit Steckbrief und drei Knöpfen: Vorlagen, Ultimate, Testen.
 /// 2. Darunter die Sammlung mit Filter nach Rolle – ein einziges Raster statt vieler Abschnitte.
-/// 3. Ganz unten die nächsten Level-Truhen.
 /// Tauschen: Karte unten antippen, dann die Karte im Deck, die raus soll (oder umgekehrt).
 /// Hinweise erscheinen kurz als Blase unten, statt dauerhaft Platz zu belegen.
 struct DeckView: View {
@@ -53,8 +52,6 @@ struct DeckView: View {
                                 collectionSection
                                     .padding(.horizontal, 14)
                                     .padding(.top, 4)
-                                unlockRoad
-                                    .padding(.horizontal, 14)
                             }
                         }
                         // Während der Tour Platz für Rockys Blase lassen, damit alles erreichbar bleibt
@@ -143,7 +140,9 @@ struct DeckView: View {
             Text(L("Deck"))
                 .font(.system(size: 30, weight: .black, design: .rounded))
                 .foregroundColor(Theme.textPrimary)
-            Spacer()
+                .lineLimit(1)
+            rockyButton
+            Spacer(minLength: 8)
             ShardPill()
         }
         .padding(.top, 10)
@@ -200,7 +199,6 @@ struct DeckView: View {
                     .font(.system(size: 11, weight: .black, design: .rounded))
                     .tracking(1.3)
                     .foregroundColor(Theme.blueLight)
-                rockyButton
                 Spacer()
                 // Steckbrief: Ø Mana, Bonusaktionen, Rollen als Farbpunkte
                 HStack(spacing: 6) {
@@ -543,55 +541,6 @@ struct DeckView: View {
         .accessibilityLabel(L("{0}, {1} Mana, {2}", card.name, card.cost, card.tier.name) + (store.isNew(card) ? L(", neu") : "") + (inDeck ? L(", im Deck") : "") + (unlocked ? "" : L(", gesperrt, {0} Splitter", card.tier.price)))
     }
 
-    // MARK: Level-Pfad (kompakt)
-
-    private var unlockRoad: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(L("Nächste Level-Truhen"))
-                    .font(.system(size: 14, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                Spacer()
-                Text(L("Level {0} · noch {1} XP", store.level, store.levelProgress.remaining))
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(Theme.textMuted)
-            }
-            HStack(spacing: 8) {
-                ForEach(store.upcomingRoad(count: 4)) { step in
-                    roadStep(step)
-                }
-            }
-        }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
-    }
-
-    private func roadStep(_ step: LevelRoadStep) -> some View {
-        VStack(spacing: 3) {
-            Text(L("Lv {0}", step.level))
-                .font(.system(size: 10, weight: .black, design: .rounded))
-                .foregroundColor(Theme.textSecondary)
-            ChestView(rarity: step.rarity, size: 36)
-            Group {
-                switch step.guarantee {
-                case .card(let c)?:
-                    Text(store.isUnlocked(c) ? L("Zufall") : c.name)
-                        .foregroundColor(Color(hex: c.tier.colorHex))
-                case .tier(let t)?:
-                    Text(t.name).foregroundColor(Color(hex: t.colorHex))
-                case nil:
-                    Text(step.rarity.shortName).foregroundColor(Theme.textMuted)
-                }
-            }
-            .font(.system(size: 9, weight: .bold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.background.opacity(0.6)))
-    }
-
     // MARK: Fenster: Vorlagen
 
     private var presetSheet: some View {
@@ -715,7 +664,7 @@ struct DeckView: View {
 
     // MARK: Rockys Deck-Werkstatt
 
-    /// Kleiner Rocky neben „Dein Kampfdeck“: startet die Tour (erneut).
+    /// Kleiner Rocky neben dem Titel „Deck“: startet die Tour (erneut).
     private var rockyButton: some View {
         Button {
             Haptics.shared.play(.cardWhoosh)

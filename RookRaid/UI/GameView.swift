@@ -138,6 +138,7 @@ struct GameView: View {
             if let info = vm.gameOver {
                 GameOverOverlay(info: info, onRematch: { vm.restart() }, onExit: { dismiss() },
                                 next: nextGame(after: info),
+                                allowsRematch: vm.onlineBotPlay == nil && !vm.mode.isOnline,
                                 onOpenChest: { openEarnedChests(info) })
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
@@ -311,25 +312,7 @@ struct PlayerBar: View {
         let balance = vm.state.materialBalance(for: color)
 
         HStack(spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(color == .white ? Color(hex: 0xE8E6E3) : Color(hex: 0x1B1A18))
-                if (vm.onlineBotPlay != nil || vm.mode.isOnline), color != vm.humanColor {
-                    // Bot-Ersatz: wie ein Mensch – kein CPU-Symbol (E1)
-                    PieceImage(type: .knight, color: color, skin: nil).padding(3)
-                } else if vm.mode.isBot && color != vm.humanColor, let skin = vm.skin(for: color) {
-                    // Der König aus dem Figurenset des Bots
-                    PieceImage(type: .king, color: color, skin: skin).padding(2)
-                } else if vm.mode.isBot && color != vm.humanColor {
-                    Image(systemName: "cpu")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(color == .white ? .black : .white)
-                } else {
-                    PieceImage(type: .knight, color: color, skin: vm.skin(for: color)).padding(3)
-                }
-            }
-            .frame(width: 32, height: 32)
-            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(color == vm.perspective ? Theme.blue : Theme.red, lineWidth: active ? 2.5 : 1))
+            portrait(active: active)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -363,6 +346,40 @@ struct PlayerBar: View {
             if vm.timeControl.isTimed {
                 LiveClockView(clock: vm.clock, color: color, active: active)
             }
+        }
+    }
+
+    /// Gegen einen verkleideten Bot (oder einen Menschen) stehen die echten Avatare in der Leiste.
+    /// Charaktere der Leiter behalten ihren König.
+    @ViewBuilder
+    private func portrait(active: Bool) -> some View {
+        let ring = color == vm.perspective ? Theme.blue : Theme.red
+        if let card = vm.onlineOpponent {
+            if color == vm.humanColor {
+                PlayerAvatar(size: 34, pieceColor: color)
+                    .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
+            } else {
+                PlayerAvatar(size: 34, pieceColor: color,
+                             frame: card.frame.flatMap(AvatarFrame.init(rawValue:)) ?? .none,
+                             avatar: Avatar(rawValue: card.avatar) ?? .knight)
+                    .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
+            }
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(color == .white ? Color(hex: 0xE8E6E3) : Color(hex: 0x1B1A18))
+                if vm.mode.isBot && color != vm.humanColor, let skin = vm.skin(for: color) {
+                    PieceImage(type: .king, color: color, skin: skin).padding(2)
+                } else if vm.mode.isBot && color != vm.humanColor {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(color == .white ? .black : .white)
+                } else {
+                    PieceImage(type: .knight, color: color, skin: vm.skin(for: color)).padding(3)
+                }
+            }
+            .frame(width: 32, height: 32)
+            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(ring, lineWidth: active ? 2.5 : 1))
         }
     }
 }

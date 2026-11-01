@@ -435,6 +435,7 @@ struct Profile: Codable {
 enum GameMode: Codable, Equatable {
     /// „Kampf!“: Gegner passend zu den Trophäen, gewertet
     case bot(BotLevel)
+    /// Zu zweit an einem Gerät: ohne Trophäen
     case hotSeat
     /// Geführte erste Partie
     case tutorial

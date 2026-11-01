@@ -110,7 +110,6 @@ struct ProfileStats {
 /// Profil-Banner: Avatar mit Level-Ring, Rang, Name, XP-Balken und drei Kennzahlen.
 struct ProfileHeroCard: View {
     @ObservedObject var store = ProfileStore.shared
-    @FocusState private var editing: Bool
     var onAvatar: (() -> Void)?
 
     init(onAvatar: (() -> Void)? = nil) { self.onAvatar = onAvatar }
@@ -134,18 +133,12 @@ struct ProfileHeroCard: View {
                         .padding(.horizontal, 14)
                         .frame(height: 20)
                         .background(RibbonShape().fill(LinearGradient(colors: [CardStyle.ultimateTop, Theme.gold], startPoint: .top, endPoint: .bottom)))
-                    HStack(spacing: 6) {
-                        TextField(L("Name"), text: $store.profile.name)
-                            .font(.system(size: 24, weight: .heavy, design: .rounded))
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.35), radius: 0, y: 2)
-                            .submitLabel(.done)
-                            .focused($editing)
-                        Image(systemName: "pencil")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(Theme.textMuted)
-                            .onTapGesture { editing = true }
-                    }
+                    Text(store.profile.name)
+                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.35), radius: 0, y: 2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule().fill(Color.black.opacity(0.35))

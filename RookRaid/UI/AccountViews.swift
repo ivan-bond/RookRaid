@@ -385,3 +385,66 @@ struct OnlineNameSheet: View {
         }
     }
 }
+
+/// Spielername ohne Online-Konto: gilt nur auf diesem iPhone. Mit Konto bleibt die Änderung im Konto-Bereich.
+struct LocalNameSheet: View {
+    @ObservedObject private var store = ProfileStore.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @FocusState private var focused: Bool
+
+    private var trimmed: String { name.trimmingCharacters(in: .whitespaces) }
+    private var valid: Bool { OnlineAccount.isValidName(trimmed) }
+    private var unchanged: Bool { trimmed.lowercased() == store.profile.name.lowercased() }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                TextField(L("Spielername"), text: $name)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+                    .focused($focused)
+                    .submitLabel(.done)
+                    .onSubmit { if valid && !unchanged { save() } }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.panelRaised))
+                Text(L("2–16 Zeichen: Buchstaben, Ziffern, Leerzeichen, _ . - (kein Leerzeichen am Anfang oder Ende)"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(valid || trimmed.isEmpty ? Theme.textMuted : Theme.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(action: save) {
+                    Text(L("Speichern"))
+                        .font(.system(size: 16, weight: .heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(14)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(valid && !unchanged ? Theme.green : Theme.panelHighlight))
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(.plain)
+                .disabled(!valid || unchanged)
+                Spacer()
+            }
+            .padding(16)
+            .background(Theme.background.ignoresSafeArea())
+            .navigationTitle(L("Spielername ändern"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button(L("Abbrechen")) { dismiss() } }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            name = store.profile.name
+            focused = true
+        }
+    }
+
+    private func save() {
+        guard valid, !unchanged else { return }
+        store.profile.name = trimmed
+        Haptics.shared.play(.select)
+        dismiss()
+    }
+}

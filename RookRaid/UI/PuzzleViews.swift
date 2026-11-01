@@ -10,7 +10,7 @@ struct PuzzleSession: Identifiable {
 struct PuzzleHubView: View {
     @ObservedObject var store = ProfileStore.shared
     @Binding var session: PuzzleSession?
-    @State var category: PuzzleCategory?
+    @State var showAdventure = false
     @State var showRush = false
 
     /// Die vier Puzzle-Gruppen, jede als kompakte Karte mit Fortschrittsring.
@@ -80,21 +80,6 @@ struct PuzzleHubView: View {
                             if let daily = store.dailyPuzzle { dailyCard(daily) }
                             rushCard
                         }
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(L("Wähle dein Abenteuer"))
-                                .font(.system(size: 20, weight: .black, design: .rounded))
-                                .foregroundColor(Theme.textPrimary)
-                            Spacer()
-                            Text(L("{0} von {1} gelöst", store.profile.solvedPuzzles.count, PuzzleCatalog.all.count))
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(Theme.textMuted)
-                        }
-                        .padding(.top, 2)
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                            ForEach(PuzzleCategory.allCases) { c in
-                                categoryCard(c)
-                            }
-                        }
                         Spacer(minLength: 24)
                     }
                     .padding(.horizontal, 16)
@@ -102,7 +87,7 @@ struct PuzzleHubView: View {
                 }
             }
             .navigationBarHidden(true)
-            .sheet(item: $category) { c in categorySheet(c) }
+            .sheet(isPresented: $showAdventure) { adventureSheet }
             .fullScreenCover(isPresented: $showRush) { PuzzleRushView() }
         }
     }
@@ -144,58 +129,59 @@ struct PuzzleHubView: View {
         }
     }
 
-    /// Großes „Nächstes Puzzle“: Mini-Brett mit der echten Stellung, Ziel, Sterne, XP und ein dicker Los-Knopf.
+    /// Großes „Nächstes Puzzle“: Mini-Brett mit der echten Stellung, Ziel, Sterne, XP, ein dicker Los-Knopf
+    /// und der Eingang zu den vier Abenteuern.
     private var heroCard: some View {
         let next = store.nextPuzzle
-        return Button {
-            if let next { open(next, daily: false) }
-        } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 14) {
-                    ZStack {
-                        if let next {
-                            FloatingThumbnail(fen: next.fen)
-                                .frame(width: 118, height: 118)
-                        }
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                ZStack {
+                    if let next {
+                        FloatingThumbnail(fen: next.fen)
+                            .frame(width: 118, height: 118)
                     }
-                    .frame(width: 124, height: 124)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L("NÄCHSTES PUZZLE"))
-                            .font(.system(size: 10, weight: .black, design: .rounded))
-                            .tracking(1.4)
-                            .foregroundColor(Color(hex: 0xC9B8FF))
-                        Text(next?.goal.title ?? L("Alles gelöst!"))
-                            .font(.system(size: 24, weight: .black, design: .rounded))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        if let next {
-                            HStack(spacing: 2) {
-                                ForEach(1...3, id: \.self) { i in
-                                    Image(systemName: i <= next.difficulty ? "star.fill" : "star")
-                                        .font(.system(size: 13, weight: .black))
-                                        .foregroundColor(i <= next.difficulty ? Theme.gold : Theme.textMuted)
-                                }
-                                Text(next.difficultyName)
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(Theme.textSecondary)
-                                    .padding(.leading, 4)
-                            }
-                            HStack(spacing: 6) {
-                                if next.isRookRaid {
-                                    chip(L("mit Karten"), icon: "rectangle.stack.fill", color: Theme.blueLight)
-                                }
-                                if !store.isSolved(next) {
-                                    chip(L("+{0} XP", next.xp), icon: "sparkles", color: Theme.manaLight)
-                                }
-                            }
-                        }
-                        if store.profile.puzzleStreak > 0 {
-                            chip(L("{0} in Folge", store.profile.puzzleStreak), icon: "flame.fill", color: FlameStyle.glow)
-                        }
-                    }
-                    Spacer(minLength: 0)
                 }
+                .frame(width: 124, height: 124)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L("NÄCHSTES PUZZLE"))
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .tracking(1.4)
+                        .foregroundColor(Color(hex: 0xC9B8FF))
+                    Text(next?.goal.title ?? L("Alles gelöst!"))
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    if let next {
+                        HStack(spacing: 2) {
+                            ForEach(1...3, id: \.self) { i in
+                                Image(systemName: i <= next.difficulty ? "star.fill" : "star")
+                                    .font(.system(size: 13, weight: .black))
+                                    .foregroundColor(i <= next.difficulty ? Theme.gold : Theme.textMuted)
+                            }
+                            Text(next.difficultyName)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(Theme.textSecondary)
+                                .padding(.leading, 4)
+                        }
+                        HStack(spacing: 6) {
+                            if next.isRookRaid {
+                                chip(L("mit Karten"), icon: "rectangle.stack.fill", color: Theme.blueLight)
+                            }
+                            if !store.isSolved(next) {
+                                chip(L("+{0} XP", next.xp), icon: "sparkles", color: Theme.manaLight)
+                            }
+                        }
+                    }
+                    if store.profile.puzzleStreak > 0 {
+                        chip(L("{0} in Folge", store.profile.puzzleStreak), icon: "flame.fill", color: FlameStyle.glow)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            Button {
+                if let next { open(next, daily: false) }
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "play.fill")
                     Text(L("LOS GEHT'S"))
@@ -211,15 +197,41 @@ struct PuzzleHubView: View {
                 )
                 .overlay(ShineSweep().clipShape(RoundedRectangle(cornerRadius: 14)).allowsHitTesting(false))
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(LinearGradient(colors: [Color(hex: 0x2A2366), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
-            )
-            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color(hex: 0x8B5CF6).opacity(0.6), lineWidth: 1.5))
+            .buttonStyle(PressScaleStyle())
+            .disabled(next == nil)
+            Button {
+                Haptics.shared.play(.select)
+                showAdventure = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "map.fill")
+                        .foregroundColor(Color(hex: 0xC9B8FF))
+                    Text(L("Wähle dein Abenteuer"))
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Spacer(minLength: 4)
+                    Text(L("{0} von {1} gelöst", store.profile.solvedPuzzles.count, PuzzleCatalog.all.count))
+                        .font(.system(size: 11, weight: .bold).monospacedDigit())
+                        .foregroundColor(Theme.textMuted)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundColor(Theme.textMuted)
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 40)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.06)))
+            }
+            .buttonStyle(PressScaleStyle())
         }
-        .buttonStyle(PressScaleStyle())
-        .disabled(next == nil)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(LinearGradient(colors: [Color(hex: 0x2A2366), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color(hex: 0x8B5CF6).opacity(0.6), lineWidth: 1.5))
     }
 
     private func chip(_ text: String, icon: String, color: Color) -> some View {
@@ -342,13 +354,40 @@ struct PuzzleHubView: View {
         .buttonStyle(PressScaleStyle())
     }
 
-    private func categoryCard(_ c: PuzzleCategory) -> some View {
+    /// Die vier Gruppen als eigenes Fenster, jede Karte öffnet ihre Puzzles.
+    private var adventureSheet: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    ForEach(PuzzleCategory.allCases) { c in
+                        NavigationLink { categoryPage(c) } label: { categoryFace(c) }
+                            .buttonStyle(PressScaleStyle())
+                    }
+                }
+                .padding(16)
+            }
+            .background(
+                ZStack {
+                    Theme.background.ignoresSafeArea()
+                    RadialGradient(colors: [Color(hex: 0x6B4FD8).opacity(0.35), .clear], center: .top, startRadius: 10, endRadius: 420)
+                        .ignoresSafeArea()
+                }
+            )
+            .navigationTitle(L("Wähle dein Abenteuer"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button(L("Fertig")) { showAdventure = false } }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func categoryFace(_ c: PuzzleCategory) -> some View {
         let items = c.items
         let solved = items.filter { store.isSolved($0) }.count
         let done = solved == items.count && !items.isEmpty
         let frac = Double(solved) / Double(max(1, items.count))
-        return Button { category = c } label: {
-            VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
@@ -388,41 +427,32 @@ struct PuzzleHubView: View {
                     .fill(LinearGradient(colors: [c.tint.opacity(0.14), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
             )
             .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(done ? Theme.gold.opacity(0.7) : c.tint.opacity(0.3), lineWidth: 1.5))
-        }
-        .buttonStyle(PressScaleStyle())
     }
 
-    private func categorySheet(_ c: PuzzleCategory) -> some View {
+    private func categoryPage(_ c: PuzzleCategory) -> some View {
         let items = c.items
-        return NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(c.subtitle)
-                        .font(.footnote)
-                        .foregroundColor(Theme.textSecondary)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { idx, p in
-                            PuzzleTile(puzzle: p, number: idx + 1, solved: store.isSolved(p)) {
-                                category = nil
-                                Task { @MainActor in
-                                    try? await Task.sleep(nanoseconds: 400_000_000)
-                                    open(p, daily: false)
-                                }
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(c.subtitle)
+                    .font(.footnote)
+                    .foregroundColor(Theme.textSecondary)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { idx, p in
+                        PuzzleTile(puzzle: p, number: idx + 1, solved: store.isSolved(p)) {
+                            showAdventure = false
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 400_000_000)
+                                open(p, daily: false)
                             }
                         }
                     }
                 }
-                .padding(14)
             }
-            .background(Theme.background.ignoresSafeArea())
-            .navigationTitle(c.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button(L("Fertig")) { category = nil } }
-            }
+            .padding(14)
         }
-        .presentationDetents([.medium, .large])
-        .preferredColorScheme(.dark)
+        .background(Theme.background.ignoresSafeArea())
+        .navigationTitle(c.title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func open(_ puzzle: Puzzle, daily: Bool) {
@@ -455,119 +485,192 @@ struct PuzzleRushView: View {
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
-            VStack(spacing: 10) {
-                topBar
-                if let vm {
-                    RushBoard(vm: vm, onSolved: solved, onFailed: failed)
-                        .id(vm.puzzle.id + "\(score)-\(lives)")
-                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                                removal: .move(edge: .leading).combined(with: .opacity)))
+            RadialGradient(colors: [Color(hex: 0x6B4FD8).opacity(0.4), .clear], center: .top, startRadius: 10, endRadius: 520)
+                .ignoresSafeArea()
+            if running || finished {
+                VStack(spacing: 10) {
+                    playBar
+                    if let vm {
+                        RushBoard(vm: vm, onSolved: solved, onFailed: failed)
+                            .id(vm.puzzle.id + "\(score)-\(lives)")
+                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                    removal: .move(edge: .leading).combined(with: .opacity)))
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+            } else {
+                startScreen
             }
-            if !running && !finished { startOverlay }
             if finished { resultOverlay }
         }
         .onDisappear { timerTask?.cancel() }
     }
 
-    private var topBar: some View {
-        HStack(spacing: 14) {
-            Button {
-                timerTask?.cancel()
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(Theme.textSecondary)
-                    .frame(width: 40, height: 40)
-            }
-            HStack(spacing: 4) {
-                Image(systemName: "timer")
-                Text(String(format: "%d:%02d", remaining / 60, remaining % 60)).monospacedDigit()
-            }
-            .font(.system(size: 18, weight: .heavy, design: .rounded))
-            .foregroundColor(remaining <= 20 ? Theme.redLight : Theme.textPrimary)
-            Spacer()
-            HStack(spacing: 3) {
-                ForEach(0..<3, id: \.self) { i in
-                    Image(systemName: i < lives ? "heart.fill" : "heart")
-                        .foregroundColor(i < lives ? Theme.redLight : Theme.textMuted)
-                }
-            }
-            .font(.system(size: 16, weight: .bold))
-            VStack(spacing: 0) {
-                Text("\(score)")
-                    .font(.system(size: 26, weight: .black, design: .rounded))
-                    .foregroundColor(Theme.gold)
-                    .scaleEffect(pop ? 1.35 : 1)
-                Text(L("+{0} XP", score * 3))
-                    .font(.system(size: 10, weight: .black, design: .rounded).monospacedDigit())
-                    .foregroundColor(Theme.manaLight)
-                    .contentTransition(.numericText())
-            }
-            .frame(minWidth: 44)
+    private var closeButton: some View {
+        Button {
+            timerTask?.cancel()
+            dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Theme.textSecondary)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(Theme.panelRaised))
         }
-        .padding(.horizontal, 12)
+        .accessibilityLabel(L("Schließen"))
+    }
+
+    /// Während des Rauschs: Titel, Uhr, Leben und Punktzahl im gleichen Kapsel-Stil wie die übrigen Leisten.
+    private var playBar: some View {
+        VStack(spacing: 8) {
+            HStack {
+                closeButton
+                Text(L("Puzzle-Rausch"))
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundColor(Theme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 8)
+                VStack(spacing: 0) {
+                    Text("\(score)")
+                        .font(.system(size: 22, weight: .black, design: .rounded))
+                        .foregroundColor(Theme.gold)
+                        .scaleEffect(pop ? 1.25 : 1)
+                        .contentTransition(.numericText())
+                    Text(L("+{0} XP", score * 3))
+                        .font(.system(size: 10, weight: .black, design: .rounded).monospacedDigit())
+                        .foregroundColor(Theme.manaLight)
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 40)
+                .background(Capsule().fill(Theme.panelRaised))
+                .overlay(Capsule().strokeBorder(Theme.gold.opacity(0.45), lineWidth: 1))
+            }
+            HStack(spacing: 8) {
+                HStack(spacing: 4) {
+                    Image(systemName: "timer")
+                    Text(String(format: "%d:%02d", remaining / 60, remaining % 60)).monospacedDigit()
+                }
+                .font(.system(size: 16, weight: .black, design: .rounded))
+                .foregroundColor(remaining <= 20 ? .white : Theme.navy)
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(Capsule().fill(remaining <= 20 ? Theme.red : Theme.gold))
+                HStack(spacing: 4) {
+                    ForEach(0..<3, id: \.self) { i in
+                        Image(systemName: i < lives ? "heart.fill" : "heart")
+                            .foregroundColor(i < lives ? Theme.redLight : Theme.textMuted)
+                    }
+                }
+                .font(.system(size: 16, weight: .bold))
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(Capsule().fill(Theme.panelRaised))
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 16)
         .padding(.top, 8)
     }
 
-    private var startOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.6).ignoresSafeArea()
+    private var startScreen: some View {
+        VStack(spacing: 18) {
+            HStack {
+                closeButton
+                Spacer()
+            }
+            Spacer(minLength: 0)
             VStack(spacing: 14) {
-                Image(systemName: "bolt.circle.fill")
-                    .font(.system(size: 60, weight: .bold))
-                    .foregroundColor(Theme.redLight)
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 42, weight: .black))
+                    .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
+                    .rotationEffect(.degrees(-12))
                 Text(L("Puzzle-Rausch"))
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .font(.system(size: 32, weight: .black, design: .rounded))
                     .foregroundColor(.white)
                 Text(L("3 Minuten · 3 Leben · erst leicht, dann schwerer.\nJedes gelöste Puzzle zählt einen Punkt und bringt 3 XP."))
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(Theme.textSecondary)
                     .multilineTextAlignment(.center)
+                HStack(spacing: 8) {
+                    rushChip(icon: "timer", text: "3:00")
+                    rushChip(icon: "heart.fill", text: "3")
+                    rushChip(icon: "sparkles", text: L("+{0} XP", 3))
+                }
                 if store.profile.rushBest > 0 {
                     Text(L("Bestwert: {0}", store.profile.rushBest))
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .font(.system(size: 14, weight: .black, design: .rounded))
                         .foregroundColor(Theme.gold)
+                        .padding(.horizontal, 12)
+                        .frame(height: 28)
+                        .background(Capsule().fill(Theme.gold.opacity(0.16)))
                 }
-                Button(L("Los!")) { begin() }
-                    .buttonStyle(ChunkyButtonStyle(color: Theme.red, shadow: Theme.redDark))
             }
-            .padding(24)
-            .frame(maxWidth: 340)
-            .background(RoundedRectangle(cornerRadius: 20).fill(Theme.background))
-            .padding(24)
+            .padding(20)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(LinearGradient(colors: [Color(hex: 0x2A2366), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
+            )
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color(hex: 0x8B5CF6).opacity(0.6), lineWidth: 1.5))
+            Button(L("LOS GEHT'S")) { begin() }
+                .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: CardStyle.ultimateDeep, textColor: Theme.navy))
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 24)
+    }
+
+    private func rushChip(icon: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 11, weight: .black))
+            Text(text).font(.system(size: 13, weight: .black, design: .rounded))
+        }
+        .foregroundColor(Theme.gold)
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(Capsule().fill(Color.black.opacity(0.28)))
     }
 
     private var resultOverlay: some View {
         ZStack {
-            Color.black.opacity(0.6).ignoresSafeArea()
+            Color.black.opacity(0.45).ignoresSafeArea()
             if newBest { ConfettiView(seed: 99).ignoresSafeArea().allowsHitTesting(false) }
             VStack(spacing: 12) {
+                Image(systemName: newBest ? "crown.fill" : "flag.checkered")
+                    .font(.system(size: 40, weight: .black))
+                    .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
                 Text(newBest ? L("NEUER BESTWERT!") : L("Zeit um!"))
                     .font(.system(size: 26, weight: .black, design: .rounded))
                     .foregroundColor(newBest ? Theme.gold : .white)
+                    .multilineTextAlignment(.center)
                 Text("\(score)")
-                    .font(.system(size: 72, weight: .black, design: .rounded))
+                    .font(.system(size: 64, weight: .black, design: .rounded))
                     .foregroundColor(.white)
                 Text(L("gelöste Puzzles · +{0} XP", score * 3))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
                 Text(L("Bestwert: {0}", store.profile.rushBest))
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14, weight: .black, design: .rounded))
                     .foregroundColor(Theme.gold)
+                    .padding(.horizontal, 12)
+                    .frame(height: 28)
+                    .background(Capsule().fill(Theme.gold.opacity(0.16)))
                 Button(L("Nochmal")) { begin() }
-                    .buttonStyle(ChunkyButtonStyle(color: Theme.red, shadow: Theme.redDark))
+                    .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: CardStyle.ultimateDeep, textColor: Theme.navy))
+                    .padding(.top, 4)
                 Button(L("Fertig")) { dismiss() }
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(Theme.textSecondary)
-                    .frame(minHeight: 44)
+                    .buttonStyle(ChunkyButtonStyle(color: Theme.panelHighlight, shadow: Theme.panel, height: 48))
             }
-            .padding(24)
-            .frame(maxWidth: 340)
-            .background(RoundedRectangle(cornerRadius: 20).fill(Theme.background))
+            .padding(22)
+            .frame(maxWidth: 360)
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(LinearGradient(colors: [Color(hex: 0x2A2366), Theme.panelRaised], startPoint: .top, endPoint: .bottom))
+            )
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(newBest ? Theme.gold.opacity(0.75) : Color(hex: 0x8B5CF6).opacity(0.55), lineWidth: 1.5))
             .padding(24)
         }
     }
@@ -652,6 +755,14 @@ struct RushBoard: View {
             Text(PuzzleViewModel.prompt(for: vm.puzzle))
                 .font(.system(size: 16, weight: .heavy, design: .rounded))
                 .foregroundColor(Theme.textPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .frame(height: 44)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
+                .padding(.horizontal, 12)
             PuzzleBoardView(vm: vm)
                 .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
             if vm.hasCards {

@@ -15,6 +15,8 @@ struct GameOverOverlay: View {
     let onExit: () -> Void
     /// Direkt weiter: nächster Kampf oder nächster Leiter-Gegner (nil = nur Revanche und Menü)
     var next: NextGame? = nil
+    /// Online gibt es keine Revanche – die Partie ist vorbei.
+    var allowsRematch = true
     var onOpenChest: (() -> Void)? = nil
 
     struct NextGame {
@@ -406,7 +408,7 @@ struct GameOverOverlay: View {
     }
 
     /// Höchstens drei Knöpfe: der nächste Schritt groß, darunter Revanche und Menü.
-    /// Brett und Nachspielen gibt es im Verlauf.
+    /// Online ohne Revanche. Brett und Nachspielen gibt es im Verlauf.
     private var buttons: some View {
         VStack(spacing: 10) {
             if let next {
@@ -422,25 +424,37 @@ struct GameOverOverlay: View {
                         ShineSweep().clipShape(RoundedRectangle(cornerRadius: 12)).allowsHitTesting(false)
                     }
                 }
-                HStack(spacing: 10) {
-                    Button(action: onRematch) {
-                        Label(L("Revanche"), systemImage: "arrow.counterclockwise")
+            }
+            if allowsRematch {
+                if next != nil {
+                    HStack(spacing: 10) {
+                        rematchButton(height: 48, prominent: false)
+                        menuButton
                     }
-                    .buttonStyle(ChunkyButtonStyle(color: Theme.panelHighlight, shadow: Theme.panel, height: 48))
-                    Button(L("Zum Menü"), action: onExit)
-                        .buttonStyle(ChunkyButtonStyle(color: Theme.panelHighlight, shadow: Theme.panel, height: 48))
+                } else {
+                    rematchButton(height: 58, prominent: true)
+                    menuButton
                 }
             } else {
-                Button(action: onRematch) {
-                    Label(lost ? L("Nochmal versuchen") : L("Revanche"), systemImage: "arrow.counterclockwise")
-                }
-                .buttonStyle(ChunkyButtonStyle())
-                Button(L("Zum Menü"), action: onExit)
-                    .buttonStyle(ChunkyButtonStyle(color: Theme.panelHighlight, shadow: Theme.panel, height: 48))
+                menuButton
             }
         }
         .padding(.top, 4)
         .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private func rematchButton(height: CGFloat, prominent: Bool) -> some View {
+        Button(action: onRematch) {
+            Label(lost && prominent ? L("Nochmal versuchen") : L("Revanche"), systemImage: "arrow.counterclockwise")
+        }
+        .buttonStyle(prominent
+                     ? ChunkyButtonStyle()
+                     : ChunkyButtonStyle(color: Theme.panelHighlight, shadow: Theme.panel, height: height))
+    }
+
+    private var menuButton: some View {
+        Button(L("Zum Menü"), action: onExit)
+            .buttonStyle(ChunkyButtonStyle(color: Theme.panelHighlight, shadow: Theme.panel, height: 48))
     }
 
     private var card: some View {

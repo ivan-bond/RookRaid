@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileView: View {
     @ObservedObject var store = ProfileStore.shared
     @State var showSettings = false
+    @State var showStats = false
     @State var showStyle = false
     @State var styleTab: StyleSheet.StyleTab = .avatars
     @State var showAllAchievements = false
@@ -23,7 +24,10 @@ struct ProfileView: View {
                         BotConquestCard()
                         CollectionRingsCard(onStyle: { t in styleTab = t; showStyle = true })
                         AchievementShowcase(onShowAll: { showAllAchievements = true })
-                        NavigationLink { StatisticsView() } label: { statsRow }
+                        Button {
+                            Haptics.shared.play(.select)
+                            showStats = true
+                        } label: { statsRow }
                             .buttonStyle(PressScaleStyle())
                     }
                     .padding(.horizontal, 14)
@@ -31,6 +35,11 @@ struct ProfileView: View {
                 }
             }
             .navigationBarHidden(true)
+        }
+        .sheet(isPresented: $showStats) {
+            NavigationStack { StatisticsView() }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showStyle) { StyleSheet(tab: styleTab) }
         .sheet(isPresented: $showAllAchievements) { AchievementListSheet() }
@@ -1011,6 +1020,8 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) var dismiss
     @State var showReset = false
     @State var showRules = false
+    @State var editLocalName = false
+    @ObservedObject private var account = OnlineAccount.shared
 
     private var version: String {
         let info = Bundle.main.infoDictionary ?? [:]
@@ -1025,13 +1036,72 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 18) {
+                    settingsGroup(L("Spiel")) {
+                        if !(showAccount && account.hasAccount) {
+                            Button { editLocalName = true } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "pencil")
+                                        .foregroundColor(Theme.blueLight)
+                                        .frame(width: 22)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L("Spielername"))
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(.white)
+                                        Text(store.profile.name)
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(Theme.textMuted)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(Theme.textMuted)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                            divider
+                        }
                         toggleRow(L("Haptik"), "iphone.radiowaves.left.and.right", $store.profile.settings.haptics)
                         divider
                         toggleRow(L("Sound"), "speaker.wave.2.fill", $store.profile.settings.sound)
                         divider
+                        Button {
+                            dismiss()
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 450_000_000)
+                                NotificationCenter.default.post(name: .startHotSeat, object: nil)
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "person.2.fill")
+                                    .foregroundColor(Theme.green)
+                                    .frame(width: 22)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(L("Zu zweit an einem Gerät spielen"))
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .multilineTextAlignment(.leading)
+                                    Text(L("Ohne Trophäen"))
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(Theme.textMuted)
+                                }
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(Theme.textMuted)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    settingsGroup(L("Anzeige")) {
                         toggleRow(L("Gebiet auf dem Brett zeigen"), "square.grid.3x3.fill", $store.profile.settings.showTerritory)
+                        divider
                         toggleRow(L("Bots mit eigenem Figurenset"), "crown.fill", $store.profile.settings.botSkins)
                         divider
                         toggleRow(L("Koordinaten anzeigen"), "number", $store.profile.settings.showCoordinates)
@@ -1040,7 +1110,32 @@ struct SettingsSheet: View {
                         toggleRow(L("Testmodus: alle Karten frei"), "lock.open.fill", $store.profile.settings.unlockAll)
                         #endif
                     }
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.panelRaised))
+
+                    settingsGroup(L("Sprache")) {
+                        NavigationLink {
+                            LanguageListView()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "globe")
+                                    .foregroundColor(Theme.green)
+                                    .frame(width: 22)
+                                Text(L("Sprache"))
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Text(store.profile.settings.language.flag + " " + store.profile.settings.language.nativeName)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Theme.textSecondary)
+                                    .lineLimit(1)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(Theme.textMuted)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     if showAccount { AccountSection() }
 
@@ -1063,81 +1158,52 @@ struct SettingsSheet: View {
                     .buttonStyle(.plain)
                     #endif
 
-                    // Brett-Design ist seit v0.9.24 in der Garderobe (Profil → Avatar)
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.grid.2x2.fill").foregroundColor(Theme.blueLight)
-                        Text(L("Brett-Designs findest du jetzt in der Garderobe (Profil → Avatar)."))
-                            .font(.system(size: 12, weight: .semibold))
+                    settingsGroup(L("Hilfe")) {
+                        Button { showRules = true } label: {
+                            settingsLink(L("Regeln & Karten erklärt"), "book.fill", Theme.gold)
+                        }
+                        .buttonStyle(.plain)
+                        divider
+                        Button {
+                            dismiss()
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 450_000_000)
+                                NotificationCenter.default.post(name: .startTutorial, object: nil)
+                            }
+                        } label: {
+                            settingsLink(L("Erste Schlacht erneut spielen"), "graduationcap.fill", Theme.blueLight)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    settingsGroup(L("Daten")) {
+                        Text(L("Alle Daten liegen nur lokal auf diesem iPhone: Profil, Fortschritt, Verlauf und die laufende Partie."))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(Theme.textMuted)
                             .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.horizontal, 4)
-
-                    // Sprache: eigener Menüpunkt, der die Sprachliste öffnet
-                    NavigationLink {
-                        LanguageListView()
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "globe")
-                                .foregroundColor(Theme.green)
-                                .frame(width: 22)
-                            Text(L("Sprache"))
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text(store.profile.settings.language.flag + " " + store.profile.settings.language.nativeName)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(Theme.textSecondary)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(Theme.textMuted)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                        divider
+                        Button { showReset = true } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(Theme.red)
+                                    .frame(width: 22)
+                                Text(L("Fortschritt zurücksetzen"))
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(Theme.red)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 12)
                         }
-                        .padding(14)
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(PanelButtonStyle())
-                    .padding(.top, 8)
-
-                    Button { showRules = true } label: {
-                        Label(L("Regeln & Karten erklärt"), systemImage: "book.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(14)
-                    }
-                    .buttonStyle(PanelButtonStyle())
-                    .padding(.top, 4)
-
-                    Button {
-                        dismiss()
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 450_000_000)
-                            NotificationCenter.default.post(name: .startTutorial, object: nil)
-                        }
-                    } label: {
-                        Label(L("Erste Schlacht erneut spielen"), systemImage: "graduationcap.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(14)
-                    }
-                    .buttonStyle(PanelButtonStyle())
-
-                    Text(L("Alle Daten liegen nur lokal auf diesem iPhone: Profil, Fortschritt, Verlauf und die laufende Partie."))
-                        .font(.footnote)
-                        .foregroundColor(Theme.textMuted)
-                        .padding(.top, 8)
-                    Button { showReset = true } label: {
-                        Label(L("Fortschritt zurücksetzen"), systemImage: "trash")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(Theme.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(14)
-                    }
-                    .buttonStyle(PanelButtonStyle())
 
                     Text(version)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Theme.textMuted)
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 10)
                 }
                 .padding(16)
             }
@@ -1150,12 +1216,39 @@ struct SettingsSheet: View {
         }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showRules) { RulesView() }
+        .sheet(isPresented: $editLocalName) { LocalNameSheet() }
         .confirmationDialog(L("Gesamten Fortschritt löschen?"), isPresented: $showReset, titleVisibility: .visible) {
             Button(L("Zurücksetzen"), role: .destructive) { store.resetProgress() }
             Button(L("Abbrechen"), role: .cancel) {}
         } message: {
             Text(L("Trophäen, Statistik, XP, gelöste Puzzles, Flammen und Verlauf werden zurückgesetzt. Einstellungen bleiben erhalten."))
         }
+    }
+
+    private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: title)
+            VStack(spacing: 0) { content() }
+                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.panelRaised))
+        }
+    }
+
+    private func settingsLink(_ title: String, _ icon: String, _ tint: Color) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(tint)
+                .frame(width: 22)
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Theme.textMuted)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
     }
 
     private var divider: some View {
@@ -1233,82 +1326,91 @@ struct RulesView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section(L("Ziel")) {
-                    Text(L("Setze den gegnerischen König matt. Mit Uhr verliert auch, wessen Zeit abläuft."))
+            ScrollView {
+                VStack(spacing: 14) {
+                    goalBanner
+                    chapter(L("Ablauf eines Zuges"), Theme.blueLight, RulesSceneTurn()) {
+                        note(L("Zu Beginn deines Zuges bekommst du +1 Mana."))
+                        note(L("Dann wählst du genau eine Aktion: einen Schachzug, eine Karte oder – ab {0} Mana – deine Ultimate.", GameState.ultimateCost))
+                    }
+                    chapter(L("Gebiet"), Theme.green, RulesSceneTerritory()) {
+                        line("square.grid.3x3.fill", L("Besetzt"), L("Jede Figur besetzt ihr Feld und alle 8 Nachbarfelder, auch diagonal. Grenzt ein Feld an Figuren beider Seiten oder an gar keine, ist es neutral."))
+                        line("circle.lefthalf.filled", L("Anzeige"), L("Dein Gebiet ist heller und frischer getönt, das gegnerische gedeckter. Es zeigt, wo deine Figuren das Brett beherrschen – Mana bringt es nicht."))
+                    }
+                    chapter(L("Mana (maximal {0})", GameState.maxMana), Theme.manaLight, RulesSceneMana()) {
+                        line("arrow.clockwise", L("Jeder Zug"), L("+1 Mana zu Beginn deines Zuges"))
+                        line("star.fill", L("Guter Zug"), L("+1 extra für Schlagen, Schach oder eine Taktik (Gabel, Fesselung, Spieß, Abzugs- oder Doppelschach) – höchstens +1 pro Zug"))
+                        line("drop.fill", L("Mana-Karten"), L("Konzentration, Manaraub und Bauernopfer bringen zusätzlich Mana."))
+                    }
+                    chapter(L("Deck"), Theme.blueLight, RulesSceneDeck()) {
+                        line("rectangle.stack.fill", L("4 Karten + 1 Ultimate"), L("Vor der Partie stellst du im Tab „Deck“ dein Deck zusammen. Die vier Karten bleiben die ganze Partie auf der Hand – es wird nicht nachgezogen. Beide Decks sind offen."))
+                        line("hourglass", L("Abklingzeit"), L("Nach dem Ausspielen lädt eine Karte {0} eigene Züge nach (Blitz {1}), bevor du sie wieder spielen kannst.", GameState.cardCooldown, CardType.lightning.cooldown))
+                        line("lock.open.fill", L("Freischalten"), L("4 Startkarten hast du sofort, 10 weitere kommen aus Truhen. Jeder Levelaufstieg bringt eine Truhe, der Level-Pfad garantiert die wichtigsten Karten. Gesperrte Karten lassen sich auch mit Splittern kaufen (Gewöhnlich 500, Selten 1.500, Episch 3.000). Seltene Karten gibt es ab Level 5, epische ab Level 10."))
+                        line("square.stack.3d.up.fill", L("Vorlagen"), L("Sechs fertige Decks für sechs Strategien – ein Tipp übernimmt Karten und Ultimate."))
+                    }
+                    chapter(L("Ultimate"), Theme.gold, RulesSceneIcon(icon: "sparkles", tint: Theme.gold)) {
+                        line("sparkles", L("Teil deines Decks"), L("Einsetzbar ab {0} Mana, die Festung schon ab {1} (dann leuchtet die Mana-Leiste golden). Verbraucht so viel Mana – der Rest bleibt – und ersetzt deinen Zug (Festung: danach noch ein Figurzug ohne Schlagen und ohne Schach). Der Gegner sieht deine Wahl.", GameState.ultimateCost, Ultimate.fortress.cost))
+                    }
+                    chapter(L("Bots"), Theme.redLight, RulesSceneIcon(icon: "person.3.fill", tint: Theme.redLight)) {
+                        line("bolt.fill", L("Kampf!"), L("Im Kampf triffst du dieselben zwölf Charaktere wie in der Bot-Leiter, jeweils mit ihrem Deck. Welcher es ist, richtet sich nach deinen Trophäen: alle 200 Trophäen wartet ein stärkerer. Siege bringen 30 Trophäen."))
+                        line("figure.stairs", L("Bot-Leiter"), L("Zwölf Charaktere von Bruno bis zur Turmkönigin. Besiege sie der Reihe nach: Der erste Sieg bringt 30 bis 200 XP und schaltet den nächsten frei, jede Revanche 10 XP. Keine Trophäen."))
+                        line("timer", L("Denkzeit"), L("Die Bots rechnen höchstens 0,4 bis 8 Sekunden pro Zug – je stärker, desto länger und tiefer. Ab Sir Konrad nutzen sie eine verbesserte Suche mit Stellungsgedächtnis."))
+                    }
+                    chapter(L("Truhen"), Color(hex: 0xC084FC), RulesSceneChests()) {
+                        line("shippingbox.fill", L("Woher"), L("Erste Schlacht, die ersten 3 Kampf-Siege des Tages, alle Tagesziele, jeder erste Leiter-Sieg, jedes 5. gelöste Puzzle, jeder Levelaufstieg, der Trophäenpfad, Flammen-Meilensteine und der Splitter-Laden."))
+                        line("trophy.fill", L("Trophäenpfad"), L("Alle 50 bis 150 Trophäen wartet eine Belohnung: Truhen, Splitter, Sammelbretter und an jeder neuen Arena eine Magische oder Legendäre Truhe. Abgerechnet wird nach deinem Rekord – wer abrutscht, behält seine Stufen."))
+                        line("hand.tap.fill", L("Öffnen"), L("Drei Taps laden die Truhe auf – jeder Tap kann sie zu einer besseren machen (Holz → Silber → Gold → Magisch → Legendär). Der vierte Tap sprengt sie auf. Danach läuft alles von selbst weiter, Tippen beschleunigt; wartende Truhen folgen direkt."))
+                        line("gift.fill", L("Inhalt"), L("XP und Splitter, mit Glück eine neue Karte, ein Sammelbrett, ein Avatar, ein Rahmen oder ein Titel. Spätestens nach 12 Truhen ohne neue Karte ist eine dabei. Wer alle Karten hat, bekommt stattdessen einen Splitter-Fund (150)."))
+                    }
+                    chapter(L("Puzzles & XP"), Theme.gold, RulesSceneIcon(icon: "puzzlepiece.fill", tint: Theme.gold)) {
+                        line("puzzlepiece.fill", L("Puzzles"), L("Rook Raid: erst Karte oder Ultimate, dann Matt. Klassisch: Matt in 1, 2 oder 3 und Materialgewinn. Bei Matt-Aufgaben zählt jedes Matt."))
+                        line("star.fill", L("XP"), L("Leicht 10 · Mittel 20 · Schwer 35 XP beim ersten Lösen. Mit Fehler oder Hinweis gibt es die Hälfte, nach „Lösung“ keine XP."))
+                        line("calendar", L("Tagespuzzle"), L("Jeden Tag ein neues – einmal am Tag +15 XP Bonus."))
+                        line("flame.fill", L("Serie"), L("Jede Lösung ohne Fehler und ohne Hinweis verlängert deine Puzzle-Serie. Ein Fehler, ein Hinweis oder „Lösung“ setzt sie zurück."))
+                        line("bolt.circle.fill", L("Puzzle-Rausch"), L("3 Minuten, 3 Leben: so viele Puzzles wie möglich, erst leicht, dann schwerer. Jedes gelöste bringt 3 XP – jage deinen Bestwert."))
+                    }
+                    chapter(L("Tägliche Flammen"), Color(hex: 0xFF8A3D), RulesSceneIcon(icon: "flame.fill", tint: Color(hex: 0xFF8A3D))) {
+                        line("flame.fill", L("Flamme entzünden"), L("Löse ein Puzzle oder beende eine Partie (mindestens 10 Züge). Pro Tag zählt eine Flamme."))
+                        line("calendar.badge.exclamationmark", L("Serie"), L("Lässt du einen Tag aus, beginnt die Serie wieder bei 1 – außer ein Flammenschutz springt ein."))
+                        line("snowflake", L("Flammenschutz"), L("Höchstens 2 auf Vorrat. Verpasst du einen Tag, friert ein Schutz deine Flamme automatisch ein: Die Serie bleibt, wächst an diesem Tag aber nicht. Kostet 200 Splitter, gratis bei 7, 30, 100 und 365 Tagen."))
+                        line("rosette", L("Meilensteine"), L("3 Tage: 25 Splitter · 7: Goldtruhe + Schutz · 14: 100 Splitter · 30: Magische Truhe + Schutz · 50: 250 Splitter · 100: Legendäre Truhe + Schutz · 365: Legendäre Truhe + 1000 Splitter."))
+                    }
+                    chapter(L("Splitter & Laden"), Color(hex: 0x7FE3FF), RulesSceneIcon(icon: "diamond.fill", tint: Color(hex: 0x7FE3FF))) {
+                        line("diamond.fill", L("Sammeln"), L("Aus Truhen, dem Trophäenpfad, Flammen-Meilensteinen und jedem Erfolg (10 bis 400 Splitter beim Abholen)."))
+                        line("bag.fill", L("Ausgeben"), L("Karten (500 / 1.500 / 3.000, ab ihrer Levelgrenze), Avatare (250 bis 2.000), Flammenschutz (200), Sammelbretter (300), Laden-Rahmen (500) und Truhen. Jeden Tag drei Tagesangebote mit Rabatt."))
+                        line("star.fill", L("Sparziel"), L("Markiere im Laden einen Artikel mit dem Stern – der Fortschritt erscheint auf der Startseite."))
+                    }
+                    chapter(L("Erfolge"), Theme.gold, RulesSceneIcon(icon: "rosette", tint: Theme.gold)) {
+                        line("rosette", L("63 Erfolge"), L("In neun Bereichen von Kampf bis Level, viele in Stufen (Bronze, Silber, Gold). Jeder bringt Splitter, manche zusätzlich einen Titel oder Avatar-Rahmen."))
+                    }
+                    chapter(L("Karten"), Theme.redLight, RulesSceneRoles()) {
+                        note(L("{0} Zauber in fünf Rollen: Angriff, Kontrolle, Verteidigung, Mana und Comeback. Zeitliche Effekte gelten bis zum Ende des nächsten gegnerischen Zuges.", CardType.allCases.count))
+                        line("figure.walk", L("Bonusaktionen"), L("Schild, Frost, Bollwerk, Sturmlauf, Bauernopfer, Vormarsch und Leibwache ersetzen deinen Zug nicht: Danach machst du noch einen Figurzug. Die Figur unter dem Schild und der vorgestürmte Bauer bleiben dabei stehen (goldenes Schloss). Eine weitere Karte oder die Ultimate geht in diesem Zug nicht mehr."))
+                    }
+                    chapter(L("Schutzregeln"), Theme.blueLight, RulesSceneShield()) {
+                        note(L("Der König ist immun gegen Karten und Ultimates. Die Dame ist immun gegen Frost und Meteor."))
+                        note(L("Karten und Ultimates geben kein Schach und lassen den eigenen König nicht im Schach."))
+                        note(L("Dem Gegner muss danach ein legaler Zug bleiben."))
+                        note(L("„Ungeschützt“ (Meteor) heißt: von keiner eigenen Figur gedeckt und nicht unter Schild oder Bollwerk. Blitz trifft jeden gegnerischen Bauern in deiner Hälfte, der nicht unter Schild oder Bollwerk steht."))
+                        note(L("Eingefrorene Figuren bedrohen weiterhin Felder."))
+                        note(L("Tauwetter: Kann ein Spieler, der nicht im Schach steht, nur wegen Frost nicht ziehen, tauen seine Figuren sofort auf. Frost erzwingt also nie ein Patt – ein Matt mit Hilfe von Frost bleibt ein Matt."))
+                    }
+                    chapter(L("Prototyp-Hinweise"), Theme.textMuted, RulesSceneIcon(icon: "info.circle.fill", tint: Theme.textSecondary)) {
+                        note(L("Remis durch Patt, dreifache Stellungswiederholung und die 50-Züge-Regel. Karteneinsätze setzen den 50-Züge-Zähler zurück."))
+                        note(L("Alle Daten werden nur lokal auf dem iPhone gespeichert."))
+                    }
                 }
-                Section(L("Ablauf eines Zuges")) {
-                    Text(L("Zu Beginn deines Zuges bekommst du +1 Mana."))
-                    Text(L("Dann wählst du genau eine Aktion: einen Schachzug, eine Karte oder – ab {0} Mana – deine Ultimate.", GameState.ultimateCost))
-                }
-                Section(L("Gebiet")) {
-                    rule("square.grid.3x3.fill", L("Besetzt"), L("Jede Figur besetzt ihr Feld und alle 8 Nachbarfelder, auch diagonal. Grenzt ein Feld an Figuren beider Seiten oder an gar keine, ist es neutral."))
-                    rule("circle.lefthalf.filled", L("Anzeige"), L("Dein Gebiet ist heller und frischer getönt, das gegnerische gedeckter. Es zeigt, wo deine Figuren das Brett beherrschen – Mana bringt es nicht."))
-                }
-                Section(L("Mana (maximal {0})", GameState.maxMana)) {
-                    rule("arrow.clockwise", L("Jeder Zug"), L("+1 Mana zu Beginn deines Zuges"))
-                    rule("star.fill", L("Guter Zug"), L("+1 extra für Schlagen, Schach oder eine Taktik (Gabel, Fesselung, Spieß, Abzugs- oder Doppelschach) – höchstens +1 pro Zug"))
-                    rule("drop.fill", L("Mana-Karten"), L("Konzentration, Manaraub und Bauernopfer bringen zusätzlich Mana."))
-                }
-                Section(L("Deck")) {
-                    rule("rectangle.stack.fill", L("4 Karten + 1 Ultimate"), L("Vor der Partie stellst du im Tab „Deck“ dein Deck zusammen. Die vier Karten bleiben die ganze Partie auf der Hand – es wird nicht nachgezogen. Beide Decks sind offen."))
-                    rule("hourglass", L("Abklingzeit"), L("Nach dem Ausspielen lädt eine Karte {0} eigene Züge nach (Blitz {1}), bevor du sie wieder spielen kannst.", GameState.cardCooldown, CardType.lightning.cooldown))
-                    rule("lock.open.fill", L("Freischalten"), L("4 Startkarten hast du sofort, 10 weitere kommen aus Truhen. Jeder Levelaufstieg bringt eine Truhe, der Level-Pfad garantiert die wichtigsten Karten. Gesperrte Karten lassen sich auch mit Splittern kaufen (Gewöhnlich 500, Selten 1.500, Episch 3.000). Seltene Karten gibt es ab Level 5, epische ab Level 10."))
-                    rule("square.stack.3d.up.fill", L("Vorlagen"), L("Sechs fertige Decks für sechs Strategien – ein Tipp übernimmt Karten und Ultimate."))
-                }
-                Section(L("Ultimate")) {
-                    rule("sparkles", L("Teil deines Decks"), L("Einsetzbar ab {0} Mana, die Festung schon ab {1} (dann leuchtet die Mana-Leiste golden). Verbraucht so viel Mana – der Rest bleibt – und ersetzt deinen Zug (Festung: danach noch ein Figurzug ohne Schlagen und ohne Schach). Der Gegner sieht deine Wahl.", GameState.ultimateCost, Ultimate.fortress.cost))
-                }
-                Section(L("Bots")) {
-                    rule("bolt.fill", L("Kampf!"), L("Im Kampf triffst du dieselben zwölf Charaktere wie in der Bot-Leiter, jeweils mit ihrem Deck. Welcher es ist, richtet sich nach deinen Trophäen: alle 200 Trophäen wartet ein stärkerer. Siege bringen 30 Trophäen."))
-                    rule("figure.stairs", L("Bot-Leiter"), L("Zwölf Charaktere von Bruno bis zur Turmkönigin. Besiege sie der Reihe nach: Der erste Sieg bringt 30 bis 200 XP und schaltet den nächsten frei, jede Revanche 10 XP. Keine Trophäen."))
-                    rule("timer", L("Denkzeit"), L("Die Bots rechnen höchstens 0,4 bis 8 Sekunden pro Zug – je stärker, desto länger und tiefer. Ab Sir Konrad nutzen sie eine verbesserte Suche mit Stellungsgedächtnis."))
-                }
-                Section(L("Truhen")) {
-                    rule("shippingbox.fill", L("Woher"), L("Erste Schlacht, die ersten 3 Kampf-Siege des Tages, alle Tagesziele, jeder erste Leiter-Sieg, jedes 5. gelöste Puzzle, jeder Levelaufstieg, der Trophäenpfad, Flammen-Meilensteine und der Splitter-Laden."))
-                    rule("trophy.fill", L("Trophäenpfad"), L("Alle 50 bis 150 Trophäen wartet eine Belohnung: Truhen, Splitter, Sammelbretter und an jeder neuen Arena eine Magische oder Legendäre Truhe. Abgerechnet wird nach deinem Rekord – wer abrutscht, behält seine Stufen."))
-                    rule("hand.tap.fill", L("Öffnen"), L("Drei Taps laden die Truhe auf – jeder Tap kann sie zu einer besseren machen (Holz → Silber → Gold → Magisch → Legendär). Der vierte Tap sprengt sie auf. Danach läuft alles von selbst weiter, Tippen beschleunigt; wartende Truhen folgen direkt."))
-                    rule("gift.fill", L("Inhalt"), L("XP und Splitter, mit Glück eine neue Karte, ein Sammelbrett, ein Avatar, ein Rahmen oder ein Titel. Spätestens nach 12 Truhen ohne neue Karte ist eine dabei. Wer alle Karten hat, bekommt stattdessen einen Splitter-Fund (150)."))
-                }
-                Section(L("Puzzles & XP")) {
-                    rule("puzzlepiece.fill", L("Puzzles"), L("Rook Raid: erst Karte oder Ultimate, dann Matt. Klassisch: Matt in 1, 2 oder 3 und Materialgewinn. Bei Matt-Aufgaben zählt jedes Matt."))
-                    rule("star.fill", L("XP"), L("Leicht 10 · Mittel 20 · Schwer 35 XP beim ersten Lösen. Mit Fehler oder Hinweis gibt es die Hälfte, nach „Lösung“ keine XP."))
-                    rule("calendar", L("Tagespuzzle"), L("Jeden Tag ein neues – einmal am Tag +15 XP Bonus."))
-                    rule("flame.fill", L("Serie"), L("Jede Lösung ohne Fehler und ohne Hinweis verlängert deine Puzzle-Serie. Ein Fehler, ein Hinweis oder „Lösung“ setzt sie zurück."))
-                    rule("bolt.circle.fill", L("Puzzle-Rausch"), L("3 Minuten, 3 Leben: so viele Puzzles wie möglich, erst leicht, dann schwerer. Jedes gelöste bringt 3 XP – jage deinen Bestwert."))
-                }
-                Section(L("Tägliche Flammen")) {
-                    rule("flame.fill", L("Flamme entzünden"), L("Löse ein Puzzle oder beende eine Partie (mindestens 10 Züge). Pro Tag zählt eine Flamme."))
-                    rule("calendar.badge.exclamationmark", L("Serie"), L("Lässt du einen Tag aus, beginnt die Serie wieder bei 1 – außer ein Flammenschutz springt ein."))
-                    rule("snowflake", L("Flammenschutz"), L("Höchstens 2 auf Vorrat. Verpasst du einen Tag, friert ein Schutz deine Flamme automatisch ein: Die Serie bleibt, wächst an diesem Tag aber nicht. Kostet 200 Splitter, gratis bei 7, 30, 100 und 365 Tagen."))
-                    rule("rosette", L("Meilensteine"), L("3 Tage: 25 Splitter · 7: Goldtruhe + Schutz · 14: 100 Splitter · 30: Magische Truhe + Schutz · 50: 250 Splitter · 100: Legendäre Truhe + Schutz · 365: Legendäre Truhe + 1000 Splitter."))
-                }
-                Section(L("Splitter & Laden")) {
-                    rule("diamond.fill", L("Sammeln"), L("Aus Truhen, dem Trophäenpfad, Flammen-Meilensteinen und jedem Erfolg (10 bis 400 Splitter beim Abholen)."))
-                    rule("bag.fill", L("Ausgeben"), L("Karten (500 / 1.500 / 3.000, ab ihrer Levelgrenze), Avatare (250 bis 2.000), Flammenschutz (200), Sammelbretter (300), Laden-Rahmen (500) und Truhen. Jeden Tag drei Tagesangebote mit Rabatt."))
-                    rule("star.fill", L("Sparziel"), L("Markiere im Laden einen Artikel mit dem Stern – der Fortschritt erscheint auf der Startseite."))
-                }
-                Section(L("Erfolge")) {
-                    rule("rosette", L("63 Erfolge"), L("In neun Bereichen von Kampf bis Level, viele in Stufen (Bronze, Silber, Gold). Jeder bringt Splitter, manche zusätzlich einen Titel oder Avatar-Rahmen."))
-                }
-                Section(L("Karten")) {
-                    Text(L("{0} Zauber in fünf Rollen: Angriff, Kontrolle, Verteidigung, Mana und Comeback. Zeitliche Effekte gelten bis zum Ende des nächsten gegnerischen Zuges.", CardType.allCases.count))
-                    rule("figure.walk", L("Bonusaktionen"), L("Schild, Frost, Bollwerk, Sturmlauf, Bauernopfer, Vormarsch und Leibwache ersetzen deinen Zug nicht: Danach machst du noch einen Figurzug. Die Figur unter dem Schild und der vorgestürmte Bauer bleiben dabei stehen (goldenes Schloss). Eine weitere Karte oder die Ultimate geht in diesem Zug nicht mehr."))
-                }
-                Section(L("Schutzregeln")) {
-                    Text(L("Der König ist immun gegen Karten und Ultimates. Die Dame ist immun gegen Frost und Meteor."))
-                    Text(L("Karten und Ultimates geben kein Schach und lassen den eigenen König nicht im Schach."))
-                    Text(L("Dem Gegner muss danach ein legaler Zug bleiben."))
-                    Text(L("„Ungeschützt“ (Meteor) heißt: von keiner eigenen Figur gedeckt und nicht unter Schild oder Bollwerk. Blitz trifft jeden gegnerischen Bauern in deiner Hälfte, der nicht unter Schild oder Bollwerk steht."))
-                    Text(L("Eingefrorene Figuren bedrohen weiterhin Felder."))
-                    Text(L("Tauwetter: Kann ein Spieler, der nicht im Schach steht, nur wegen Frost nicht ziehen, tauen seine Figuren sofort auf. Frost erzwingt also nie ein Patt – ein Matt mit Hilfe von Frost bleibt ein Matt."))
-                }
-                Section(L("Prototyp-Hinweise")) {
-                    Text(L("Remis durch Patt, dreifache Stellungswiederholung und die 50-Züge-Regel. Karteneinsätze setzen den 50-Züge-Zähler zurück."))
-                    Text(L("Alle Daten werden nur lokal auf dem iPhone gespeichert."))
-                }
+                .padding(16)
             }
+            .background(
+                ZStack {
+                    Theme.background.ignoresSafeArea()
+                    RadialGradient(colors: [Color(hex: 0x6B4FD8).opacity(0.28), .clear], center: .top, startRadius: 10, endRadius: 480)
+                        .ignoresSafeArea()
+                }
+            )
             .navigationTitle(L("Regeln"))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button(L("Fertig")) { dismiss() } }
             }
@@ -1316,13 +1418,255 @@ struct RulesView: View {
         .preferredColorScheme(.dark)
     }
 
-    private func rule(_ icon: String, _ title: String, _ text: String) -> some View {
+    private var goalBanner: some View {
+        VStack(spacing: 12) {
+            RulesSceneMate()
+            Text(L("Ziel"))
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .foregroundColor(.white)
+            Text(L("Setze den gegnerischen König matt. Mit Uhr verliert auch, wessen Zeit abläuft."))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 22)
+                .fill(LinearGradient(colors: [Color(hex: 0x2A2366), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.gold.opacity(0.45), lineWidth: 1.5))
+    }
+
+    private func chapter<Art: View, Lines: View>(_ title: String, _ tint: Color, _ art: Art, @ViewBuilder lines: () -> Lines) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            art
+                .frame(maxWidth: .infinity)
+            Text(title)
+                .font(.system(size: 20, weight: .black, design: .rounded))
+                .foregroundColor(.white)
+            lines()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Theme.panelRaised))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(tint.opacity(0.4), lineWidth: 1))
+    }
+
+    private func line(_ icon: String, _ title: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon).foregroundColor(Theme.green).frame(width: 22)
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .black))
+                .foregroundColor(Theme.gold)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color.black.opacity(0.28)))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).bold()
-                Text(text).font(.footnote).foregroundColor(.secondary)
+                Text(title)
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                Text(text)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(Theme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Kleines Mattbild: der König in der Ecke, eine Dame schneidet ihm den Weg ab.
+private struct RulesSceneMate: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<5, id: \.self) { col in
+                VStack(spacing: 0) {
+                    ForEach(0..<4, id: \.self) { row in
+                        ZStack {
+                            Rectangle().fill((row + col).isMultiple(of: 2) ? Color(hex: 0xF0D9A8) : Color(hex: 0xB58863))
+                            piece(row: row, col: col)
+                        }
+                        .frame(height: 28)
+                    }
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.black.opacity(0.35), lineWidth: 2))
+        .frame(height: 112)
+    }
+
+    @ViewBuilder private func piece(row: Int, col: Int) -> some View {
+        if row == 0 && col == 4 {
+            Image(systemName: "crown.fill")
+                .font(.system(size: 16, weight: .black))
+                .foregroundColor(Color(hex: 0x9E2B25))
+        } else if row == 2 && col == 2 {
+            Image(systemName: "arrow.up.right.circle.fill")
+                .font(.system(size: 16, weight: .black))
+                .foregroundColor(Theme.navy)
+        }
+    }
+}
+
+/// Drei Aktionen, von denen genau eine dran ist.
+private struct RulesSceneTurn: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            choice("crown.fill", Theme.navy, Color(hex: 0xF0D9A8))
+            choice("rectangle.stack.fill", .white, Theme.blue)
+            choice("sparkles", Theme.navy, Theme.gold)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    private func choice(_ icon: String, _ ink: Color, _ fill: Color) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 22, weight: .black))
+            .foregroundColor(ink)
+            .frame(width: 64, height: 64)
+            .background(RoundedRectangle(cornerRadius: 16).fill(fill))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+    }
+}
+
+/// Eine Figur und die acht Felder um sie herum.
+private struct RulesSceneTerritory: View {
+    var body: some View {
+        VStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { row in
+                HStack(spacing: 3) {
+                    ForEach(0..<3, id: \.self) { col in
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(row == 1 && col == 1 ? Theme.gold : Theme.green.opacity(0.55))
+                            if row == 1 && col == 1 {
+                                Image(systemName: "crown.fill")
+                                    .font(.system(size: 16, weight: .black))
+                                    .foregroundColor(Theme.navy)
+                            }
+                        }
+                        .frame(width: 36, height: 36)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+    }
+}
+
+/// Mana füllt sich Zug für Zug, höchstens bis zum Maximum.
+private struct RulesSceneMana: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<GameState.maxMana, id: \.self) { i in
+                Circle()
+                    .fill(i < 4 ? Theme.manaLight : Color.white.opacity(0.12))
+                    .frame(width: 14, height: 14)
+                    .overlay {
+                        if i == 3 {
+                            Image(systemName: "plus")
+                                .font(.system(size: 9, weight: .black))
+                                .foregroundColor(Theme.navy)
+                        }
+                    }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+    }
+}
+
+/// Vier Karten und eine goldene Ultimate.
+private struct RulesSceneDeck: View {
+    private let colors: [Color] = [Color(hex: 0xE85D4C), Theme.blueLight, Theme.green, Theme.manaLight]
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            ForEach(0..<4, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(colors[i])
+                    .frame(width: 36, height: 50)
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.3), lineWidth: 1))
+            }
+            RoundedRectangle(cornerRadius: 8)
+                .fill(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
+                .frame(width: 42, height: 58)
+                .overlay(Image(systemName: "sparkles").font(.system(size: 16, weight: .black)).foregroundColor(Theme.navy))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.5), lineWidth: 1))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+    }
+}
+
+private struct RulesSceneChests: View {
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            ChestView(rarity: .wood, size: 48)
+            ChestView(rarity: .silver, size: 52)
+            ChestView(rarity: .gold, size: 56)
+            ChestView(rarity: .magic, size: 60)
+            ChestView(rarity: .legendary, size: 66)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct RulesSceneRoles: View {
+    private let roles: [(String, Color)] = [
+        ("burst.fill", Color(hex: 0xE85D4C)),
+        ("snowflake", Theme.blueLight),
+        ("shield.fill", Theme.green),
+        ("drop.fill", Theme.manaLight),
+        ("arrow.uturn.backward", Theme.gold)
+    ]
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<roles.count, id: \.self) { i in
+                Image(systemName: roles[i].0)
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundColor(Theme.navy)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(roles[i].1))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+    }
+}
+
+private struct RulesSceneShield: View {
+    var body: some View {
+        ZStack {
+            Image(systemName: "shield.fill")
+                .font(.system(size: 64, weight: .black))
+                .foregroundStyle(LinearGradient(colors: [Theme.blueLight, Theme.blueDark], startPoint: .top, endPoint: .bottom))
+            Image(systemName: "crown.fill")
+                .font(.system(size: 22, weight: .black))
+                .foregroundColor(Theme.gold)
+                .offset(y: 4)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 78)
+    }
+}
+
+private struct RulesSceneIcon: View {
+    var icon: String
+    var tint: Color
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: 36, weight: .black))
+            .foregroundStyle(LinearGradient(colors: [.white, tint], startPoint: .top, endPoint: .bottom))
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
     }
 }
