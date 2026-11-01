@@ -91,21 +91,22 @@ struct TrophyRoadView: View {
             }
             .navigationBarHidden(true)
             .fullScreenCover(item: $chestToOpen) { c in ChestOpeningView(start: c) }
-            .sheet(isPresented: $showGuide) { pathGuide }
+            .fullScreenCover(isPresented: $showGuide) { pathGuide }
         }
     }
 
     /// Kurz erklärt, wie Belohnungen und Arenen auf dem Pfad funktionieren.
     private var pathGuide: some View {
         NavigationStack {
+            GeometryReader { geo in
             ScrollView {
                 VStack(spacing: 16) {
                     pathClimb
                     pathGuideCard(title: L("Trophäenpfad"), tint: Theme.gold, art: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 4) {
                             ForEach(Arena.all) { arena in
                                 VStack(spacing: 4) {
-                                    arenaMedal(arena, reached: true, size: 36)
+                                    arenaMedal(arena, reached: true, size: 32)
                                     Text("\(arena.number)")
                                         .font(.system(size: 10, weight: .black, design: .rounded))
                                         .foregroundColor(Theme.textMuted)
@@ -117,22 +118,7 @@ struct TrophyRoadView: View {
                         Text(L("Sechs Arenen führen nach oben. Tippe ein Wappen, um dorthin zu springen."))
                     })
                     pathGuideCard(title: L("Truhen"), tint: Color(hex: 0xC084FC), art: {
-                        HStack(alignment: .bottom, spacing: 14) {
-                            ChestView(rarity: .wood, size: 52)
-                            ChestView(rarity: .gold, size: 58)
-                            ChestView(rarity: .magic, size: 64)
-                            ChestView(rarity: .legendary, size: 70)
-                            Spacer(minLength: 0)
-                            VStack(spacing: 6) {
-                                Image(systemName: "diamond.fill")
-                                    .font(.system(size: 22, weight: .black))
-                                    .foregroundColor(Color(hex: 0x7FE3FF))
-                                Image(systemName: "square.grid.3x3.fill")
-                                    .font(.system(size: 18, weight: .black))
-                                    .foregroundColor(Theme.gold)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        pathChests
                     }, text: {
                         Text(L("Alle 50 bis 150 Trophäen wartet eine Belohnung: Truhen, Splitter, Sammelbretter und an jeder neuen Arena eine Magische oder Legendäre Truhe. Abgerechnet wird nach deinem Rekord – wer abrutscht, behält seine Stufen."))
                     })
@@ -166,22 +152,57 @@ struct TrophyRoadView: View {
                         Text(L("Auf dem Trophäenpfad zählt dein Rekord – wer abrutscht, behält seine Belohnungen."))
                     })
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 28)
+                .frame(width: geo.size.width)
             }
-            .background(
-                ZStack {
-                    Theme.background.ignoresSafeArea()
-                    RadialGradient(colors: [Theme.gold.opacity(0.22), .clear], center: .top, startRadius: 10, endRadius: 420)
-                        .ignoresSafeArea()
-                }
-            )
+            }
             .navigationTitle(L("So funktioniert der Pfad"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button(L("Fertig")) { showGuide = false } }
             }
         }
+        .background(
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                RadialGradient(colors: [Theme.gold.opacity(0.22), .clear], center: .top, startRadius: 10, endRadius: 420)
+                    .ignoresSafeArea()
+            }
+        )
         .preferredColorScheme(.dark)
+    }
+
+    /// Truhenreihe, die in die Kartenbreite schrumpft. Jede Truhe ist breiter als ihre Nenngröße.
+    private var pathChests: some View {
+        GeometryReader { geo in
+            let bases: [CGFloat] = [52, 58, 64, 70]
+            let spacing: CGFloat = 8
+            let icons: CGFloat = 28
+            let gaps = spacing * CGFloat(bases.count)
+            let natural = bases.reduce(0, +) * 1.2
+            let room = max(0, geo.size.width - icons - gaps)
+            let scale = min(1, room / max(natural, 1))
+            let sizes = bases.map { $0 * scale }
+            let rarities: [ChestRarity] = [.wood, .gold, .magic, .legendary]
+            HStack(alignment: .bottom, spacing: spacing) {
+                ForEach(Array(rarities.enumerated()), id: \.offset) { i, rarity in
+                    ChestView(rarity: rarity, size: sizes[i])
+                }
+                Spacer(minLength: 4)
+                VStack(spacing: 6) {
+                    Image(systemName: "diamond.fill")
+                        .font(.system(size: 18, weight: .black))
+                        .foregroundColor(Color(hex: 0x7FE3FF))
+                    Image(systemName: "square.grid.3x3.fill")
+                        .font(.system(size: 16, weight: .black))
+                        .foregroundColor(Theme.gold)
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .bottom)
+        }
+        .frame(height: 84)
     }
 
     /// Sechs Arenen als aufsteigender Weg, von unten links nach oben rechts.

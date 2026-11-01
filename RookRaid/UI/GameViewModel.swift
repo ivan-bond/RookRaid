@@ -1307,9 +1307,16 @@ final class GameViewModel: ObservableObject {
                                 winnerColor: winner)
         let delay: UInt64 = finisher != nil ? 2_800_000_000 : 900_000_000
         Task { [weak self] in
-            if botOnline, let result {
-                let reported = await self?.reportOnlineBot(result: result) ?? 0
-                info.trophyDelta = self?.pendingServerDelta ?? reported
+            if botOnline, let result, let vm = self {
+                let reported = await vm.reportOnlineBot(result: result)
+                if let reported, reported != 0 {
+                    info.trophyDelta = vm.pendingServerDelta ?? reported
+                } else if reported == nil || result == .win || result == .draw {
+                    // Netz weg, oder der Server hat einen Sieg nicht gutgeschrieben: dieselbe Formel wie lokal.
+                    info.trophyDelta = vm.creditLocalTrophies(result)
+                } else {
+                    info.trophyDelta = 0
+                }
             }
             if humanOnline {
                 let waitUntil = Date().addingTimeInterval(2.5)
@@ -1323,8 +1330,9 @@ final class GameViewModel: ObservableObject {
         }
     }
 
-    /// Bot-Ersatz: Aktionen und Ergebnis an den Server. Gibt die Trophäen-Änderung des Menschen zurück.
-    private func reportOnlineBot(result: GameResultKind) async -> Int {
+    /// Bot-Ersatz: Aktionen und Ergebnis an den Server. Gibt die Trophäen-Änderung des Menschen zurück,
+    /// oder nil, wenn der Server nicht geantwortet hat.
+    private func reportOnlineBot(result: GameResultKind) async -> Int? {
         guard let play = onlineBotPlay, let client = Backend.client, !onlineReported else { return 0 }
         onlineReported = true
         let outcome: BotMatchOutcome
@@ -1334,19 +1342,42 @@ final class GameViewModel: ObservableObject {
         default: outcome = .completed
         }
         let actions = matchRecord?.actions ?? []
-        PendingBotReports.store(PendingBotReport(matchId: play.matchId, actions: actions, outcome: outcome.rawValue))
+        PendingBotReports.store(PendingBotReport(matchId: play.matchId, actions: actions, outcome: outcome.rawValue,
+                                                 humanIsWhite: humanColor == .white))
         do {
             let delta = try await SupabaseBotMatchReporter(client: client)
-                .finish(matchId: play.matchId, actions: actions, outcome: outcome)
+                .finish(matchId: play.matchId, actions: actions, outcome: outcome, humanIsWhite: humanColor == .white)
             PendingBotReports.clear()
             store.profile.trophies = max(0, store.profile.trophies + delta)
             store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
+            if delta != 0, !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == 0 {
+                store.profile.history[0].trophyDelta = delta
+            }
             OnlineAccount.shared.backupQuietly()
             Task { await OnlineAccount.shared.reload() }
             return delta
         } catch {
-            return 0
+            return nil
         }
+    }
+
+    /// Dieselbe Trophäenformel wie `ProfileStore.record`, wenn der Server die Partie nicht gewertet hat.
+    private func creditLocalTrophies(_ result: GameResultKind) -> Int {
+        let delta: Int
+        switch result {
+        case .win: delta = 30
+        case .draw: delta = 5
+        case .loss:
+            let floor = store.arena.trophies
+            delta = -min(20, max(0, store.profile.trophies - floor))
+        }
+        guard delta != 0 else { return 0 }
+        store.profile.trophies = max(0, store.profile.trophies + delta)
+        store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
+        if !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == 0 {
+            store.profile.history[0].trophyDelta = delta
+        }
+        return delta
     }
 
     private var onlineMatchId: UUID? {

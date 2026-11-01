@@ -1215,7 +1215,7 @@ struct SettingsSheet: View {
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showRules) { RulesView() }
+        .fullScreenCover(isPresented: $showRules) { RulesView() }
         .sheet(isPresented: $editLocalName) { LocalNameSheet() }
         .confirmationDialog(L("Gesamten Fortschritt löschen?"), isPresented: $showReset, titleVisibility: .visible) {
             Button(L("Zurücksetzen"), role: .destructive) { store.resetProgress() }
@@ -1326,6 +1326,7 @@ struct RulesView: View {
 
     var body: some View {
         NavigationStack {
+            GeometryReader { geo in
             ScrollView {
                 VStack(spacing: 14) {
                     goalBanner
@@ -1400,21 +1401,25 @@ struct RulesView: View {
                         note(L("Alle Daten werden nur lokal auf dem iPhone gespeichert."))
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 28)
+                .frame(width: geo.size.width)
             }
-            .background(
-                ZStack {
-                    Theme.background.ignoresSafeArea()
-                    RadialGradient(colors: [Color(hex: 0x6B4FD8).opacity(0.28), .clear], center: .top, startRadius: 10, endRadius: 480)
-                        .ignoresSafeArea()
-                }
-            )
+            }
             .navigationTitle(L("Regeln"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button(L("Fertig")) { dismiss() } }
             }
         }
+        .background(
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                RadialGradient(colors: [Color(hex: 0x6B4FD8).opacity(0.28), .clear], center: .top, startRadius: 10, endRadius: 480)
+                    .ignoresSafeArea()
+            }
+        )
         .preferredColorScheme(.dark)
     }
 
@@ -1465,11 +1470,13 @@ struct RulesView: View {
                 Text(title)
                     .font(.system(size: 15, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(text)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -1609,13 +1616,22 @@ private struct RulesSceneDeck: View {
 
 private struct RulesSceneChests: View {
     var body: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            ChestView(rarity: .wood, size: 48)
-            ChestView(rarity: .silver, size: 52)
-            ChestView(rarity: .gold, size: 56)
-            ChestView(rarity: .magic, size: 60)
-            ChestView(rarity: .legendary, size: 66)
+        GeometryReader { geo in
+            let bases: [CGFloat] = [48, 52, 56, 60, 66]
+            let spacing: CGFloat = 8
+            let gaps = spacing * CGFloat(bases.count - 1)
+            let natural = bases.reduce(0, +) * 1.2
+            let scale = min(1, max(0, geo.size.width - gaps) / max(natural, 1))
+            let sizes = bases.map { $0 * scale }
+            let rarities: [ChestRarity] = [.wood, .silver, .gold, .magic, .legendary]
+            HStack(alignment: .bottom, spacing: spacing) {
+                ForEach(Array(rarities.enumerated()), id: \.offset) { i, rarity in
+                    ChestView(rarity: rarity, size: sizes[i])
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
         }
+        .frame(height: 80)
         .frame(maxWidth: .infinity)
     }
 }

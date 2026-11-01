@@ -137,28 +137,22 @@ final class SupabaseBotMatchReporter: BotMatchReporter {
     private let client: SupabaseClient
     init(client: SupabaseClient) { self.client = client }
 
-    func finish(matchId: UUID, actions: [String], outcome: BotMatchOutcome) async throws -> Int {
+    func finish(matchId: UUID, actions: [String], outcome: BotMatchOutcome, humanIsWhite: Bool) async throws -> Int {
         struct Body: Encodable { let match_id: UUID; let actions: [String]; let outcome: String }
         struct Reply: Decodable {
             let trophyDeltaWhite: Int?
             let trophyDeltaBlack: Int?
-            let winner: String?
             enum CodingKeys: String, CodingKey {
                 case trophyDeltaWhite = "trophy_delta_white"
                 case trophyDeltaBlack = "trophy_delta_black"
-                case winner
             }
         }
         let reply: Reply = try await client.functions.invoke(
             OnlineConfig.Endpoint.finishBotMatch,
             options: .init(body: Body(match_id: matchId, actions: actions, outcome: outcome.rawValue))
         )
-        let uid = client.auth.currentUser?.id
-        struct MatchSide: Decodable { let white: UUID?; let black: UUID? }
-        let side: MatchSide = try await client.from("matches").select("white,black")
-            .eq("id", value: matchId).single().execute().value
-        if uid != nil, side.white == uid { return reply.trophyDeltaWhite ?? 0 }
-        return reply.trophyDeltaBlack ?? 0
+        // Die Farbe steht schon fest. Ein zweites Lesen der Partie darf eine erfolgreiche Wertung nicht verwerfen.
+        return humanIsWhite ? (reply.trophyDeltaWhite ?? 0) : (reply.trophyDeltaBlack ?? 0)
     }
 }
 
@@ -203,6 +197,8 @@ struct PendingBotReport: Codable {
     var matchId: UUID
     var actions: [String]
     var outcome: String
+    /// Welche Farbe der Mensch gespielt hat. Ältere Meldungen ohne das Feld gelten als Weiß.
+    var humanIsWhite: Bool?
     static let file = "pending_bot_report"
 }
 
@@ -213,11 +209,18 @@ enum PendingBotReports {
 
     static func retryIfNeeded() {
         guard let report = load(), let client = Backend.client else { return }
-        Task {
+        Task { @MainActor in
             do {
                 let outcome = BotMatchOutcome(rawValue: report.outcome) ?? .completed
                 _ = try await SupabaseBotMatchReporter(client: client)
-                    .finish(matchId: report.matchId, actions: report.actions, outcome: outcome)
+                    .finish(matchId: report.matchId, actions: report.actions, outcome: outcome,
+                            humanIsWhite: report.humanIsWhite ?? true)
+                await OnlineAccount.shared.reload()
+                if let server = OnlineAccount.shared.progress {
+                    let store = ProfileStore.shared
+                    if server.trophies > store.profile.trophies { store.profile.trophies = server.trophies }
+                    store.profile.bestTrophies = max(store.profile.bestTrophies, server.bestTrophies)
+                }
                 clear()
             } catch {
                 // Partie war schon gewertet (45 s weg) oder Netz immer noch weg – beim nächsten Start nochmal

@@ -485,5 +485,5 @@ struct OnlineBotPlay: Equatable {
 /// Ergebnis einer Bot-Ersatz-Partie an den Server melden (Edge Function `finish-bot-match`).
 protocol BotMatchReporter: AnyObject {
     /// Gibt die Trophäen-Änderung zurück (Server rechnet, nicht die App).
-    func finish(matchId: UUID, actions: [String], outcome: BotMatchOutcome) async throws -> Int
+    func finish(matchId: UUID, actions: [String], outcome: BotMatchOutcome, humanIsWhite: Bool) async throws -> Int
 }

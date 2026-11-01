@@ -135,7 +135,7 @@ struct GameView: View {
             Button(L("Aufgeben"), role: .destructive) { vm.resign() }
             Button(L("Weiterspielen"), role: .cancel) {}
         }
-        .sheet(isPresented: $showRules) { RulesView() }
+        .fullScreenCover(isPresented: $showRules) { RulesView() }
         .background(
             // Eigener Träger für die Truhen-Öffnung, damit sie der Wiedergabe nicht in die Quere kommt.
             Color.clear.fullScreenCover(item: $chestToOpen) { c in ChestOpeningView(start: c, only: chestQueue) }
@@ -222,32 +222,35 @@ struct GameView: View {
         .frame(width: size.width, height: size.height, alignment: .top)
     }
 
-    /// Querformat: das Brett bleibt groß, die Hand steht daneben statt darunter.
+    /// Querformat: das Brett nimmt die ganze Höhe. Namen, Karten und Hinweis stehen daneben.
     private func widePlay(top: PlayerColor, bottom: PlayerColor, size: CGSize) -> some View {
-        let column = min(360, max(250, size.width * 0.32))
-        let side = GameView.wideBoardSide(for: size, column: column, tutorial: vm.mode == .tutorial)
-        return VStack(spacing: 6) {
+        let metrics = GameView.wideMetrics(for: size)
+        return VStack(spacing: 4) {
             topBar
                 .frame(height: GameView.topBarHeight)
-            HStack(alignment: .top, spacing: 8) {
-                VStack(spacing: 6) {
-                    opponentStrip(top)
-                    board(side)
-                    PlayerBar(vm: vm, color: bottom)
-                        .padding(.horizontal, 8)
-                        .frame(height: GameView.playerBarHeight)
-                }
-                .frame(maxWidth: .infinity)
+            HStack(alignment: .center, spacing: 10) {
+                board(metrics.board)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 VStack(spacing: 8) {
+                    if vm.mode == .tutorial {
+                        QuestBar(coach: vm.coach, opponent: vm.name(for: top),
+                                 opponentThinking: vm.isThinking, nudge: vm.questNudge,
+                                 nudgeText: vm.questNudgeText, onSkip: { vm.skipTutorial() })
+                    } else {
+                        PlayerBar(vm: vm, color: top, compactCards: true)
+                    }
+                    Spacer(minLength: 0)
                     HandView(vm: vm)
                     if vm.mode != .tutorial {
                         HintSlot(vm: vm)
                     }
-                    Spacer(minLength: 0)
+                    PlayerBar(vm: vm, color: bottom, compactCards: true)
                 }
-                .frame(width: column)
+                .frame(width: metrics.column)
+                .frame(maxHeight: .infinity, alignment: .top)
             }
-            .padding(.trailing, 8)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
         }
         .frame(width: size.width, height: size.height, alignment: .top)
     }
@@ -285,10 +288,13 @@ struct GameView: View {
         return max(180, min(size.width, size.height - reserved))
     }
 
-    /// Querformat: die Hand steht neben dem Brett, also zählt ihre Höhe nicht gegen die Brettgröße.
-    static func wideBoardSide(for size: CGSize, column: CGFloat, tutorial: Bool) -> CGFloat {
-        let chrome = topBarHeight + (tutorial ? questBarHeight : opponentBarHeight) + playerBarHeight + 28
-        return max(160, min(size.width - column - 24, size.height - chrome))
+    /// Querformat: größtes Quadrat, das unter die Titelleiste passt. Der Rest der Breite ist die Kartenspalte.
+    static func wideMetrics(for size: CGSize) -> (board: CGFloat, column: CGFloat) {
+        let maxBoard = max(160, size.height - topBarHeight - 10)
+        let gap: CGFloat = 20
+        let column = min(340, max(220, size.width - maxBoard - gap))
+        let board = max(160, min(maxBoard, size.width - column - gap))
+        return (board, column)
     }
 
     private var topBar: some View {
@@ -353,6 +359,8 @@ struct GameView: View {
 struct PlayerBar: View {
     @ObservedObject var vm: GameViewModel
     let color: PlayerColor
+    /// Querformat: die gegnerischen Karten sind kleiner, damit das Brett die Höhe behält.
+    var compactCards = false
 
     var body: some View {
         let active = vm.state.current == color && !vm.status.isOver
@@ -387,7 +395,7 @@ struct PlayerBar: View {
                     OpponentHandStrip(hand: deck.hand, ultimate: vm.state.ultimates[color],
                                       mana: vm.state.mana[color, default: 0],
                                       cooldowns: deck.hand.map { vm.state.cooldownRemaining($0, player: color) },
-                                      cardWidth: color == vm.perspective ? 18 : 36)
+                                      cardWidth: color == vm.perspective ? 18 : (compactCards ? 24 : 36))
                 }
             }
             Spacer(minLength: 4)
@@ -397,21 +405,18 @@ struct PlayerBar: View {
         }
     }
 
-    /// Gegen einen verkleideten Bot (oder einen Menschen) stehen die echten Avatare in der Leiste.
-    /// Charaktere der Leiter behalten ihren König.
+    /// Der Spieler sieht immer seinen Avatar. Leiter- und Kampfgegner behalten ihren König.
     @ViewBuilder
     private func portrait(active: Bool) -> some View {
         let ring = color == vm.perspective ? Theme.blue : Theme.red
-        if let card = vm.onlineOpponent {
-            if color == vm.humanColor {
-                PlayerAvatar(size: 34, pieceColor: color)
-                    .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
-            } else {
-                PlayerAvatar(size: 34, pieceColor: color,
-                             frame: card.frame.flatMap(AvatarFrame.init(rawValue:)) ?? .none,
-                             avatar: Avatar(rawValue: card.avatar) ?? .knight)
-                    .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
-            }
+        if color == vm.humanColor && (vm.mode.isBot || vm.onlineOpponent != nil || vm.mode.isOnline) {
+            PlayerAvatar(size: 34, pieceColor: color)
+                .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
+        } else if let card = vm.onlineOpponent {
+            PlayerAvatar(size: 34, pieceColor: color,
+                         frame: card.frame.flatMap(AvatarFrame.init(rawValue:)) ?? .none,
+                         avatar: Avatar(rawValue: card.avatar) ?? .knight)
+                .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
         } else {
             ZStack {
                 RoundedRectangle(cornerRadius: 5)
