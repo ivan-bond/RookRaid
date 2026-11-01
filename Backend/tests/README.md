@@ -8,7 +8,8 @@ Prüfen die Datenbank-Funktionen (Migration 1) und das Zusammenspiel mit dem Reg
 3. Ausführen:
    ```bash
    export DB_URL=postgresql://postgres:postgres@127.0.0.1:5432/rookraid_test
-   node q.js stub.sql ../supabase/migrations/20261028000001_online_init.sql ../supabase/seed/rules.sql
-   node scenario.js   # Konto, eindeutige Namen, Gegnersuche, Rechte, Uhr 5|0, Remis, Bot-Ersatz, Zeitablauf, Verbindungsabbruch, Arena-Grenze, Wartung
-   node flow.mjs      # echte Partie bis zum Matt über Regel-Bündel + record_action
+   node load-schema.js   # Stub, alle Migrationen, Regel-Seed
+   node privileges.js    # RLS, search_path, Gäste dürfen keine Spielfunktionen
+   node scenario.js      # Konto, eindeutige Namen, Gegnersuche, Rechte, Uhr 5|0, Remis, Bot-Ersatz, Zeitablauf, Verbindungsabbruch, Arena-Grenze, Wartung
+   node flow.mjs         # echte Partie bis zum Matt über Regel-Bündel + record_action
    ```
