@@ -23,45 +23,13 @@ struct GameView: View {
             Theme.background.ignoresSafeArea()
 
             GeometryReader { geo in
-            let side = GameView.boardSide(for: geo.size, tutorial: vm.mode == .tutorial)
-            VStack(spacing: 6) {
-                topBar
-                    .frame(height: GameView.topBarHeight)
-                if vm.mode == .tutorial {
-                    // Erste Schlacht: Die Aufgabe steht dort, wo sonst die Gegnerleiste ist – nichts verdeckt das Brett.
-                    QuestBar(coach: vm.coach, opponent: vm.name(for: top),
-                             opponentThinking: vm.isThinking, nudge: vm.questNudge,
-                             nudgeText: vm.questNudgeText, onSkip: { vm.skipTutorial() })
-                        .padding(.horizontal, 8)
+                // Hochformat: alles untereinander. Querformat (iPad, offenes iPhone Duo): Brett links, Karten rechts.
+                // Die Entscheidung kommt nur aus dem Fenster, nicht aus dem Gerät.
+                if geo.size.width > geo.size.height + 40 {
+                    widePlay(top: top, bottom: bottom, size: geo.size)
                 } else {
-                    PlayerBar(vm: vm, color: top)
-                        .padding(.horizontal, 8)
-                        .frame(height: GameView.opponentBarHeight)
+                    tallPlay(top: top, bottom: bottom, size: geo.size)
                 }
-
-                // Feste Brettgröße: Hinweise, Gutschriften oder Leisten, die kommen und gehen,
-                // verändern das Brett nie (kein „Zoomen“ nach einem Zug).
-                BoardView(vm: vm)
-                    .frame(width: side, height: side)
-                    .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
-
-                PlayerBar(vm: vm, color: bottom)
-                    .padding(.horizontal, 8)
-                    .frame(height: GameView.playerBarHeight)
-
-                HandView(vm: vm)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 2)
-
-                // Fester Platz für die Hinweis-Blase direkt unter den Karten (immer gleich hoch)
-                if vm.mode != .tutorial {
-                    HintSlot(vm: vm)
-                        .padding(.horizontal, 10)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
             }
 
             if let done = vm.tutorialComplete {
@@ -231,8 +199,82 @@ struct GameView: View {
     static let opponentBarHeight: CGFloat = 80
     static let questBarHeight: CGFloat = 84
 
-    /// Brettgröße aus dem Platz, der nach allen festen Leisten übrig bleibt – auf jedem iPhone so,
-    /// dass Karten und Hinweis-Blase vollständig darunter passen.
+    /// Hochformat: Brett unter den Leisten, Karten darunter. Die Größe folgt dem Fenster, nicht einem Gerät.
+    private func tallPlay(top: PlayerColor, bottom: PlayerColor, size: CGSize) -> some View {
+        let side = GameView.boardSide(for: size, tutorial: vm.mode == .tutorial)
+        return VStack(spacing: 6) {
+            topBar
+                .frame(height: GameView.topBarHeight)
+            opponentStrip(top)
+            board(side)
+            PlayerBar(vm: vm, color: bottom)
+                .padding(.horizontal, 8)
+                .frame(height: GameView.playerBarHeight)
+            HandView(vm: vm)
+                .padding(.horizontal, 10)
+                .padding(.top, 2)
+            if vm.mode != .tutorial {
+                HintSlot(vm: vm)
+                    .padding(.horizontal, 10)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: size.width, height: size.height, alignment: .top)
+    }
+
+    /// Querformat: das Brett bleibt groß, die Hand steht daneben statt darunter.
+    private func widePlay(top: PlayerColor, bottom: PlayerColor, size: CGSize) -> some View {
+        let column = min(360, max(250, size.width * 0.32))
+        let side = GameView.wideBoardSide(for: size, column: column, tutorial: vm.mode == .tutorial)
+        return VStack(spacing: 6) {
+            topBar
+                .frame(height: GameView.topBarHeight)
+            HStack(alignment: .top, spacing: 8) {
+                VStack(spacing: 6) {
+                    opponentStrip(top)
+                    board(side)
+                    PlayerBar(vm: vm, color: bottom)
+                        .padding(.horizontal, 8)
+                        .frame(height: GameView.playerBarHeight)
+                }
+                .frame(maxWidth: .infinity)
+                VStack(spacing: 8) {
+                    HandView(vm: vm)
+                    if vm.mode != .tutorial {
+                        HintSlot(vm: vm)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(width: column)
+            }
+            .padding(.trailing, 8)
+        }
+        .frame(width: size.width, height: size.height, alignment: .top)
+    }
+
+    @ViewBuilder
+    private func opponentStrip(_ top: PlayerColor) -> some View {
+        if vm.mode == .tutorial {
+            QuestBar(coach: vm.coach, opponent: vm.name(for: top),
+                     opponentThinking: vm.isThinking, nudge: vm.questNudge,
+                     nudgeText: vm.questNudgeText, onSkip: { vm.skipTutorial() })
+                .padding(.horizontal, 8)
+        } else {
+            PlayerBar(vm: vm, color: top)
+                .padding(.horizontal, 8)
+                .frame(height: GameView.opponentBarHeight)
+        }
+    }
+
+    /// Feste Brettgröße: Hinweise und Leisten, die kommen und gehen, verändern das Brett nicht.
+    private func board(_ side: CGFloat) -> some View {
+        BoardView(vm: vm)
+            .frame(width: side, height: side)
+            .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
+    }
+
+    /// Brettgröße aus dem Platz, der nach allen festen Leisten übrig bleibt,
+    /// sodass Karten und Hinweis-Blase vollständig darunter passen.
     static func boardSide(for size: CGSize, tutorial: Bool) -> CGFloat {
         // Karten: Ultimate 66 pt + Trenner + 4 Karten (Seitenverhältnis 0,8 plus Name darunter)
         let cardWidth = max(40, (size.width - 20 - 66 - 1 - 30) / 4)
@@ -240,7 +282,13 @@ struct GameView: View {
         let hand = 2 + 32 + 11 + cardHeight
         var reserved = topBarHeight + (tutorial ? questBarHeight : opponentBarHeight) + playerBarHeight + hand + 6 * 4 + 6
         if !tutorial { reserved += HintSlot.height + 6 }
-        return max(220, min(size.width, size.height - reserved))
+        return max(180, min(size.width, size.height - reserved))
+    }
+
+    /// Querformat: die Hand steht neben dem Brett, also zählt ihre Höhe nicht gegen die Brettgröße.
+    static func wideBoardSide(for size: CGSize, column: CGFloat, tutorial: Bool) -> CGFloat {
+        let chrome = topBarHeight + (tutorial ? questBarHeight : opponentBarHeight) + playerBarHeight + 28
+        return max(160, min(size.width - column - 24, size.height - chrome))
     }
 
     private var topBar: some View {

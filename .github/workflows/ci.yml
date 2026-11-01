@@ -39,6 +39,14 @@ jobs:
       - name: Golden cases match the JavaScript rules
         run: node Tools/rules-js/check-golden.js
 
+  devices:
+    name: iPhone and iPad layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Window size decides the layout
+        run: bash Tools/ci/check-devices.sh
+
   backend:
     name: Online database
     runs-on: ubuntu-latest
@@ -99,16 +107,19 @@ jobs:
 
   ios:
     name: iOS build
-    runs-on: macos-latest
+    # Xcode 27.1 ships the iOS 27.1 SDK. That SDK is what lets the app fill the
+    # iPhone Duo inner display. It runs on Apple silicon only, so this job uses
+    # the Xcode 27 runner. The app still launches on iOS 16.
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      - name: Build for the simulator
+      - name: Build with the iOS 27.1 SDK
         run: >
           xcodebuild
           -project RookRaid.xcodeproj
           -scheme RookRaid
           -configuration Debug
-          -sdk iphonesimulator
+          -sdk iphonesimulator27.1
           -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO
           build

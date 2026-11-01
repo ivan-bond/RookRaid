@@ -750,25 +750,50 @@ struct RushBoard: View {
     let onSolved: () -> Void
     let onFailed: () -> Void
 
+    private var rushPrompt: some View {
+        Text(PuzzleViewModel.prompt(for: vm.puzzle))
+            .font(.system(size: 16, weight: .heavy, design: .rounded))
+            .foregroundColor(Theme.textPrimary)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .frame(height: 44)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
+            .padding(.horizontal, 12)
+    }
+
     var body: some View {
-        VStack(spacing: 8) {
-            Text(PuzzleViewModel.prompt(for: vm.puzzle))
-                .font(.system(size: 16, weight: .heavy, design: .rounded))
-                .foregroundColor(Theme.textPrimary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 12)
-                .frame(height: 44)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
-                .padding(.horizontal, 12)
-            PuzzleBoardView(vm: vm)
-                .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
-            if vm.hasCards {
-                PuzzleHandView(vm: vm)
-                    .padding(.horizontal, 12)
+        GeometryReader { geo in
+            let wide = geo.size.width > geo.size.height + 40
+            Group {
+                if wide {
+                    HStack(alignment: .top, spacing: 12) {
+                        PuzzleBoardView(vm: vm)
+                            .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
+                            .frame(maxHeight: .infinity)
+                        VStack(spacing: 8) {
+                            rushPrompt
+                            if vm.hasCards { PuzzleHandView(vm: vm) }
+                            Spacer(minLength: 0)
+                        }
+                        .frame(width: min(360, geo.size.width * 0.38))
+                    }
+                    .padding(.trailing, 8)
+                } else {
+                    VStack(spacing: 8) {
+                        rushPrompt
+                        PuzzleBoardView(vm: vm)
+                            .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
+                        if vm.hasCards {
+                            PuzzleHandView(vm: vm)
+                                .padding(.horizontal, 12)
+                        }
+                    }
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
         .onChange(of: vm.phase) { phase in
             switch phase {
@@ -982,28 +1007,39 @@ struct PuzzleView: View {
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
-            VStack(spacing: 10) {
-                topBar
-                promptCard
-                PuzzleBoardView(vm: vm)
-                    .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
-                Text(vm.message)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Theme.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                    .frame(maxWidth: .infinity)
-                    // feste Höhe, damit das Brett bei längeren Texten nicht springt
-                    .frame(height: 40)
-                    .padding(.horizontal, 16)
-                    .animation(.easeOut, value: vm.message)
-                if vm.hasCards {
-                    PuzzleHandView(vm: vm)
-                        .padding(.horizontal, 12)
+            GeometryReader { geo in
+                let wide = geo.size.width > geo.size.height + 40
+                VStack(spacing: 10) {
+                    topBar
+                    if wide {
+                        HStack(alignment: .top, spacing: 12) {
+                            PuzzleBoardView(vm: vm)
+                                .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            VStack(spacing: 10) {
+                                promptCard
+                                messageLine
+                                if vm.hasCards { PuzzleHandView(vm: vm) }
+                                controls
+                                Spacer(minLength: 0)
+                            }
+                            .frame(width: min(380, geo.size.width * 0.4))
+                        }
+                        .padding(.trailing, 8)
+                    } else {
+                        promptCard
+                        PuzzleBoardView(vm: vm)
+                            .modifier(ShakeEffect(animatableData: CGFloat(vm.shake)))
+                        messageLine
+                        if vm.hasCards {
+                            PuzzleHandView(vm: vm)
+                                .padding(.horizontal, 12)
+                        }
+                        controls
+                        Spacer(minLength: 0)
+                    }
                 }
-                controls
-                Spacer(minLength: 0)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
             }
 
             if let reward = vm.reward {
@@ -1043,6 +1079,20 @@ struct PuzzleView: View {
                 .frame(width: 44)
         }
         .padding(.horizontal, 8)
+    }
+
+    private var messageLine: some View {
+        Text(vm.message)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(Theme.textPrimary)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+            // feste Höhe, damit das Brett bei längeren Texten nicht springt
+            .frame(height: 40)
+            .padding(.horizontal, 16)
+            .animation(.easeOut, value: vm.message)
     }
 
     private var promptCard: some View {
