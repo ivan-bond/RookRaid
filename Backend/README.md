@@ -2,7 +2,7 @@
 
 **Vollständige Anleitung: [`ONLINE-IMPLEMENTIERUNG.md`](ONLINE-IMPLEMENTIERUNG.md)** – Entscheidungen, Einrichtung, App-Anbindung, Protokoll, Tests, Betrieb.
 
-Stand v0.9.36 (Entscheidungen festgelegt, Abschnitt 1 der Anleitung): Server-Teil fertig und lokal getestet, **noch nicht eingespielt**; die App spielt weiter komplett lokal (`OnlineConfig.enabled = false`).
+Stand v0.9.36: Datenbank, Regeln (Version 3), Wartungsjob und die drei Edge Functions liegen auf dem Projekt in Frankfurt. `OnlineConfig.enabled` ist an; ohne URL und Schlüssel in der App bleibt das Spiel lokal.
 
 ## Inhalt
 - `supabase/migrations/` – Datenbank (Tabellen, Zugriffsregeln, Funktionen für Konto, Gegnersuche, Bot-Ersatz, Uhr, Remis, Aufgeben, Wartung, Bestenliste) und Wartungsjob.

@@ -1,19 +1,15 @@
 import Foundation
 
-// MARK: - Online-Vorbereitung (v0.9.26, noch ohne Server)
+// MARK: - Online (Supabase)
 //
-// Alles, was der Online-Prototyp braucht und schon ohne Supabase gebaut werden kann:
-// - eine feste Gast-ID pro Gerät (wird beim ersten Anmelden mit dem Konto verknüpft),
-// - eine „Spielerkarte“ (was der Gegner von dir sieht),
-// - ein Fortschritts-Abzug für die Übernahme ins Konto,
-// - die Schnittstelle der Gegnersuche mit einer lokalen Fassung (Bot-Ersatz).
-// Die Supabase-Anbindung implementiert später `AccountService`, `MatchService` und `OnlineMatchSession`
-// (Anleitung: Backend/ONLINE-IMPLEMENTIERUNG.md, Server: Backend/supabase).
+// Konto, Gegnersuche und Partie laufen über den Server in Frankfurt, sobald URL und Schlüssel
+// in der App stehen (Anleitung: Backend/ONLINE-IMPLEMENTIERUNG.md).
+// Fehlen die Schlüssel, bleibt die App lokal.
 
 enum OnlineConfig {
-    /// Online-Funktionen sind noch aus – die App spielt komplett lokal.
-    /// In Debug-Builds mit Server-Schlüssel darf schon getestet werden (Konto, Suche, Bot-Ersatz).
-    static let enabled = false
+    /// Release-Builds sprechen mit dem Server, sobald URL und Schlüssel vorhanden sind.
+    /// In Debug-Builds mit Schlüssel bleibt die Verbindung auch dann an, wenn diese Marke aus ist.
+    static let enabled = true
 
     /// Server erreichbar und (in der Store-Fassung) online eingeschaltet.
     static var isLive: Bool {
