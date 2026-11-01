@@ -10,6 +10,8 @@ concurrency:
 
 permissions:
   contents: read
+  # Gitleaks lists the files of a pull request. contents: read alone is not enough for that call.
+  pull-requests: read
 
 jobs:
   secrets:
@@ -92,12 +94,8 @@ jobs:
       - name: Known vulnerabilities in the test packages
         working-directory: Backend/tests
         run: npm audit --audit-level=high
-      - name: Known vulnerabilities in app and test dependencies
-        uses: google/osv-scanner-action/osv-scanner-action@v2.3.2
-        with:
-          scan-args: |-
-            --lockfile=Backend/tests/package-lock.json
-            --lockfile=RookRaid.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+      - name: Known vulnerabilities in npm and Swift packages
+        run: node Tools/ci/osv-scan.mjs
 
   ios:
     name: iOS build
