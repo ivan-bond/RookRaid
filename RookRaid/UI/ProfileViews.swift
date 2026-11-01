@@ -1020,6 +1020,7 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) var dismiss
     @State var showReset = false
     @State var showRules = false
+    @State var legalPage: LegalPage?
     @State var editLocalName = false
     @ObservedObject private var account = OnlineAccount.shared
 
@@ -1176,8 +1177,25 @@ struct SettingsSheet: View {
                         .buttonStyle(.plain)
                     }
 
+                    settingsGroup(L("Rechtliches")) {
+                        Button { legalPage = .privacy } label: {
+                            settingsLink(L("Datenschutz"), "hand.raised.fill", Theme.blueLight)
+                        }
+                        .buttonStyle(.plain)
+                        divider
+                        Button { legalPage = .imprint } label: {
+                            settingsLink(L("Impressum"), "building.columns.fill", Theme.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                        divider
+                        Button { legalPage = .terms } label: {
+                            settingsLink(L("Nutzungsbedingungen"), "doc.text.fill", Theme.gold)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     settingsGroup(L("Daten")) {
-                        Text(L("Alle Daten liegen nur lokal auf diesem iPhone: Profil, Fortschritt, Verlauf und die laufende Partie."))
+                        Text(L("Profil, Fortschritt, Verlauf und die laufende Partie liegen auf diesem iPhone. Online liegen Konto, Trophäen und Partien zusätzlich auf dem Server in Frankfurt. Mehr dazu im Datenschutz."))
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(Theme.textMuted)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1216,6 +1234,7 @@ struct SettingsSheet: View {
         }
         .preferredColorScheme(.dark)
         .fullScreenCover(isPresented: $showRules) { RulesView() }
+        .fullScreenCover(item: $legalPage) { LegalDocumentView(page: $0) }
         .sheet(isPresented: $editLocalName) { LocalNameSheet() }
         .confirmationDialog(L("Gesamten Fortschritt löschen?"), isPresented: $showReset, titleVisibility: .visible) {
             Button(L("Zurücksetzen"), role: .destructive) { store.resetProgress() }
@@ -1398,7 +1417,7 @@ struct RulesView: View {
                     }
                     chapter(L("Prototyp-Hinweise"), Theme.textMuted, RulesSceneIcon(icon: "info.circle.fill", tint: Theme.textSecondary)) {
                         note(L("Remis durch Patt, dreifache Stellungswiederholung und die 50-Züge-Regel. Karteneinsätze setzen den 50-Züge-Zähler zurück."))
-                        note(L("Alle Daten werden nur lokal auf dem iPhone gespeichert."))
+                        note(L("Offline bleibt der Spielstand auf dem iPhone. Online liegen Konto und Partien auf dem Server. Details stehen unter Einstellungen, Datenschutz."))
                     }
                 }
                 .padding(.horizontal, 16)
