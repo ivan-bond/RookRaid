@@ -38,7 +38,7 @@ Alle zwölf Fragen sind beantwortet; Datenbank, Tests und App-Schnittstellen set
 
 | # | Frage | Entscheidung | Umsetzung |
 |---|---|---|---|
-| E1 | Zählen Bot-Ersatz-Partien für Trophäen? | **Ja, wie echte Partien.** Der Bot-Ersatz bleibt unerkennbar. | `finish_match` bucht für den Menschen wie gegen Menschen (+30 / +5 / −20). |
+| E1 | Zählen Bot-Ersatz-Partien für Trophäen? | **Ja, wie echte Partien.** Der Bot-Ersatz bleibt unerkennbar. | `finish_match` bucht für den Menschen wie gegen Menschen (Einsatz nach Trophäenabstand, Untergrenze 0). |
 | E2 | Was führt der Server in Phase 1? | **Nur Trophäen, Bestwert und Online-Bilanz.** Karten, XP, Splitter, Truhen, Puzzles und Flammen bleiben auf dem Gerät; der Server sichert sie nur (`progress.snapshot`). | Tabelle `progress`, `backup_progress()`. |
 | E3 | Zeitkontrollen online | **Genau eine: 5 \| 0** (5 Minuten, kein Inkrement). Die Uhr-Einstellung der App gilt nur offline. | App: neue Zeitkontrolle `TimeControl.blitz5`, `OnlineConfig.timeControl`; Server: `tc_base_ms('blitz5')` = 300 000, Inkrement 0, andere werden mit `bad_time_control` abgelehnt. |
 | E4 | Gast-Trophäen beim ersten Anmelden | **Übernehmen, gedeckelt auf 1 500.** | `setup_account()`. |
@@ -467,8 +467,8 @@ final class SupabaseMatchSession: OnlineMatchSession {
 ### 14.3 Ergebnisse (`matches.result`)
 `mate`, `stalemate`, `fifty`, `repetition`, `timeout`, `resigned`, `draw_agreed`, `aborted` (ohne Wertung), `abandoned` (Spieler 45 s ohne Verbindung – gegen Menschen und Bot-Ersatz). `winner_color` = `white`/`black` oder leer (Remis/Abbruch).
 
-### 14.4 Trophäen (`apply_result`, gleiche Formel wie `ProfileStore.record`)
-Sieg **+30**, Remis **+5**, Niederlage **−20**, aber nie unter die Untergrenze der aktuellen Arena (0 · 90 · 240 · 600 · 1 200 · 2 100). Beispiel: 95 Trophäen, Niederlage → −5.
+### 14.4 Trophäen (`trophy_delta`, gleiche Formel wie `TrophyStake` in der App)
+Gleich stark: Sieg **+20**, Remis **0**, Niederlage **−20**. Je 100 Trophäen, die der Gegner mehr hat, gibt es auf den Sieg 4 mehr und auf die Niederlage 4 weniger (Remis die Hälfte davon). Grenzen: Sieg +8 bis +40, Niederlage −8 bis −40, Remis −12 bis +12. Einzige Untergrenze ist **0** – Arenen halten einen nicht fest. Beispiel: 95 gegen 95, Niederlage → −20, also 75 und damit unter der nächsten Arena. 1000 gegen 1400: Sieg +36, Niederlage −8.
 
 ### 14.5 Datenbank-Funktionen (RPC, für angemeldete Spieler)
 | Funktion | Zweck | Wichtige Fehler |

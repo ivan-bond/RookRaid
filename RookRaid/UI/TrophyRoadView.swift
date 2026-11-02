@@ -3,8 +3,8 @@ import SwiftUI
 // MARK: - Trophäenpfad (Tab „Pfad“)
 //
 // Ein gewundener Weg nach oben durch sechs Welten – unten das grüne Trainingsgelände, ganz oben der verschneite
-// Königsgipfel, wo die Turmkönigin thront. Jede Arena hat ihre eigene Landschaft (Hügel, Mauern, Säulen,
-// Gewitter, Lava, Berge) und eigene Teilchen (Glühwürmchen, Staub, Funkeln, Regen, Glut, Schnee).
+// Königsgipfel, wo die Turmkönigin thront. Jede Arena hat ihr gemaltes Bild (Wiese, Kaserne, Thron, Sturm,
+// Drachenhort, Gipfel) und eigene Teilchen (Glühwürmchen, Staub, Funkeln, Regen, Glut, Schnee).
 // Der Weg glüht golden, so weit du gekommen bist, und funkelt in deiner Arena. Die Gegner stehen als
 // Königsfigur ihres Figurensets am Weg – noch nicht erreichte nur als Schatten mit Fragezeichen.
 // Bereite Truhen wackeln und hüpfen, gesperrte verraten beim Antippen, wie viele Trophäen noch fehlen.
@@ -483,9 +483,11 @@ struct TrophyRoadView: View {
             Text(L("Der Gipfel: {0} Trophäen", top))
                 .font(.system(size: 15, weight: .black, design: .rounded))
                 .foregroundColor(Theme.gold)
+                .shadow(color: .black.opacity(0.65), radius: 2, y: 1)
             Text(L("Hier oben thront die Turmkönigin. Schaffst du es bis zu ihr?"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Theme.textSecondary)
+                .shadow(color: .black.opacity(0.65), radius: 2, y: 1)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
         }
@@ -512,7 +514,8 @@ struct TrophyRoadView: View {
             Text(L("START"))
                 .font(.system(size: 14, weight: .black, design: .rounded))
                 .tracking(3)
-                .foregroundColor(Theme.textSecondary)
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
         }
         .padding(.top, 8)
         .padding(.bottom, 90)
@@ -794,6 +797,7 @@ struct TrophyRoadView: View {
                 Label("\(step.trophies)", systemImage: "trophy.fill")
                     .font(.system(size: 12, weight: .black, design: .rounded).monospacedDigit())
                     .foregroundColor(reached ? Theme.gold : Theme.textMuted)
+                    .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
                 Text(step.reward.title)
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .foregroundColor(reached ? Theme.textPrimary : Theme.textSecondary)
@@ -812,6 +816,7 @@ struct TrophyRoadView: View {
                 Text(L("ab {0}", bot.trophyStart))
                     .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundColor(Theme.textMuted)
+                    .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
                 Text(reached ? bot.displayName : L("Unbekannter Gegner"))
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .foregroundColor(reached ? Color(hex: bot.colorHex) : Theme.textSecondary)
@@ -1089,6 +1094,11 @@ struct TrophyRoadView: View {
     }
 }
 
+/// Gemaltes Arenabild. Die Dateien heißen wie die Arenen: 1 Wiese, 2 Kaserne, 3 Thron, 4 Sturm, 5 Hort, 6 Gipfel.
+enum ArenaArt {
+    static func imageName(_ n: Int) -> String { "arena-\(min(6, max(1, n)))" }
+}
+
 /// Farben je Arena – jede hat ihre eigene Stimmung (hell, dunkel).
 enum ArenaPalette {
     static func colors(_ n: Int) -> [Color] {
@@ -1189,119 +1199,37 @@ struct Pennant: View {
 
 // MARK: - Landschaften der Arenen
 
-/// Hintergrund eines Arena-Abschnitts: Farbverlauf, Landschaft an den Rändern, Teilchen.
+/// Hintergrund einer Arena: das gemalte Bild füllt die Fläche, die Mitte bleibt der Weg.
+/// Noch nicht erreichte Arenen sind blasser. `scrim` dunkelt ab, wo Schrift direkt auf dem Bild liegt.
 struct BiomeBackdrop: View {
     let arena: Int
     let colors: [Color]
     let reached: Bool
     let animated: Bool
+    var scrim: Double = 0.18
 
     var body: some View {
-        ZStack {
-            LinearGradient(colors: [colors[1].opacity(reached ? 0.42 : 0.16),
-                                    colors[0].opacity(reached ? 0.14 : 0.05),
-                                    colors[1].opacity(reached ? 0.34 : 0.12)],
-                           startPoint: .top, endPoint: .bottom)
-            BiomeScenery(arena: arena, tint: colors[0])
-                .opacity(reached ? 0.55 : 0.22)
-            BiomeParticles(arena: arena, animated: animated)
-                .opacity(reached ? 1 : 0.35)
+        GeometryReader { geo in
+            ZStack {
+                Image(ArenaArt.imageName(arena))
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .saturation(reached ? 1 : 0.15)
+                    .brightness(reached ? 0 : -0.14)
+                    .clipped()
+                LinearGradient(colors: [
+                    colors[1].opacity(min(0.78, scrim + (reached ? 0.12 : 0.34))),
+                    Color.black.opacity(scrim * (reached ? 0.28 : 0.55)),
+                    colors[1].opacity(min(0.82, scrim + (reached ? 0.22 : 0.42)))
+                ], startPoint: .top, endPoint: .bottom)
+                BiomeParticles(arena: arena, animated: animated)
+                    .opacity(reached ? 0.72 : 0.22)
+            }
         }
         .clipped()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-    }
-}
-
-/// Landschaft an beiden Rändern, abwechselnd links und rechts – damit die Mitte für den Weg frei bleibt.
-struct BiomeScenery: View {
-    let arena: Int
-    let tint: Color
-
-    var body: some View {
-        Canvas { ctx, size in
-            var y: CGFloat = 90
-            var i = 0
-            while y < size.height + 40 {
-                let left = i % 2 == 0
-                BiomeScenery.prop(arena, ctx: ctx, base: CGPoint(x: left ? 0 : size.width, y: y), inward: left ? 1 : -1, tint: tint)
-                y += 230
-                i += 1
-            }
-        }
-    }
-
-    /// Ein Landschaftsstück am Rand. `inward` zeigt zur Mitte (+1 vom linken Rand, −1 vom rechten).
-    static func prop(_ arena: Int, ctx: GraphicsContext, base p: CGPoint, inward s: CGFloat, tint: Color) {
-        let shade = Color.black.opacity(0.45)
-        func rect(_ x0: CGFloat, _ y0: CGFloat, _ w: CGFloat, _ h: CGFloat) -> CGRect {
-            // x0 und w laufen nach innen; für den rechten Rand gespiegelt
-            CGRect(x: s > 0 ? p.x + x0 : p.x - x0 - w, y: p.y + y0, width: w, height: h)
-        }
-        func pt(_ dx: CGFloat, _ dy: CGFloat) -> CGPoint { CGPoint(x: p.x + s * dx, y: p.y + dy) }
-
-        switch arena {
-        case 1:
-            // Grüner Hügel mit zwei Tannen
-            ctx.fill(Path(ellipseIn: rect(-60, -10, 150, 90)), with: .color(tint.opacity(0.7)))
-            for k in 0..<2 {
-                let dx = CGFloat(22 + k * 26), dy = CGFloat(-4 - k * 8)
-                var tree = Path()
-                tree.move(to: pt(dx, dy - 42))
-                tree.addLine(to: pt(dx - 14, dy))
-                tree.addLine(to: pt(dx + 14, dy))
-                tree.closeSubpath()
-                ctx.fill(tree, with: .color(shade))
-                ctx.fill(Path(rect(dx - 2, dy, 4, 8)), with: .color(shade))
-            }
-        case 2:
-            // Wachturm mit Zinnen und Fahne
-            ctx.fill(Path(rect(-6, -70, 48, 150)), with: .color(shade))
-            for k in 0..<3 { ctx.fill(Path(rect(-6 + CGFloat(k) * 18, -82, 12, 14)), with: .color(shade)) }
-            ctx.fill(Path(rect(14, -40, 8, 14)), with: .color(tint.opacity(0.9)))
-            ctx.fill(Path(rect(22, -118, 2, 36)), with: .color(shade))
-            var flag = Path()
-            flag.move(to: pt(24, -118)); flag.addLine(to: pt(46, -110)); flag.addLine(to: pt(24, -102)); flag.closeSubpath()
-            ctx.fill(flag, with: .color(tint))
-        case 3:
-            // Säule mit Kapitell und lila Banner
-            ctx.fill(Path(rect(4, -80, 24, 160)), with: .color(shade))
-            ctx.fill(Path(rect(-2, -90, 36, 12)), with: .color(shade))
-            ctx.fill(Path(rect(-2, 76, 36, 12)), with: .color(shade))
-            var banner = Path()
-            banner.move(to: pt(34, -76)); banner.addLine(to: pt(56, -76)); banner.addLine(to: pt(56, -10))
-            banner.addLine(to: pt(45, -22)); banner.addLine(to: pt(34, -10)); banner.closeSubpath()
-            ctx.fill(banner, with: .color(tint.opacity(0.9)))
-            ctx.fill(ParticleCanvas.star(radius: 5).offsetBy(dx: pt(45, -52).x, dy: pt(45, -52).y), with: .color(Theme.gold))
-        case 4:
-            // Gewitterwolke mit Blitz
-            let puffs: [(CGFloat, CGFloat, CGFloat)] = [(4, -6, 34), (40, -20, 30), (70, -2, 24), (30, 10, 28)]
-            for (dx, dy, r) in puffs {
-                ctx.fill(Path(ellipseIn: CGRect(x: p.x + s * dx - r, y: p.y + dy - r, width: r * 2, height: r * 2)), with: .color(Color(hex: 0x1A2B44).opacity(0.9)))
-            }
-            var bolt = Path()
-            bolt.move(to: pt(44, 20)); bolt.addLine(to: pt(34, 52)); bolt.addLine(to: pt(46, 52)); bolt.addLine(to: pt(36, 86))
-            bolt.addLine(to: pt(58, 44)); bolt.addLine(to: pt(46, 44)); bolt.addLine(to: pt(54, 20)); bolt.closeSubpath()
-            ctx.fill(bolt, with: .color(Color(hex: 0xFFE38A).opacity(0.8)))
-        case 5:
-            // Felszacken über glühender Lava
-            ctx.fill(Path(ellipseIn: rect(-40, 40, 140, 50)), with: .color(Color(hex: 0xFF6A2B).opacity(0.75)))
-            let rocks: [(CGFloat, CGFloat, CGFloat)] = [(0, 110, 40), (30, 70, 34), (56, 46, 26)]
-            for (dx, h, w) in rocks {
-                var rock = Path()
-                rock.move(to: pt(dx - w / 2, 60)); rock.addLine(to: pt(dx + 4, 60 - h)); rock.addLine(to: pt(dx + w / 2, 60)); rock.closeSubpath()
-                ctx.fill(rock, with: .color(shade))
-            }
-        default:
-            // Schneeberg
-            var mountain = Path()
-            mountain.move(to: pt(-30, 70)); mountain.addLine(to: pt(40, -80)); mountain.addLine(to: pt(110, 70)); mountain.closeSubpath()
-            ctx.fill(mountain, with: .color(shade))
-            var snow = Path()
-            snow.move(to: pt(40, -80)); snow.addLine(to: pt(18, -34)); snow.addLine(to: pt(32, -42))
-            snow.addLine(to: pt(42, -30)); snow.addLine(to: pt(52, -42)); snow.addLine(to: pt(62, -34)); snow.closeSubpath()
-            ctx.fill(snow, with: .color(Color.white.opacity(0.85)))
-        }
     }
 }
 

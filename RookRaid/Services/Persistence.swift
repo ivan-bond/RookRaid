@@ -800,9 +800,10 @@ final class ProfileStore: ObservableObject {
     }
 
     /// Ergebnis verbuchen. Gibt die Trophäen-Änderung zurück.
+    /// `opponentTrophies` ist der Wert des Gegners (bei einem Bot seine Stufenmitte). Fehlt er, gilt ein gleich starker Gegner.
     @discardableResult
     func record(result: GameResultKind, rated: Bool, opponent: String, reason: String, moves: Int, cardsPlayed: Int,
-                replayID: UUID? = nil, countsForStats: Bool? = nil) -> Int {
+                replayID: UUID? = nil, countsForStats: Bool? = nil, opponentTrophies: Int? = nil) -> Int {
         var delta = 0
         if !rated && (countsForStats ?? false) {
             switch result {
@@ -812,19 +813,13 @@ final class ProfileStore: ObservableObject {
             }
         }
         if rated {
-            let floor = arena.trophies
+            delta = TrophyStake.delta(mine: profile.trophies, opponent: opponentTrophies ?? profile.trophies, result: result)
             switch result {
-            case .win:
-                delta = 30
-                profile.wins += 1
-            case .loss:
-                delta = -min(20, max(0, profile.trophies - floor))
-                profile.losses += 1
-            case .draw:
-                delta = 5
-                profile.draws += 1
+            case .win: profile.wins += 1
+            case .loss: profile.losses += 1
+            case .draw: profile.draws += 1
             }
-            profile.trophies += delta
+            profile.trophies = max(0, profile.trophies + delta)
             profile.bestTrophies = max(profile.bestTrophies, profile.trophies)
         }
         let record = GameRecord(date: Date(), opponent: opponent, result: result, reason: reason,
@@ -834,7 +829,28 @@ final class ProfileStore: ObservableObject {
         return delta
     }
 
-    // MARK: Tägliche Flammen
+}
+
+/// Trophäen einer gewerteten Partie. Dieselbe Rechnung wie `trophy_delta` auf dem Server.
+/// Gegen einen gleich starken Gegner: Sieg +20, Remis 0, Niederlage −20.
+/// Je 100 Trophäen Vorsprung des Gegners verschiebt das um 4 (Sieg mehr, Niederlage weniger), höchstens +40/−40, mindestens +8/−8.
+/// Einzige Untergrenze ist 0 – Arenen haben keine Sperre, man kann herausfallen.
+enum TrophyStake {
+    static func delta(mine: Int, opponent: Int, result: GameResultKind) -> Int {
+        let mine = max(0, mine)
+        let gap = min(800, max(-800, max(0, opponent) - mine))
+        let shift = gap / 100
+        let raw: Int
+        switch result {
+        case .win: raw = min(40, max(8, 20 + shift * 4))
+        case .draw: raw = min(12, max(-12, shift * 2))
+        case .loss: raw = min(-8, max(-40, -(20 - shift * 4)))
+        }
+        return mine + raw < 0 ? -mine : raw
+    }
+}
+
+extension ProfileStore {
 
     static func dayKey(_ date: Date = Date()) -> String {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: date)

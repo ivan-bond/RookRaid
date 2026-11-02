@@ -567,6 +567,10 @@ struct HomeView: View {
     /// Online (Schritt 8): erst Konto, dann Suche; nach 10 s Bot-Ersatz.
     /// Weichen die Regeln vom Server ab, bleibt die Suche zu (Schritt 10).
     private func quickBattle() {
+        guard NetworkMonitor.shared.isOnline else {
+            Haptics.shared.play(.invalid)
+            return
+        }
         if OnlineConfig.isLive {
             guard store.deckIsFull else {
                 Haptics.shared.play(.invalid)
@@ -787,6 +791,7 @@ struct BattleHeroCard: View {
     @Environment(\.liveAnimations) private var live
     @ObservedObject var store = ProfileStore.shared
     @ObservedObject private var rules = OnlineRules.shared
+    @ObservedObject private var network = NetworkMonitor.shared
     var compact = false
     /// Viel Platz: größerer Avatar und größere Karten, die Bühne wächst mit
     var large = false
@@ -811,7 +816,7 @@ struct BattleHeroCard: View {
             ZStack {
                 LinearGradient(colors: [Theme.blueDark, Theme.panelRaised, Color(hex: 0x3A1C2A)],
                                startPoint: .topLeading, endPoint: .bottomTrailing)
-                BiomeBackdrop(arena: arena.number, colors: colors, reached: true, animated: true)
+                BiomeBackdrop(arena: arena.number, colors: colors, reached: true, animated: true, scrim: 0.42)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 22))
@@ -841,12 +846,14 @@ struct BattleHeroCard: View {
                     Text(store.profile.name)
                         .font(.system(size: compact ? 18 : 22, weight: .heavy, design: .rounded))
                         .foregroundColor(Theme.textPrimary)
+                        .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Text((store.activeTitle ?? ProfileStore.rank(for: store.level)).uppercased())
                         .font(.system(size: compact ? 11 : 13, weight: .black, design: .rounded))
                         .tracking(1.2)
                         .foregroundColor(Theme.blueLight)
+                        .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 }
@@ -977,10 +984,20 @@ struct BattleHeroCard: View {
 
     @ViewBuilder
     private var battleButton: some View {
-        if store.deckIsFull {
-            fightButton
-        } else {
-            buildDeckButton
+        VStack(spacing: 8) {
+            if store.deckIsFull {
+                fightButton
+            } else {
+                buildDeckButton
+            }
+            if store.deckIsFull, !network.isOnline {
+                Label(L("Keine Internetverbindung. Kampf ist gerade nicht möglich."), systemImage: "wifi.slash")
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .foregroundColor(Theme.gold)
+                    .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -1019,24 +1036,24 @@ struct BattleHeroCard: View {
     }
 
     private var fightButton: some View {
-        Button(action: onBattle) {
+        let offline = !network.isOnline
+        return Button(action: onBattle) {
             HStack(spacing: 8) {
-                Image(systemName: "bolt.fill")
-                    .modifier(Jiggle(active: true, amplitude: 8, period: 0.9))
+                Image(systemName: offline ? "wifi.slash" : "bolt.fill")
+                    .modifier(Jiggle(active: !offline, amplitude: 8, period: 0.9))
                 Text(L("KAMPF!"))
-                HStack(spacing: 2) {
-                    Image(systemName: "trophy.fill").font(.system(size: 11, weight: .black))
-                    Text("+30").font(.system(size: 12, weight: .black, design: .rounded))
-                }
-                .foregroundColor(Theme.navy.opacity(0.75))
-                .padding(.horizontal, 6)
-                .frame(height: 20)
-                .background(Capsule().fill(Color.white.opacity(0.35)))
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 14, weight: .black))
             }
         }
-        .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: CardStyle.ultimateDeep, height: compact ? 54 : (large ? 66 : 62), textColor: Theme.navy))
-        .overlay(ShineSweep().clipShape(RoundedRectangle(cornerRadius: 12)).allowsHitTesting(false))
-        .modifier(PulseGlow(color: Theme.gold, active: true, strength: 0.9))
+        .buttonStyle(ChunkyButtonStyle(color: offline ? Theme.panelHighlight : Theme.gold,
+                                       shadow: offline ? Theme.panel : CardStyle.ultimateDeep,
+                                       height: compact ? 54 : (large ? 66 : 62),
+                                       textColor: offline ? Theme.textMuted : Theme.navy))
+        .overlay(ShineSweep().clipShape(RoundedRectangle(cornerRadius: 12)).allowsHitTesting(false).opacity(offline ? 0 : 1))
+        .modifier(PulseGlow(color: Theme.gold, active: !offline, strength: 0.9))
+        .disabled(offline)
+        .accessibilityLabel(offline ? L("Keine Internetverbindung. Kampf ist gerade nicht möglich.") : L("KAMPF!"))
         .overlay(alignment: .topTrailing) {
             // Was der nächste Sieg bringt
             if store.winChestsLeftToday > 0 {

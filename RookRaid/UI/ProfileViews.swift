@@ -1372,7 +1372,7 @@ struct RulesView: View {
                         line("sparkles", L("Teil deines Decks"), L("Einsetzbar ab {0} Mana, die Festung schon ab {1} (dann leuchtet die Mana-Leiste golden). Verbraucht so viel Mana – der Rest bleibt – und ersetzt deinen Zug (Festung: danach noch ein Figurzug ohne Schlagen und ohne Schach). Der Gegner sieht deine Wahl.", GameState.ultimateCost, Ultimate.fortress.cost))
                     }
                     chapter(L("Bots"), Theme.redLight, RulesSceneIcon(icon: "person.3.fill", tint: Theme.redLight)) {
-                        line("bolt.fill", L("Kampf!"), L("Im Kampf triffst du dieselben zwölf Charaktere wie in der Bot-Leiter, jeweils mit ihrem Deck. Welcher es ist, richtet sich nach deinen Trophäen: alle 200 Trophäen wartet ein stärkerer. Siege bringen 30 Trophäen."))
+                        line("bolt.fill", L("Kampf!"), L("Im Kampf triffst du dieselben zwölf Charaktere wie in der Bot-Leiter, jeweils mit ihrem Deck. Welcher es ist, richtet sich nach deinen Trophäen: alle 200 Trophäen wartet ein stärkerer. Gegen einen stärkeren Gegner bringt ein Sieg mehr und eine Niederlage weniger, gegen einen schwächeren umgekehrt. Unter 0 Trophäen fällst du nicht, aus einer Arena schon."))
                         line("figure.stairs", L("Bot-Leiter"), L("Zwölf Charaktere von Bruno bis zur Turmkönigin. Besiege sie der Reihe nach: Der erste Sieg bringt 30 bis 200 XP und schaltet den nächsten frei, jede Revanche 10 XP. Keine Trophäen."))
                         line("timer", L("Denkzeit"), L("Die Bots rechnen höchstens 0,4 bis 8 Sekunden pro Zug – je stärker, desto länger und tiefer. Ab Sir Konrad nutzen sie eine verbesserte Suche mit Stellungsgedächtnis."))
                     }

@@ -29,6 +29,9 @@ enum BotLevel: String, Codable, CaseIterable, Identifiable {
     /// Ab dieser Trophäenzahl ist der Bot der Kampf-Gegner.
     var trophyStart: Int { (tier - 1) * BotLevel.trophiesPerTier }
 
+    /// Trophäenwert der Stufe (Mitte des 200er-Bands). Dieselbe Zahl wie `bot_rating` auf dem Server.
+    var rating: Int { trophyStart + BotLevel.trophiesPerTier / 2 }
+
     /// Gegner passend zu den Trophäen: alle 200 Trophäen eine stärkere Stufe.
     static func forTrophies(_ trophies: Int) -> BotLevel {
         let i = min(BotLevel.allCases.count - 1, max(0, trophies / trophiesPerTier))

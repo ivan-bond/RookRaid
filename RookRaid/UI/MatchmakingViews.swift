@@ -80,7 +80,7 @@ struct MatchmakingSheet: View {
         let colors = ArenaPalette.colors(arena)
         return ZStack {
             Theme.background.ignoresSafeArea()
-            BiomeBackdrop(arena: arena, colors: colors, reached: true, animated: true)
+            BiomeBackdrop(arena: arena, colors: colors, reached: true, animated: true, scrim: 0.46)
                 .ignoresSafeArea()
             TwinkleField(count: 16, colors: [Theme.gold, .white, colors[0]])
                 .opacity(0.55)

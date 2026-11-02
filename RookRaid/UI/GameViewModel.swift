@@ -1250,7 +1250,8 @@ final class GameViewModel: ObservableObject {
                 opponent: serverRated ? (onlineOpponent?.name ?? "") : (botLevel?.botName ?? "Zu zweit"),
                 reason: status.reason, moves: moves.count,
                 cardsPlayed: cardsPlayedByHuman, replayID: replayID,
-                countsForStats: mode.isLadder || serverRated)
+                countsForStats: mode.isLadder || serverRated,
+                opponentTrophies: botLevel?.rating)
         }
         // Zähler für Erfolge: Siegesserie und Matt-Siege (Kampf und Leiter)
         if mode.isBot && !mode.isPractice && mode != .tutorial, let result {
@@ -1363,14 +1364,8 @@ final class GameViewModel: ObservableObject {
 
     /// Dieselbe Trophäenformel wie `ProfileStore.record`, wenn der Server die Partie nicht gewertet hat.
     private func creditLocalTrophies(_ result: GameResultKind) -> Int {
-        let delta: Int
-        switch result {
-        case .win: delta = 30
-        case .draw: delta = 5
-        case .loss:
-            let floor = store.arena.trophies
-            delta = -min(20, max(0, store.profile.trophies - floor))
-        }
+        let opponent = botLevel?.rating ?? BotLevel.forTrophies(store.profile.trophies).rating
+        let delta = TrophyStake.delta(mine: store.profile.trophies, opponent: opponent, result: result)
         guard delta != 0 else { return 0 }
         store.profile.trophies = max(0, store.profile.trophies + delta)
         store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)

@@ -66,14 +66,14 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   r = await as(white === A ? A : B, `select answer_draw($1, true) r`, [mid]); ok(r.error === 'no_offer', 'Eigenes Angebot nicht annehmbar');
   r = await as(black === A ? A : B, `select answer_draw($1, true) r`, [mid]); ok(r[0] && r[0].r.result === 'draw_agreed', 'Schwarz nimmt an → Remis');
   r = await as('service', `select user_id, trophies, online_draws from progress order by user_id`);
-  ok(r.every(x => x.online_draws === 1) && r.find(x => x.user_id === A).trophies === 125, 'Remis: +5 Trophäen, Remis gezählt');
+  ok(r.every(x => x.online_draws === 1) && r.find(x => x.user_id === A).trophies === 118 && r.find(x => x.user_id === B).trophies === 2, 'Remis ungleich: Stärkerer −2, Schwächerer +2');
   // Bot-Ersatz
   r = await as(A, `select * from start_bot_match(3, 'blitz5', $1, 'meteor', '{"name":"Ivan"}', '{"name":"Luca42"}', '{reinforce,bulwark,sprint,retreat}', 'fortress', true)`, [deck]);
-  ok(r[0] && r[0].is_bot && r[0].bot_level === 'easy', 'Bot-Ersatz: Stufe aus Trophäen (125 → Bruno)');
+  ok(r[0] && r[0].is_bot && r[0].bot_level === 'easy', 'Bot-Ersatz: Stufe aus Trophäen (118 → Bruno)');
   const bid = r[0].match_id;
   r = await as(A, `select resign_match($1)`, [bid]); ok(!!r.error, 'Bot-Partie: Aufgeben nur über finish-bot-match');
   r = await as('service', `select finish_match($1, 'mate', 'white') r`, [bid]);
-  ok(r[0].r.trophy_delta_white === 30 && r[0].r.trophy_delta_black === null, 'Bot-Partie gewonnen: +30 nur für den Menschen');
+  ok(r[0].r.trophy_delta_white === 20 && r[0].r.trophy_delta_black === null, 'Bot-Partie gewonnen: +20 gegen einen fast gleich starken Bot, nur für den Menschen');
   // Zeitablauf
   await c.query(`update matchmaking_queue set enqueued_at = now() - interval '20 seconds'`);
   await as(A, `select find_match(3, 'blitz5', $1, 'meteor', '{}')`, [deck]);
@@ -83,9 +83,12 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   r = await as(A, `select claim_timeout($1) r`, [tid]); ok(r[0].r.result === 'timeout' && r[0].r.winner === 'black', 'Zeit von Weiß abgelaufen → Schwarz gewinnt');
   r = await as('service', `select trophies, online_losses from progress where user_id = (select white from matches where id = $1)`, [tid]);
   ok(r[0].online_losses === 1, 'Niederlage gezählt');
-  // Arena-Untergrenze
+  // Keine Arena-Sperre: bei 95 gegen einen Gleichstarken −20, damit fällt man unter 90.
   await as('service', `update progress set trophies = 95 where user_id = $1`, [A]);
-  r = (await c.query(`select apply_result($1, 'loss') d`, [A])).rows; ok(r[0].d === -5, 'Niederlage bei 95 Trophäen: nur −5 (Arena 2 ab 90)');
+  r = (await c.query(`select apply_result($1, 'loss', 95) d`, [A])).rows; ok(r[0].d === -20, 'Niederlage bei 95 gegen Gleichstarken: −20');
+  r = (await c.query(`select trophies from progress where user_id = $1`, [A])).rows; ok(r[0].trophies === 75, '75 Trophäen: aus der Arena gefallen, nicht bei 90 stehen geblieben');
+  r = (await c.query(`select trophy_delta(1000, 1400, 'win') w, trophy_delta(1000, 1400, 'loss') l, trophy_delta(0, 100, 'loss') z`)).rows;
+  ok(r[0].w === 36 && r[0].l === -8 && r[0].z === 0, 'Stärkerer Gegner: Sieg +36, Niederlage −8; bei 0 nichts mehr verlieren');
   // Abbruch ohne ersten Zug + Wartung
   await c.query(`update matchmaking_queue set enqueued_at = now() - interval '20 seconds'`);
   await as(A, `select find_match(3, 'blitz5', $1, 'meteor', '{}')`, [deck]);
