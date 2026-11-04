@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct RookRaidApp: App {
+    init() { FlameReminders.install() }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -139,6 +141,7 @@ struct RootView: View {
             .onChange(of: scenePhase) { phase in
                 if phase == .active {
                     store.checkStreak()
+                    Task { await FlameReminders.sync() }
                     if session == nil, puzzleSession == nil {
                         Task { await OnlineAccount.shared.reload() }
                     }
@@ -214,6 +217,7 @@ struct RootView: View {
                let streak = store.flameCelebration {
                 FlameIgnitionOverlay(streak: streak) {
                     withAnimation(.easeOut(duration: 0.25)) { store.flameCelebration = nil }
+                    Task { await FlameReminders.askIfReady() }
                 }
                 .transition(.opacity)
                 .zIndex(9)
@@ -276,6 +280,7 @@ struct RootView: View {
             // Startbildschirm kurz zeigen, dann – beim ersten Start – direkt in die erste Schlacht
             try? await Task.sleep(nanoseconds: UInt64((SplashView.duration + 0.35) * 1_000_000_000))
             withAnimation(.easeOut(duration: 0.35)) { showSplash = false }
+            await FlameReminders.askIfReady()
             // Kartenbilder im Hintergrund vorbereiten, ohne den Start aufzuhalten (v0.9.25)
             Task { await CardArtImage.preload() }
             if !store.profile.tutorialSeen {

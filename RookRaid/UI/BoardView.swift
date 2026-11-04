@@ -17,7 +17,10 @@ struct BoardView: View {
     @State var dragLocation: CGPoint?
     @State var dragging = false
     @State var finisherZoom = false
-    @State var kingToppled = false
+    @State var kingTilt: Double = 0
+    @State var kingPuff = false
+    @State var kingGone = false
+    @State var boardNudge: CGFloat = 0
 
     var body: some View {
         GeometryReader { geo in
@@ -31,9 +34,11 @@ struct BoardView: View {
                 piecesLayer(s)
                 dotsLayer(s)
                 effectsLayer(s)
+                mateFlourish(s)
             }
             .frame(width: side, height: side)
-            .scaleEffect(finisherZoom ? 1.7 : 1, anchor: finisherAnchor)
+            .scaleEffect(finisherZoom ? 1.12 : 1, anchor: finisherAnchor)
+            .offset(x: boardNudge)
             .clipShape(RoundedRectangle(cornerRadius: 3))
             .overlay(finisherVignette)
             .contentShape(Rectangle())
@@ -42,12 +47,28 @@ struct BoardView: View {
         .aspectRatio(1, contentMode: .fit)
         .onChange(of: vm.finisher) { f in
             if f != nil {
-                withAnimation(.easeInOut(duration: 1.1)) { finisherZoom = true }
-                withAnimation(.easeIn(duration: 0.5).delay(1.0)) { kingToppled = true }
+                withAnimation(.easeInOut(duration: 0.4)) { finisherZoom = true }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 180_000_000)
+                    for tilt in [-16.0, 18.0, -14.0, 13.0, -8.0, 6.0, 0.0] {
+                        withAnimation(.easeInOut(duration: 0.06)) { kingTilt = tilt }
+                        try? await Task.sleep(nanoseconds: 70_000_000)
+                    }
+                    withAnimation(.easeOut(duration: 0.1)) { kingPuff = true }
+                    try? await Task.sleep(nanoseconds: 120_000_000)
+                    kingGone = true
+                    for nudge in [9.0, -8.0, 5.0, -3.0, 0.0] as [CGFloat] {
+                        withAnimation(.easeOut(duration: 0.05)) { boardNudge = nudge }
+                        try? await Task.sleep(nanoseconds: 50_000_000)
+                    }
+                }
             } else {
-                withAnimation(.easeOut(duration: 0.4)) {
+                withAnimation(.easeOut(duration: 0.3)) {
                     finisherZoom = false
-                    kingToppled = false
+                    kingTilt = 0
+                    kingPuff = false
+                    kingGone = false
+                    boardNudge = 0
                 }
             }
         }
@@ -158,18 +179,20 @@ struct BoardView: View {
         return ZStack(alignment: .topLeading) {
             ForEach(items) { item in
                 let isDragged = dragging && dragFrom == item.square
-                let topples = kingToppled && vm.finisher?.square == item.square
+                let isLoser = vm.finisher?.square == item.square
                 PieceSprite(piece: item.piece, ply: vm.state.ply, size: s, locked: vm.state.isBonusLocked(item.square),
                             skin: vm.skin(for: item.piece.color))
                     .frame(width: s, height: s)
-                    .rotationEffect(.degrees(topples ? 82 : 0), anchor: .bottom)
-                    .offset(x: topples ? s * 0.2 : 0)
-                    .saturation(topples ? 0.2 : 1)
-                    .scaleEffect(isDragged ? 1.2 : 1)
+                    .rotationEffect(.degrees(isLoser && !kingGone ? kingTilt : 0))
+                    .scaleEffect(isDragged ? 1.2 : (isLoser && kingGone ? 1.7 : (isLoser && kingPuff ? 1.22 : 1)))
+                    .opacity(isLoser && kingGone ? 0 : 1)
                     .shadow(color: .black.opacity(isDragged ? 0.35 : 0), radius: isDragged ? 6 : 0, y: isDragged ? 6 : 0)
                     .position(isDragged ? (dragLocation ?? point(item.square, s)) : point(item.square, s))
-                    .zIndex(isDragged ? 10 : 1)
+                    .zIndex(isDragged ? 10 : (isLoser ? 2 : 1))
                     .animation(isDragged ? nil : .easeOut(duration: 0.2), value: item.square)
+                    .animation(.easeInOut(duration: 0.06), value: kingTilt)
+                    .animation(.easeOut(duration: 0.12), value: kingPuff)
+                    .animation(.easeOut(duration: 0.16), value: kingGone)
                     .transition(.scale(scale: 0.3).combined(with: .opacity))
             }
         }
@@ -220,9 +243,50 @@ struct BoardView: View {
     @ViewBuilder
     private var finisherVignette: some View {
         if vm.finisher != nil {
-            RadialGradient(colors: [.clear, Color.black.opacity(finisherZoom ? 0.75 : 0)],
-                           center: .center, startRadius: 40, endRadius: 260)
+            RadialGradient(colors: [.clear, Color.black.opacity(finisherZoom ? 0.55 : 0)],
+                           center: finisherAnchor, startRadius: 70, endRadius: 280)
                 .allowsHitTesting(false)
+        }
+    }
+
+    /// Der Verlierer-König platzt: Blitz, Ringe und fliegende Krone, Sterne, Funken.
+    @ViewBuilder
+    private func mateFlourish(_ s: CGFloat) -> some View {
+        if let f = vm.finisher {
+            let p = point(f.square, s)
+            let bits = ["crown.fill", "star.fill", "sparkle", "circle.fill"]
+            let colors: [Color] = [Theme.gold, Color(hex: 0xFF7A2F), .white, Color(hex: 0xFF4D6D), Color(hex: 0xFFE38A)]
+            ZStack {
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: s * 0.85, height: s * 0.85)
+                    .scaleEffect(kingGone ? 2.1 : 0.15)
+                    .opacity(kingGone ? 0 : 0.95)
+                    .position(p)
+                ForEach(0..<2, id: \.self) { i in
+                    Circle()
+                        .stroke(Theme.gold.opacity(kingGone ? 0 : 0.9), lineWidth: 4)
+                        .frame(width: s * 0.55, height: s * 0.55)
+                        .scaleEffect(kingGone ? 2.8 + CGFloat(i) * 0.7 : 0.3)
+                        .position(p)
+                        .animation(.easeOut(duration: 0.55).delay(Double(i) * 0.06), value: kingGone)
+                }
+                ForEach(0..<16, id: \.self) { i in
+                    let angle = Double(i) / 16 * 2 * .pi
+                    let dist = s * (1.15 + CGFloat(i % 4) * 0.28)
+                    Image(systemName: bits[i % bits.count])
+                        .font(.system(size: s * (i % 5 == 0 ? 0.46 : 0.24), weight: .black))
+                        .foregroundColor(colors[i % colors.count])
+                        .shadow(color: colors[i % colors.count].opacity(0.8), radius: 2)
+                        .rotationEffect(.degrees(kingGone ? Double((i % 2 == 0 ? 1 : -1) * (80 + i * 18)) : -20))
+                        .scaleEffect(kingGone ? 1 : 0.05)
+                        .offset(x: kingGone ? CGFloat(cos(angle)) * dist : 0, y: kingGone ? CGFloat(sin(angle)) * dist : 0)
+                        .opacity(kingGone ? 0 : 1)
+                        .position(p)
+                }
+            }
+            .animation(.easeOut(duration: 0.62), value: kingGone)
+            .allowsHitTesting(false)
         }
     }
 

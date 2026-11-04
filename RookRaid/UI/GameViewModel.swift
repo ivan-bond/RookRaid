@@ -55,8 +55,18 @@ struct ManaFloat: Identifiable, Equatable {
 }
 
 struct Finisher: Equatable {
+    enum Kind { case mate, time, resign }
     let square: Square
     let winner: PlayerColor
+    let kind: Kind
+
+    var headline: String {
+        switch kind {
+        case .mate: return L("SCHACHMATT")
+        case .time: return L("ZEIT UM!")
+        case .resign: return L("AUFGEGEBEN!")
+        }
+    }
 }
 
 struct GameOverInfo: Equatable {
@@ -903,15 +913,6 @@ final class GameViewModel: ObservableObject {
         }
 
         if status.isOver {
-            if case .checkmate(let winner) = status, let k = state.kingSquare(winner.opponent) {
-                finisher = Finisher(square: k, winner: winner)
-                Task {
-                    Haptics.shared.play(.heavyCapture)
-                    try? await Task.sleep(nanoseconds: 700_000_000)
-                    SoundPlayer.shared.play(.lightning)
-                    Haptics.shared.play(.lightning)
-                }
-            }
             finish()
             return
         }
@@ -1181,9 +1182,31 @@ final class GameViewModel: ObservableObject {
 
     // MARK: Ende & Speichern
 
+    /// König des Verlierers: wackeln und platzen. Gilt für Matt, Zeit und Aufgabe, für beide Seiten.
+    private func beginLoserBurst() {
+        guard finisher == nil, let winner = status.winner,
+              let square = state.kingSquare(winner.opponent) else { return }
+        let kind: Finisher.Kind
+        switch status {
+        case .timeout: kind = .time
+        case .resigned: kind = .resign
+        default: kind = .mate
+        }
+        finisher = Finisher(square: square, winner: winner, kind: kind)
+        let youWon = mode.isBot || mode.isOnline ? winner == humanColor : true
+        Task {
+            try? await Task.sleep(nanoseconds: 780_000_000)
+            SoundPlayer.shared.play(.chestOpen, volume: 0.9)
+            Haptics.shared.play(.chestBurst)
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            SoundPlayer.shared.play(youWon ? .victory : .defeat, volume: 0.75)
+        }
+    }
+
     private func finish() {
         guard !finished else { return }
         finished = true
+        beginLoserBurst()
         flushStats()
         clockTask?.cancel()
         clockTask = nil
@@ -1284,14 +1307,16 @@ final class GameViewModel: ObservableObject {
         // Neue Stufe auf der Trophäenpfad erreicht? Abgeholt wird im Tab „Pfad“.
         let roadReady = store.claimableRoadSteps.first { !roadBefore.contains($0.trophies) }
 
-        if mode.isBot || humanOnline {
-            switch result {
-            case .win: Feedback.play(.victory, .victory)
-            case .loss: Feedback.play(.defeat, .defeat)
-            case .draw, nil: Feedback.play(.notify, .shield)
+        if finisher == nil {
+            if mode.isBot || humanOnline {
+                switch result {
+                case .win: Feedback.play(.victory, .victory)
+                case .loss: Feedback.play(.defeat, .defeat)
+                case .draw, nil: Feedback.play(.notify, .shield)
+                }
+            } else {
+                Feedback.play(winner == nil ? .notify : .victory, .victory)
             }
-        } else {
-            Feedback.play(winner == nil ? .notify : .victory, .victory)
         }
 
         let subtitle = serverAborted ? L("ohne Wertung") : (serverDrawAgreed ? L("durch Remis") : status.reason)
@@ -1306,7 +1331,7 @@ final class GameViewModel: ObservableObject {
                                 moveCount: moves.filter { $0.color == humanColor || !mode.isBot }.count,
                                 cardsPlayed: cardsPlayedByHuman,
                                 winnerColor: winner)
-        let delay: UInt64 = finisher != nil ? 2_800_000_000 : 900_000_000
+        let delay: UInt64 = finisher != nil ? 3_200_000_000 : 900_000_000
         Task { [weak self] in
             if botOnline, let result, let vm = self {
                 let reported = await vm.reportOnlineBot(result: result)

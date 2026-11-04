@@ -889,6 +889,7 @@ extension ProfileStore {
         profile = p
         grantStreakMilestones()
         flameCelebration = p.streak
+        Task { await FlameReminders.sync() }
         return p.streak
     }
 

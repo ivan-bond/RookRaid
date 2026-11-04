@@ -47,7 +47,10 @@ struct GameView: View {
             }
 
             if let f = vm.finisher, vm.gameOver == nil {
-                FinisherTitle(humanWon: !vm.mode.isBot || f.winner == vm.humanColor)
+                FinisherTitle(humanWon: vm.mode.isBot || vm.mode.isOnline ? f.winner == vm.humanColor : true,
+                             headline: f.headline)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 28)
                     .allowsHitTesting(false)
             }
 
@@ -528,24 +531,49 @@ struct AnnouncementView: View {
 
 struct FinisherTitle: View {
     let humanWon: Bool
-    @State var slam = false
+    let headline: String
+    @State var shown = false
+    @State var crown = false
+
+    private var ink: Color { humanWon ? Color(hex: 0xFFD866) : Color(hex: 0xE5636A) }
+    private var deep: Color { humanWon ? Color(hex: 0xF0A419) : Color(hex: 0xA8323B) }
 
     var body: some View {
-        VStack(spacing: 6) {
-            Text(L("SCHACHMATT"))
-                .font(.system(size: 46, weight: .black, design: .rounded))
-                .italic()
+        VStack(spacing: 8) {
+            ZStack {
+                Text(headline)
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .italic()
+                    .foregroundColor(humanWon ? Theme.navy : .white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .padding(.horizontal, 36)
+                    .padding(.vertical, 12)
+                    .background(
+                        VictoryRibbonShape()
+                            .fill(LinearGradient(colors: [ink, deep], startPoint: .top, endPoint: .bottom))
+                            .shadow(color: deep.opacity(0.65), radius: 0, y: 5)
+                    )
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 26, weight: .black))
+                    .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
+                    .shadow(color: .black.opacity(0.35), radius: 0, y: 2)
+                    .rotationEffect(.degrees(crown ? -16 : 24))
+                    .offset(y: crown ? -34 : 8)
+                    .scaleEffect(crown ? 1 : 0.15)
+            }
+            Text(humanWon ? L("Der König platzt!") : L("Dein König platzt!"))
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)
-                .shadow(color: humanWon ? Theme.gold : Theme.red, radius: 0, x: 4, y: 4)
-                .shadow(color: .black, radius: 10)
-            Image(systemName: "crown.fill")
-                .font(.system(size: 30, weight: .black))
-                .foregroundColor(humanWon ? Theme.gold : Theme.red)
+                .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
+                .opacity(shown ? 1 : 0)
         }
-        .scaleEffect(slam ? 1 : 3.5)
-        .opacity(slam ? 1 : 0)
+        .scaleEffect(shown ? 1 : 0.7)
+        .opacity(shown ? 1 : 0)
+        .rotationEffect(.degrees(shown ? -2 : 7))
         .onAppear {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.55).delay(1.1)) { slam = true }
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.55).delay(0.78)) { shown = true }
+            withAnimation(.spring(response: 0.48, dampingFraction: 0.5).delay(0.92)) { crown = true }
         }
     }
 }
