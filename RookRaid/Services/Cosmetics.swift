@@ -32,8 +32,11 @@ enum CosmeticRarity: Int, Comparable {
 
 /// Avatare: der Springer ist frei, alle anderen kommen aus Truhen oder aus dem Laden.
 enum Avatar: String, CaseIterable, Identifiable, Codable {
-    case knight, fox, owl, bear, penguin, frog, wolf, lion, robot, wizard, dragon, phoenix
+    case knight, fox, owl, bear, penguin, frog, wolf, lion, robot, nachtross, wizard, dragon, phoenix
     var id: String { rawValue }
+
+    /// Dateiname im Asset-Katalog (`avatar-knight` …).
+    var imageName: String { "avatar-\(rawValue)" }
 
     var name: String {
         switch self {
@@ -46,6 +49,7 @@ enum Avatar: String, CaseIterable, Identifiable, Codable {
         case .wolf: return L("Wolf")
         case .lion: return L("Löwe")
         case .robot: return L("Roboter")
+        case .nachtross: return L("Nachtross")
         case .wizard: return L("Magier")
         case .dragon: return L("Drache")
         case .phoenix: return L("Phönix")
@@ -55,7 +59,7 @@ enum Avatar: String, CaseIterable, Identifiable, Codable {
     var rarity: CosmeticRarity {
         switch self {
         case .knight, .fox, .owl, .bear, .penguin, .frog: return .common
-        case .wolf, .lion, .robot: return .rare
+        case .wolf, .lion, .robot, .nachtross: return .rare
         case .wizard, .dragon: return .epic
         case .phoenix: return .legendary
         }

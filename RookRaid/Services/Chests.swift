@@ -70,7 +70,8 @@ enum ChestRarity: Int, Codable, CaseIterable, Comparable, Identifiable {
     var xp: Int { [5, 10, 20, 40, 80][rawValue] }
     var shards: Int { [5, 10, 20, 40, 100][rawValue] }
     /// Chance auf eine neue Karte (zusätzlich zu Garantien und Glücksschutz).
-    var cardChance: Double { [0.02, 0.04, 0.08, 0.20, 0.60][rawValue] }
+    /// Bewusst niedrig: Holz 1,5 %, Silber 3 %, Gold 5 %, Magisch 12 %, Legendär 40 %.
+    var cardChance: Double { [0.015, 0.03, 0.05, 0.12, 0.40][rawValue] }
     /// Chance auf ein Sammelbrett.
     var boardChance: Double { [0, 0, 0, 0.10, 0.40][rawValue] }
 }
@@ -265,7 +266,7 @@ extension ProfileStore {
 
     static let winChestsPerDay = 3
     static let puzzlesPerChest = 5
-    static let pityLimit = 12
+    static let pityLimit = 18
 
     var pendingChests: [Chest] { profile.chests }
 

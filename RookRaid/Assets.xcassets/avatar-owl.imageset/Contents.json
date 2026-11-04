@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "avatar-owl.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

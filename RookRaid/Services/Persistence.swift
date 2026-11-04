@@ -829,6 +829,8 @@ final class ProfileStore: ObservableObject {
         return delta
     }
 
+    /// Serie, die beim nächsten Blick aufs Menü mit der Entzündungs-Animation gefeiert wird.
+    @Published var flameCelebration: Int?
 }
 
 /// Trophäen einer gewerteten Partie. Dieselbe Rechnung wie `trophy_delta` auf dem Server.
@@ -886,6 +888,7 @@ extension ProfileStore {
         if p.activeDays.count > 400 { p.activeDays = Array(p.activeDays.suffix(400)) }
         profile = p
         grantStreakMilestones()
+        flameCelebration = p.streak
         return p.streak
     }
 

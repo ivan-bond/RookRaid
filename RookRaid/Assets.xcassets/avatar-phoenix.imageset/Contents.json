@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "avatar-phoenix.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

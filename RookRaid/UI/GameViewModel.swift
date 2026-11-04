@@ -1354,6 +1354,7 @@ final class GameViewModel: ObservableObject {
             if delta != 0, !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == 0 {
                 store.profile.history[0].trophyDelta = delta
             }
+            OnlineAccount.shared.noteOnlineResult(result)
             OnlineAccount.shared.backupQuietly()
             Task { await OnlineAccount.shared.reload() }
             return delta
@@ -1590,7 +1591,13 @@ final class GameViewModel: ObservableObject {
     }
 
     private func applyServerFinish(result: String, winner: PlayerColor?, delta: Int?) {
-        if let delta { applyServerTrophies(delta) }
+        if let delta {
+            let outcome: GameResultKind = {
+                guard let winner else { return .draw }
+                return winner == humanColor ? .win : .loss
+            }()
+            applyServerTrophies(delta, result: outcome)
+        }
         guard !finished else { return }
         switch result {
         case "mate":
@@ -1618,7 +1625,7 @@ final class GameViewModel: ObservableObject {
         finish()
     }
 
-    private func applyServerTrophies(_ delta: Int) {
+    private func applyServerTrophies(_ delta: Int, result: GameResultKind) {
         guard !appliedServerTrophies else { return }
         appliedServerTrophies = true
         pendingServerDelta = delta
@@ -1628,7 +1635,9 @@ final class GameViewModel: ObservableObject {
             info.trophyDelta = delta
             gameOver = info
         }
+        OnlineAccount.shared.noteOnlineResult(result)
         OnlineAccount.shared.backupQuietly()
+        Task { await OnlineAccount.shared.reload() }
     }
 
     /// Die Partie im Draht-Format (v0.9.26): Regel-Version, Decks, Ultimates und alle Aktionen.

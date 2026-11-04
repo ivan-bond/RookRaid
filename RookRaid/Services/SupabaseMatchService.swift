@@ -215,13 +215,8 @@ enum PendingBotReports {
                 _ = try await SupabaseBotMatchReporter(client: client)
                     .finish(matchId: report.matchId, actions: report.actions, outcome: outcome,
                             humanIsWhite: report.humanIsWhite ?? true)
-                await OnlineAccount.shared.reload()
-                if let server = OnlineAccount.shared.progress {
-                    let store = ProfileStore.shared
-                    if server.trophies > store.profile.trophies { store.profile.trophies = server.trophies }
-                    store.profile.bestTrophies = max(store.profile.bestTrophies, server.bestTrophies)
-                }
                 clear()
+                await OnlineAccount.shared.reload()
             } catch {
                 // Partie war schon gewertet (45 s weg) oder Netz immer noch weg – beim nächsten Start nochmal
             }

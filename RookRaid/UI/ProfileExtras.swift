@@ -678,7 +678,7 @@ struct ProgressPill: View {
     }
 }
 
-/// Avatar des Spielers mit gewähltem Rahmen. Der Springer ist eine Schachfigur, alle anderen sind Vektorgrafiken.
+/// Avatar des Spielers mit gewähltem Rahmen. Das Bild ist das gemalte Porträt.
 struct PlayerAvatar: View {
     @ObservedObject var store = ProfileStore.shared
     var size: CGFloat = 86
@@ -715,64 +715,13 @@ struct PlayerAvatar: View {
 /// Innenbild eines Avatars (ohne Rahmen), füllt seinen Rahmen quadratisch aus.
 struct AvatarPortrait: View {
     let avatar: Avatar
+    /// Bleibt für Aufrufer erhalten. Die gemalten Porträts haben keine eigene Figurenfarbe.
     var pieceColor: PlayerColor = .white
-    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
-        // Gezeichnete Avatare werden je Größe einmal gerastert und dann als Bild gezeigt (viele Ebenen mit Weichzeichner).
-        GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
-            if avatar != .knight, side > 0,
-               let image = RenderCache.shared.image(key: "avatar-\(avatar.rawValue)-\(Int(side.rounded()))-\(Int(displayScale))",
-                                                     size: CGSize(width: side, height: side), scale: displayScale,
-                                                     content: { liveBody }) {
-                Image(uiImage: image)
-                    .resizable()
-                    .frame(width: side, height: side)
-                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
-            } else {
-                liveBody
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var liveBody: some View {
-        let art = AvatarArt.cache[avatar] ?? AvatarArt.make(avatar)
-        ZStack {
-            Circle().fill(RadialGradient(colors: [Color(hex: art.bg0), Color(hex: art.bg1)],
-                                         center: UnitPoint(x: 0.5, y: 0.4), startRadius: 2, endRadius: 80))
-            if avatar == .knight {
-                GeometryReader { geo in
-                    PieceImage(type: .knight, color: pieceColor)
-                        .padding(geo.size.width * 0.17)
-                }
-            } else {
-                Canvas { ctx, area in
-                    // Kunstkreis (Radius 46 um 50,50) füllt die Fläche
-                    let k = min(area.width, area.height) / 92
-                    let t = CGAffineTransform(translationX: area.width / 2 - 50 * k, y: area.height / 2 - 50 * k).scaledBy(x: k, y: k)
-                    for layer in art.layers {
-                        var c = ctx
-                        c.opacity = layer.alpha
-                        if layer.blur > 0 { c.addFilter(.blur(radius: layer.blur * k)) }
-                        let p = layer.path.applying(t)
-                        if let fill = layer.fill {
-                            switch fill {
-                            case .solid(let hex, let alpha):
-                                c.fill(p, with: .color(Color(hex: hex).opacity(alpha)))
-                            case .linear(let stops, let from, let to):
-                                let g = Gradient(stops: stops.map { Gradient.Stop(color: Color(hex: $0.0), location: $0.1) })
-                                c.fill(p, with: .linearGradient(g, startPoint: from.applying(t), endPoint: to.applying(t)))
-                            }
-                        }
-                        if let stroke = layer.stroke {
-                            c.stroke(p, with: .color(Color(hex: stroke)),
-                                     style: StrokeStyle(lineWidth: layer.width * k, lineCap: .round, lineJoin: .round))
-                        }
-                    }
-                }
-            }
-        }
+        Image(avatar.imageName)
+            .resizable()
+            .scaledToFill()
+            .accessibilityHidden(true)
     }
 }

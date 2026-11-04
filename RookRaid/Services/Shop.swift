@@ -63,7 +63,7 @@ enum ShopPurchase {
 
 extension ProfileStore {
     static let shopFramePrice = 500
-    static let chestPrices: [ChestRarity: Int] = [.silver: 60, .gold: 150, .magic: 400, .legendary: 900]
+    static let chestPrices: [ChestRarity: Int] = [.silver: 60, .gold: 220, .magic: 600, .legendary: 900]
 
     /// Fester Zufall pro Tag (gleiche Angebote den ganzen Tag, auch nach Neustart).
     private static func seed(for day: String) -> UInt64 {
@@ -89,7 +89,7 @@ extension ProfileStore {
 
         // 1) Truhe: meist Gold, manchmal Magisch
         let chest: ChestRarity = rng.next() < 0.7 ? .gold : .magic
-        let cp = ProfileStore.chestPrices[chest] ?? 150
+        let cp = ProfileStore.chestPrices[chest] ?? 220
         offers.append(ShopOffer(id: "\(day).chest", item: .chest(chest), price: cp, basePrice: cp))
 
         // 2) Karte mit Rabatt (nur, was schon zum Level passt), sonst eine Silbertruhe zum Schnäppchenpreis
@@ -108,14 +108,15 @@ extension ProfileStore {
             let base = basePrice(item)
             offers.append(ShopOffer(id: "\(day).cosmetic", item: item, price: base * 9 / 10, basePrice: base))
         } else {
-            offers.append(ShopOffer(id: "\(day).gold2", item: .chest(.gold), price: 120, basePrice: 150))
+            let gold = ProfileStore.chestPrices[.gold] ?? 220
+            offers.append(ShopOffer(id: "\(day).gold2", item: .chest(.gold), price: gold * 4 / 5, basePrice: gold))
         }
         return offers
     }
 
     func basePrice(_ item: ShopItem) -> Int {
         switch item {
-        case .chest(let r): return ProfileStore.chestPrices[r] ?? 150
+        case .chest(let r): return ProfileStore.chestPrices[r] ?? 220
         case .card(let c): return c.tier.price
         case .board: return BoardTheme.collectiblePrice
         case .frame: return ProfileStore.shopFramePrice

@@ -650,6 +650,94 @@ struct WeekStrip: View {
     }
 }
 
+/// Einmal auf dem Menü, nachdem eine Partie oder ein Puzzle die Tagesflamme entzündet hat.
+struct FlameIgnitionOverlay: View {
+    let streak: Int
+    let onDone: () -> Void
+
+    @State private var spark = false
+    @State private var burst = false
+    @State private var number = false
+    @State private var ring = false
+    @State private var finished = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(burst ? 0.62 : 0.2).ignoresSafeArea()
+            RadialGradient(colors: [FlameStyle.glow.opacity(burst ? 0.55 : 0), .clear],
+                           center: .center, startRadius: 10, endRadius: burst ? 420 : 40)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .stroke(FlameStyle.glow.opacity(ring ? 0 : 0.85), lineWidth: 4)
+                    .frame(width: 80, height: 80)
+                    .scaleEffect(ring ? 4.2 + CGFloat(i) * 0.6 : 0.2)
+                    .animation(.easeOut(duration: 0.9).delay(0.35 + Double(i) * 0.12), value: ring)
+            }
+
+            VStack(spacing: 18) {
+                ZStack {
+                    if spark && !burst {
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 36, weight: .black))
+                            .foregroundColor(FlameStyle.glow)
+                            .offset(y: spark ? -70 : 40)
+                            .opacity(burst ? 0 : 1)
+                    }
+                    LivingFlame(colors: FlameTier.forStreak(streak).colors, lit: burst, embers: 16)
+                        .frame(width: 180, height: 210)
+                        .scaleEffect(burst ? 1 : 0.08)
+                        .opacity(burst ? 1 : 0.15)
+                }
+                .frame(height: 220)
+
+                VStack(spacing: 6) {
+                    Text(L("Flamme entzündet!"))
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
+                        .shadow(color: FlameStyle.lit, radius: 12)
+                    Text(streak == 1 ? L("Tag 1 deiner Serie") : L("{0} Tage in Folge", streak))
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundColor(FlameStyle.glow)
+                }
+                .scaleEffect(number ? 1 : 0.4)
+                .opacity(number ? 1 : 0)
+                .rotationEffect(.degrees(number ? 0 : -8))
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { dismiss() }
+        .onAppear(perform: play)
+    }
+
+    private func play() {
+        withAnimation(.easeOut(duration: 0.28)) { spark = true }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 280_000_000)
+            guard !finished else { return }
+            Haptics.shared.play(.chestBurst)
+            SoundPlayer.shared.play(.chestOpen, volume: 0.85)
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.55)) { burst = true }
+            ring = true
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !finished else { return }
+            Haptics.shared.play(.victory)
+            SoundPlayer.shared.play(.rewardBig, volume: 0.7)
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.62)) { number = true }
+            try? await Task.sleep(nanoseconds: 2_400_000_000)
+            dismiss()
+        }
+    }
+
+    private func dismiss() {
+        guard !finished else { return }
+        finished = true
+        onDone()
+    }
+}
+
 /// Zeile im Ergebnisfenster, wenn die Flamme gerade entzündet wurde.
 struct FlameLitRow: View {
     let streak: Int

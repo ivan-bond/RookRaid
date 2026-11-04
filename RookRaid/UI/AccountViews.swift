@@ -131,7 +131,7 @@ struct AccountSection: View {
             Spacer()
             if let p = account.progress, account.hasAccount {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Label("\(p.trophies)", systemImage: "trophy.fill")
+                    Label("\(store.profile.trophies)", systemImage: "trophy.fill")
                         .font(.system(size: 14, weight: .heavy))
                         .foregroundColor(Theme.gold)
                     Text(L("{0} S · {1} N · {2} R", p.onlineWins, p.onlineLosses, p.onlineDraws))

@@ -7,7 +7,7 @@ import SwiftUI
 // 2. Die Helden: dein Avatar mit Krone, daneben der besiegte Gegner (grau, mit Riss).
 // 3. Die Beute: Kacheln für Trophäen, XP und Flamme springen nacheinander auf – mit Haptik und Klang.
 // 4. Truhen, Pfad-Belohnung und die Knöpfe.
-// Ein Tipp beschleunigt alles auf einmal. Niederlage und Remis bleiben ruhiger, aber freundlich.
+// Ein Tipp beschleunigt alles auf einmal. Ein Sieg knallt mit Stoßwelle, eine Niederlage taumelt und fängt sich wieder.
 
 struct GameOverOverlay: View {
     let info: GameOverInfo
@@ -37,6 +37,11 @@ struct GameOverOverlay: View {
     @State private var cardHeight: CGFloat = 0
     /// Verdiente Truhen öffnen sich einmal von selbst, kurz nachdem sie hereingefallen sind.
     @State private var autoOpened = false
+    @State private var shakeX: CGFloat = 0
+    @State private var tilt: Double = 0
+    @State private var ring = false
+    @State private var lossRecover = false
+    @State private var dizzy = false
 
     private var victory: Bool { info.result == .win || (info.result == nil && info.hasWinner) }
     private var lost: Bool { info.result == .loss }
@@ -54,9 +59,19 @@ struct GameOverOverlay: View {
                     .scaleEffect(stage >= 1 ? 1 : 0.3)
                     .animation(.easeOut(duration: 0.6), value: stage >= 1)
                     .allowsHitTesting(false)
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .stroke(Theme.gold.opacity(ring ? 0 : 0.7), lineWidth: 5)
+                        .frame(width: 90, height: 90)
+                        .scaleEffect(ring ? 5.5 + CGFloat(i) : 0.15)
+                        .offset(y: -40)
+                        .animation(.easeOut(duration: 0.7).delay(Double(i) * 0.08), value: ring)
+                        .allowsHitTesting(false)
+                }
                 ConfettiView(seed: confettiSeed).ignoresSafeArea()
                 if secondBurst {
                     ConfettiView(seed: confettiSeed &+ 7).ignoresSafeArea()
+                    ConfettiView(seed: confettiSeed &+ 19).ignoresSafeArea()
                 }
             }
 
@@ -83,6 +98,8 @@ struct GameOverOverlay: View {
                 .contentShape(Rectangle())
                 .onTapGesture { if stage < 4 { finishNow() } }
                 .scaleEffect(fit)
+                .offset(x: shakeX)
+                .rotationEffect(.degrees(tilt))
                 .animation(.easeOut(duration: 0.25), value: fit)
                 .frame(width: geo.size.width, height: geo.size.height)
             }
@@ -178,12 +195,26 @@ struct GameOverOverlay: View {
                     .font(.system(size: 30, weight: .black))
                     .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
                     .shadow(color: .black.opacity(0.4), radius: 0, y: 2)
-                    .rotationEffect(.degrees(-12))
-                    .offset(x: -26, y: crownBob ? -30 : -24)
-                    .scaleEffect(stage >= 2 ? 1 : 0.1)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.45).delay(0.25), value: stage >= 2)
+                    .rotationEffect(.degrees(crownBob ? -8 : -18))
+                    .offset(x: -26, y: crownBob ? -34 : -8)
+                    .scaleEffect(stage >= 2 ? 1.08 : 0.1)
+                    .animation(.spring(response: 0.38, dampingFraction: 0.42).delay(0.2), value: stage >= 2)
+            }
+            if lost && isMe {
+                ForEach(0..<3, id: \.self) { i in
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundColor(Theme.gold)
+                        .rotationEffect(.degrees(dizzy ? 360 : 0))
+                        .offset(x: CGFloat(i - 1) * 18, y: -52)
+                        .opacity(stage >= 2 ? 0.95 : 0)
+                        .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: dizzy)
+                }
             }
         }
+        .offset(y: lost && isMe && stage >= 2 && !lossRecover ? 22 : 0)
+        .rotationEffect(.degrees(lost && isMe && stage >= 2 && !lossRecover ? -14 : 0))
+        .animation(.spring(response: 0.42, dampingFraction: 0.45), value: lossRecover)
     }
 
     private func botBadge(_ level: BotLevel) -> some View {
@@ -476,13 +507,29 @@ struct GameOverOverlay: View {
             guard !Task.isCancelled else { return }
             stage = 1
             Haptics.shared.play(victory ? .chestBurst : .heavyCapture)
-            if victory { SoundPlayer.shared.play(.rewardBig, volume: 0.8) }
+            if victory {
+                ring = true
+                shakeX = 16
+                SoundPlayer.shared.play(.rewardBig, volume: 0.8)
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.35)) { shakeX = 0 }
+            } else if lost {
+                shakeX = -14
+                tilt = -5
+                SoundPlayer.shared.play(.defeat, volume: 0.7)
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.32)) { shakeX = 0; tilt = 0 }
+            }
             await wait(0.42)
             guard !Task.isCancelled else { return }
             stage = 2
             if victory {
                 Haptics.shared.play(.chestReveal)
                 foreverAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { crownBob = true }
+            } else if lost {
+                await wait(0.28)
+                guard !Task.isCancelled else { return }
+                lossRecover = true
+                dizzy = true
+                Haptics.shared.play(.tick)
             }
             await wait(0.5)
             guard !Task.isCancelled else { return }
@@ -527,6 +574,11 @@ struct GameOverOverlay: View {
             stage = 4
             tilesShown = loot.count
             shownDelta = info.trophyDelta
+            shakeX = 0
+            tilt = 0
+            lossRecover = true
+            if victory { ring = true }
+            if lost { dizzy = true }
         }
         if victory { foreverAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { crownBob = true } }
         scheduleChestOpening()

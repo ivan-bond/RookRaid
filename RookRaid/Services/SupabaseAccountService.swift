@@ -150,10 +150,31 @@ final class OnlineAccount: ObservableObject {
         }
     }
 
-    /// Server-Trophäen laden (beim Öffnen des Konto-Bereichs).
+    /// Server-Trophäen laden und in den lokalen Spielstand übernehmen.
+    /// Solange eine Bot-Meldung noch nicht ankam, bleibt ein höherer lokaler Stand stehen.
     func reload() async {
         guard let service, hasAccount else { return }
-        if let p = try? await service.fetchProgress() { progress = p }
+        if let p = try? await service.fetchProgress() {
+            progress = p
+            let store = ProfileStore.shared
+            let waiting = PendingBotReports.load() != nil && p.trophies < store.profile.trophies
+            if !waiting { adoptServerTrophies(p) }
+            else { store.profile.bestTrophies = max(store.profile.bestTrophies, p.bestTrophies) }
+        }
+    }
+
+    /// Direkt nach einer gewerteten Online-Partie, noch bevor die nächste Abfrage zurück ist.
+    func noteOnlineResult(_ result: GameResultKind) {
+        guard var p = progress else { return }
+        let store = ProfileStore.shared
+        p.trophies = store.profile.trophies
+        p.bestTrophies = max(p.bestTrophies, store.profile.bestTrophies)
+        switch result {
+        case .win: p.onlineWins += 1
+        case .loss: p.onlineLosses += 1
+        case .draw: p.onlineDraws += 1
+        }
+        progress = p
     }
 
     enum NameCheck: Equatable { case available, taken, invalid, unknown }

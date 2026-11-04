@@ -137,7 +137,12 @@ struct RootView: View {
                 store.checkStreak()
             }
             .onChange(of: scenePhase) { phase in
-                if phase == .active { store.checkStreak() }
+                if phase == .active {
+                    store.checkStreak()
+                    if session == nil, puzzleSession == nil {
+                        Task { await OnlineAccount.shared.reload() }
+                    }
+                }
                 if phase != .active { store.flushSave() }
                 if phase == .background { OnlineAccount.shared.backupQuietly() }
             }
@@ -205,6 +210,15 @@ struct RootView: View {
                 .zIndex(9)
             }
 
+            if !showSplash, session == nil, puzzleSession == nil, store.profile.freezeNotice == nil,
+               let streak = store.flameCelebration {
+                FlameIgnitionOverlay(streak: streak) {
+                    withAnimation(.easeOut(duration: 0.25)) { store.flameCelebration = nil }
+                }
+                .transition(.opacity)
+                .zIndex(9)
+            }
+
             if !showSplash, let days = store.profile.freezeNotice {
                 FreezeNoticeOverlay(days: days, streak: store.currentStreak) {
                     withAnimation(.easeOut(duration: 0.25)) { store.profile.freezeNotice = nil }
@@ -229,8 +243,18 @@ struct RootView: View {
         // Rockys Einladung: nach jeder geschlossenen Partie bzw. sobald alle Truhen offen sind
         .onChange(of: session?.id) { id in
             if id == nil {
+                Task { await OnlineAccount.shared.reload() }
                 scheduleRockyInvite(after: 0.9)
                 scheduleAppleSecure(after: 1.1)
+            }
+        }
+        .onChange(of: puzzleSession?.id) { id in
+            if id == nil { Task { await OnlineAccount.shared.reload() } }
+        }
+        .onChange(of: store.flameCelebration) { value in
+            if value == nil {
+                scheduleRockyInvite(after: 0.4)
+                scheduleAppleSecure(after: 0.6)
             }
         }
         .onChange(of: showRockyInvite) { shown in
@@ -269,7 +293,8 @@ struct RootView: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard store.needsDeckTour, !inviteSnoozed, !showRockyInvite, !showSplash,
-                  session == nil, puzzleSession == nil, tab == .play else { return }
+                  session == nil, puzzleSession == nil, tab == .play,
+                  store.flameCelebration == nil else { return }
             withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) { showRockyInvite = true }
         }
     }
@@ -278,7 +303,8 @@ struct RootView: View {
     private func scheduleAppleSecure(after delay: Double) {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            guard !showAppleSecure, !showRockyInvite, !showSplash, session == nil else { return }
+            guard !showAppleSecure, !showRockyInvite, !showSplash, session == nil,
+                  store.flameCelebration == nil else { return }
             guard account.consumeApplePrompt() else { return }
             withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) { showAppleSecure = true }
         }
