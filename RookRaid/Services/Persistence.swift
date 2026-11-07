@@ -145,6 +145,7 @@ enum TimeControl: String, Codable, CaseIterable, Identifiable {
 }
 
 struct Settings: Codable, Equatable {
+    private enum LegacyKeys: String, CodingKey { case language }
     var haptics = true
     var sound = true
     var hints = true
@@ -162,8 +163,11 @@ struct Settings: Codable, Equatable {
     var showTerritory = true
     /// Bots spielen mit ihrem eigenen Figurenset.
     var botSkins = true
-    /// App-Sprache: beim ersten Start die Systemsprache, danach die Wahl in den Einstellungen.
-    var language: AppLanguage = AppLanguage.system
+    /// Selbst gewählte App-Sprache. nil = Gerätesprache (folgt auch der Sprache, die in den iOS-Einstellungen
+    /// nur für Rook Raid gewählt wurde). Gespeichert unter „appLanguage“.
+    var appLanguage: AppLanguage? = nil
+    /// Sprache, in der die App gerade läuft.
+    var language: AppLanguage { appLanguage ?? AppLanguage.system }
 
     /// Testmodus „alle Karten frei“ gilt nur in Debug-Builds (v0.9.26) – in der App-Store-Fassung und online nie.
     var testModeActive: Bool {
@@ -192,7 +196,15 @@ struct Settings: Codable, Equatable {
         ultimate = rawUltimate.flatMap { Ultimate(rawValue: $0) } ?? d.ultimate
         showTerritory = try c.decodeIfPresent(Bool.self, forKey: .showTerritory) ?? d.showTerritory
         botSkins = try c.decodeIfPresent(Bool.self, forKey: .botSkins) ?? d.botSkins
-        language = (try? c.decodeIfPresent(AppLanguage.self, forKey: .language)) ?? nil ?? d.language
+        if c.contains(.appLanguage) {
+            appLanguage = (try? c.decodeIfPresent(AppLanguage.self, forKey: .appLanguage)) ?? nil
+        } else {
+            // Ältere Profile speicherten beim ersten Start die Gerätesprache fest ab. Nur eine davon abweichende
+            // Sprache war wirklich gewählt – die bleibt, sonst folgt die App ab jetzt dem Gerät.
+            let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+            let old = (try? legacy.decodeIfPresent(AppLanguage.self, forKey: .language)) ?? nil
+            appLanguage = old == AppLanguage.system ? nil : old
+        }
         // Deck tolerant laden: unbekannte Karten überspringen, Doppelte entfernen
         // Seit v0.9.31 darf das Deck 0–4 Karten haben. Sehr alte Profile ohne gespeichertes Deck behalten die Startkarten.
         if let rawDeck = (try? c.decodeIfPresent([String].self, forKey: .deck)) ?? nil {
@@ -217,16 +229,22 @@ enum GameResultKind: String, Codable {
     }
 }
 
-struct GameRecord: Codable, Identifiable {
+struct GameRecord: Codable, Identifiable, Equatable {
     var id = UUID()
     var date: Date
     var opponent: String
     var result: GameResultKind
+    /// Unübersetzter Text wie „durch Schachmatt“ (App und Browser speichern denselben, angezeigt mit `L`).
     var reason: String
     var moves: Int
     var trophyDelta: Int
     var cardsPlayed: Int
     var replayID: UUID? = nil
+    /// Online-Partie auf dem Server: dieselbe Partie von einem anderen Gerät oder vom Server erscheint nur einmal.
+    var matchId: UUID? = nil
+
+    /// So viele Partien bleiben im Verlauf (gleiche Zahl im Browser).
+    static let limit = 100
 }
 
 struct Profile: Codable {
@@ -638,27 +656,24 @@ final class ProfileStore: ObservableObject {
         progressReady = true
     }
 
-    /// Karten, XP und Truhen auf dem Konto sichern. Mehrere Änderungen hintereinander (Truhe öffnen) werden eine Meldung.
+    /// Den Spielstand auf dem Konto sichern – jede Änderung, die in der Sicherung steht (Karten, XP, Truhen, Splitter,
+    /// Flamme, Laden, Erfolge …). Mehrere Änderungen hintereinander werden eine Meldung; `backupQuietly` schickt nur,
+    /// wenn sich die Sicherung wirklich geändert hat.
     private func scheduleServerProgressBackup(comparedTo old: Profile) {
-        let cards = old.unlockedCards != profile.unlockedCards || old.seenCards != profile.seenCards
-        let xp = old.xp != profile.xp
-        let chests = old.chests != profile.chests
-            || old.chestsOpened != profile.chestsOpened
-            || old.pityCounter != profile.pityCounter
-            || old.legendaryChests != profile.legendaryChests
-            || old.levelChestsGranted != profile.levelChestsGranted
-            || old.arenaChestsGranted != profile.arenaChestsGranted
-            || old.puzzleChestsGranted != profile.puzzleChestsGranted
-            || old.winChestDay != profile.winChestDay
-            || old.winChestsToday != profile.winChestsToday
-            || old.tutorialChestGiven != profile.tutorialChestGiven
-        guard cards || xp || chests else { return }
         progressBackupTask?.cancel()
         progressBackupTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 800_000_000)
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
             guard !Task.isCancelled else { return }
+            progressBackupTask = nil
             OnlineAccount.shared.backupQuietly()
         }
+    }
+
+    /// Eine Änderung wartet noch darauf, aufs Konto zu gehen.
+    var hasPendingServerBackup: Bool { progressBackupTask != nil }
+    func cancelPendingServerBackup() {
+        progressBackupTask?.cancel()
+        progressBackupTask = nil
     }
 
     var settings: Settings {
@@ -803,7 +818,7 @@ final class ProfileStore: ObservableObject {
     /// `opponentTrophies` ist der Wert des Gegners (bei einem Bot seine Stufenmitte). Fehlt er, gilt ein gleich starker Gegner.
     @discardableResult
     func record(result: GameResultKind, rated: Bool, opponent: String, reason: String, moves: Int, cardsPlayed: Int,
-                replayID: UUID? = nil, countsForStats: Bool? = nil, opponentTrophies: Int? = nil) -> Int {
+                replayID: UUID? = nil, countsForStats: Bool? = nil, opponentTrophies: Int? = nil, matchId: UUID? = nil) -> Int {
         var delta = 0
         if !rated && (countsForStats ?? false) {
             switch result {
@@ -823,9 +838,9 @@ final class ProfileStore: ObservableObject {
             profile.bestTrophies = max(profile.bestTrophies, profile.trophies)
         }
         let record = GameRecord(date: Date(), opponent: opponent, result: result, reason: reason,
-                                moves: moves, trophyDelta: delta, cardsPlayed: cardsPlayed, replayID: replayID)
+                                moves: moves, trophyDelta: delta, cardsPlayed: cardsPlayed, replayID: replayID, matchId: matchId)
         profile.history.insert(record, at: 0)
-        if profile.history.count > 50 { profile.history = Array(profile.history.prefix(50)) }
+        if profile.history.count > GameRecord.limit { profile.history = Array(profile.history.prefix(GameRecord.limit)) }
         return delta
     }
 

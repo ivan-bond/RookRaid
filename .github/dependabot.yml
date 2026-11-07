@@ -12,3 +12,12 @@ updates:
     directory: /RookRaid.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
     schedule:
       interval: weekly
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      # One pull request for React, Vite and friends instead of one per package.
+      web:
+        patterns: ["*"]
+        update-types: [minor, patch]

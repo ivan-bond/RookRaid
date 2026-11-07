@@ -47,11 +47,12 @@ struct GameView: View {
             }
 
             if let f = vm.finisher, vm.gameOver == nil {
-                FinisherTitle(humanWon: vm.mode.isBot || vm.mode.isOnline ? f.winner == vm.humanColor : true,
-                             headline: f.headline)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .padding(.top, 28)
-                    .allowsHitTesting(false)
+                let won = vm.mode.isBot || vm.mode.isOnline ? f.winner == vm.humanColor : true
+                FinisherTitle(style: won ? .win : .loss, headline: f.headline,
+                              subline: won ? L("Der König platzt!") : L("Dein König platzt!"))
+                    .id(f.headline)
+            } else if let reason = vm.drawFinish, vm.gameOver == nil {
+                FinisherTitle(style: .draw, headline: L("REMIS"), subline: reason, delay: 0.1)
             }
 
             if let banner = vm.banner {
@@ -417,7 +418,7 @@ struct PlayerBar: View {
                 .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
         } else if let card = vm.onlineOpponent {
             PlayerAvatar(size: 34, pieceColor: color,
-                         frame: card.frame.flatMap(AvatarFrame.init(rawValue:)) ?? .none,
+                         frame: card.frame.flatMap(AvatarFrame.init(rawValue:)) ?? AvatarFrame.none,
                          avatar: Avatar(rawValue: card.avatar) ?? .knight)
                 .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
         } else {
@@ -529,51 +530,123 @@ struct AnnouncementView: View {
     }
 }
 
+/// Großer Moment in der Bildschirmmitte: Matt, Zeit, Aufgabe – und Remis. Lichtstrahlen, ein Band, das herein-
+/// knallt, Funken; beim Sieg fällt eine Krone aufs Band, bei der Niederlage wackelt es.
 struct FinisherTitle: View {
-    let humanWon: Bool
+    enum Style { case win, loss, draw }
+    let style: Style
     let headline: String
-    @State var shown = false
-    @State var crown = false
+    let subline: String
+    /// Matt/Zeit/Aufgabe warten auf das Platzen des Königs, Remis kommt sofort.
+    var delay: Double = 0.78
 
-    private var ink: Color { humanWon ? Color(hex: 0xFFD866) : Color(hex: 0xE5636A) }
-    private var deep: Color { humanWon ? Color(hex: 0xF0A419) : Color(hex: 0xA8323B) }
+    @Environment(\.liveAnimations) private var live
+    @State private var shown = false
+    @State private var crown = false
+    @State private var burst = false
+    @State private var shake: CGFloat = 0
+
+    private var colors: [Color] {
+        switch style {
+        case .win: return [Color(hex: 0xFFD866), Color(hex: 0xF0A419)]
+        case .loss: return [Color(hex: 0xE5636A), Color(hex: 0xA8323B)]
+        case .draw: return [Color(hex: 0x9DB4DC), Color(hex: 0x5D6F92)]
+        }
+    }
+    private var glow: Color { style == .win ? Theme.gold : style == .loss ? Theme.red : Theme.blueLight }
 
     var body: some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Text(headline)
-                    .font(.system(size: 32, weight: .black, design: .rounded))
-                    .italic()
-                    .foregroundColor(humanWon ? Theme.navy : .white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .padding(.horizontal, 36)
-                    .padding(.vertical, 12)
-                    .background(
-                        VictoryRibbonShape()
-                            .fill(LinearGradient(colors: [ink, deep], startPoint: .top, endPoint: .bottom))
-                            .shadow(color: deep.opacity(0.65), radius: 0, y: 5)
-                    )
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 26, weight: .black))
-                    .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
-                    .shadow(color: .black.opacity(0.35), radius: 0, y: 2)
-                    .rotationEffect(.degrees(crown ? -16 : 24))
-                    .offset(y: crown ? -34 : 8)
-                    .scaleEffect(crown ? 1 : 0.15)
-            }
-            Text(humanWon ? L("Der König platzt!") : L("Dein König platzt!"))
-                .font(.system(size: 15, weight: .heavy, design: .rounded))
-                .foregroundColor(.white)
-                .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
+        ZStack {
+            // Dunkler Hof, damit der Titel über dem Brett steht
+            RadialGradient(colors: [Color.black.opacity(0.55), .clear], center: .center, startRadius: 20, endRadius: 230)
+                .frame(width: 520, height: 420)
                 .opacity(shown ? 1 : 0)
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live || !shown)) { tl in
+                FinisherRays(count: 14)
+                    .fill(RadialGradient(colors: [glow.opacity(0.55), glow.opacity(0)], center: .center, startRadius: 10, endRadius: 190))
+                    .frame(width: 380, height: 380)
+                    .rotationEffect(.degrees(tl.date.timeIntervalSinceReferenceDate * 18))
+            }
+            .scaleEffect(shown ? 1 : 0.2)
+            .opacity(shown ? (style == .loss ? 0.6 : 1) : 0)
+            if burst {
+                Shockwave(color: glow, maxScale: 3.2, lineWidth: 5, duration: 0.6)
+                    .frame(width: 120, height: 120)
+                if style != .loss {
+                    ParticleBurst(seed: 41, count: 18, colors: [Theme.gold, .white, colors[0]], symbol: "star.fill",
+                                  radius: 170, size: 13, duration: 0.9, gravity: 60)
+                        .frame(width: 10, height: 10)
+                }
+            }
+            VStack(spacing: 10) {
+                ZStack {
+                    Text(headline)
+                        .font(.system(size: 38, weight: .black, design: .rounded))
+                        .italic()
+                        .foregroundColor(style == .win ? Theme.navy : .white)
+                        .shadow(color: .white.opacity(style == .win ? 0.5 : 0), radius: 0, y: 1)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .padding(.horizontal, 40)
+                        .padding(.vertical, 14)
+                        .background(
+                            VictoryRibbonShape()
+                                .fill(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom))
+                                .shadow(color: colors[1].opacity(0.7), radius: 0, y: 6)
+                                .shadow(color: glow.opacity(0.6), radius: 18)
+                        )
+                    if style == .win {
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 34, weight: .black))
+                            .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
+                            .shadow(color: .black.opacity(0.4), radius: 0, y: 2)
+                            .rotationEffect(.degrees(crown ? -14 : 30))
+                            .offset(x: -6, y: crown ? -46 : -160)
+                            .opacity(crown ? 1 : 0)
+                    }
+                }
+                .modifier(ShakeEffect(amount: 7, shakes: 3, animatableData: shake))
+                Text(subline)
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .shadow(color: .black.opacity(0.8), radius: 3, y: 1)
+                    .opacity(crown || style != .win ? (shown ? 1 : 0) : 0)
+            }
+            .scaleEffect(shown ? 1 : 2.6)
+            .rotationEffect(.degrees(shown ? -3 : -16))
+            .opacity(shown ? 1 : 0)
         }
-        .scaleEffect(shown ? 1 : 0.7)
-        .opacity(shown ? 1 : 0)
-        .rotationEffect(.degrees(shown ? -2 : 7))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
         .onAppear {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.55).delay(0.78)) { shown = true }
-            withAnimation(.spring(response: 0.48, dampingFraction: 0.5).delay(0.92)) { crown = true }
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.55).delay(delay)) { shown = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.18) {
+                burst = true
+                if style == .loss { withAnimation(.linear(duration: 0.45)) { shake = 1 } }
+            }
+            if style == .win {
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.45).delay(delay + 0.28)) { crown = true }
+            }
         }
+    }
+}
+
+/// Strahlenkranz (abwechselnd Keil und Lücke) hinter dem Titel.
+struct FinisherRays: Shape {
+    var count: Int
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let r = max(rect.width, rect.height) / 2
+        let step = 2 * Double.pi / Double(count * 2)
+        for i in 0..<count {
+            let a0 = Double(i) * 2 * step, a1 = a0 + step
+            p.move(to: c)
+            p.addLine(to: CGPoint(x: c.x + cos(a0) * r, y: c.y + sin(a0) * r))
+            p.addLine(to: CGPoint(x: c.x + cos(a1) * r, y: c.y + sin(a1) * r))
+            p.closeSubpath()
+        }
+        return p
     }
 }

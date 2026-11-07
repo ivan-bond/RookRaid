@@ -339,19 +339,6 @@ struct PopFade: ViewModifier {
     }
 }
 
-struct SpinFade: ViewModifier {
-    @State private var go = false
-
-    func body(content: Content) -> some View {
-        content
-            .rotationEffect(.degrees(go ? 360 : 0))
-            .opacity(go ? 0 : 1)
-            .onAppear {
-                withAnimation(.easeOut(duration: 0.8)) { go = true }
-            }
-    }
-}
-
 /// Dürfen Dauer-Animationen laufen? Aus für Tabs, die gerade nicht zu sehen sind, und solange eine Partie oder
 /// ein Puzzle im Vollbild offen ist – dann zeichnen die versteckten Seiten keine Bilder mehr (spart Akku und
 /// hält die Partie flüssig). Alle zeitgesteuerten Effekte halten an, wenn der Wert `false` ist.

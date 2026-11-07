@@ -229,7 +229,7 @@ extension ProfileStore {
               progress: typesPlayed, goal: CardType.allCases.count, tier: 2, shards: 100),
             A(id: "bonus50", category: .cards, icon: "figure.walk", title: L("Doppelschlag"), detail: L("50 Bonusaktionen gespielt"),
               progress: p.bonusActions, goal: 50, tier: 2, shards: 60),
-            A(id: "tactic25", category: .cards, icon: "arrow.triangle.branch", title: L("Taktiker"), detail: L("25 Taktik-Boni (Gabel, Fesselung …)"),
+            A(id: "tactic25", category: .cards, icon: "arrow.triangle.branch", title: L("Taktiker"), detail: L("25 Taktiken (Gabel, Fesselung …)"),
               progress: p.tacticBonuses, goal: 25, tier: 2, shards: 60, rewardTitle: "Taktiker"),
 
             // Puzzles

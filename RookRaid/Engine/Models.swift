@@ -165,6 +165,19 @@ enum GameStatus: Codable, Equatable {
         case .ongoing, .check: return ""
         }
     }
+
+    /// Derselbe Text unübersetzt – so steht er im Verlauf (App und Browser gleich).
+    var reasonKey: String {
+        switch self {
+        case .checkmate: return "durch Schachmatt"
+        case .stalemate: return "durch Patt"
+        case .timeout: return "durch Zeitüberschreitung"
+        case .resigned: return "durch Aufgabe"
+        case .drawRepetition: return "durch dreifache Stellungswiederholung"
+        case .drawFiftyMoves: return "durch die 50-Züge-Regel"
+        case .ongoing, .check: return ""
+        }
+    }
 }
 
 /// Warum Mana gutgeschrieben wurde (für die Anzeige an der Mana-Leiste).

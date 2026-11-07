@@ -201,15 +201,13 @@ struct GameOverOverlay: View {
                     .animation(.spring(response: 0.38, dampingFraction: 0.42).delay(0.2), value: stage >= 2)
             }
             if lost && isMe {
-                ForEach(0..<3, id: \.self) { i in
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 13, weight: .black))
-                        .foregroundColor(Theme.gold)
-                        .rotationEffect(.degrees(dizzy ? 360 : 0))
-                        .offset(x: CGFloat(i - 1) * 18, y: -52)
-                        .opacity(stage >= 2 ? 0.95 : 0)
-                        .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: dizzy)
-                }
+                // Sterne kreisen um den Kopf – über eine Zeitleiste, nicht als Endlos-Animation (die nahm sonst
+                // jede Layout-Änderung der Karte mit: die Sterne hüpften und landeten auf dem Band).
+                DizzyStars()
+                    .offset(y: -12)
+                    .opacity(stage >= 2 ? 1 : 0)
+                    .animation(.easeOut(duration: 0.3), value: stage >= 2)
+                    .allowsHitTesting(false)
             }
         }
         .offset(y: lost && isMe && stage >= 2 && !lossRecover ? 22 : 0)
@@ -586,6 +584,32 @@ struct GameOverOverlay: View {
 }
 
 /// Band mit eingekerbten Enden.
+/// Drei Sterne auf einer flachen Ellipse über dem Kopf (vorne größer und heller als hinten).
+private struct DizzyStars: View {
+    @Environment(\.liveAnimations) private var live
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live)) { tl in
+            let t = tl.date.timeIntervalSinceReferenceDate
+            ZStack {
+                ForEach(0..<3, id: \.self) { i in
+                    let a = t * 2.6 + Double(i) * 2 * .pi / 3
+                    let depth = (sin(a) + 1) / 2
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 11 + 5 * depth, weight: .black))
+                        .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
+                        .shadow(color: .black.opacity(0.35), radius: 0, y: 1)
+                        .rotationEffect(.radians(a))
+                        .opacity(0.5 + 0.5 * depth)
+                        .offset(x: cos(a) * 32, y: sin(a) * 8)
+                        .zIndex(depth)
+                }
+            }
+            .frame(width: 84, height: 28)
+        }
+    }
+}
+
 struct VictoryRibbonShape: Shape {
     func path(in r: CGRect) -> Path {
         let notch = r.height * 0.32

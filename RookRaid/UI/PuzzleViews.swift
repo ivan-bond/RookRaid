@@ -928,51 +928,6 @@ struct FloatingThumbnail: View {
     }
 }
 
-/// Level, XP und Fortschrittsbalken.
-struct LevelCard: View {
-    @ObservedObject private var store = ProfileStore.shared
-
-    var body: some View {
-        let progress = store.levelProgress
-        HStack(spacing: 14) {
-            ZStack {
-                Circle().stroke(Theme.panelHighlight, lineWidth: 5)
-                Circle()
-                    .trim(from: 0, to: progress.fraction)
-                    .stroke(Theme.mana, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                VStack(spacing: -2) {
-                    Text(L("LVL"))
-                        .font(.system(size: 9, weight: .heavy))
-                        .foregroundColor(Theme.textSecondary)
-                    Text("\(store.level)")
-                        .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(Theme.textPrimary)
-                }
-            }
-            .frame(width: 58, height: 58)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L("{0} XP", store.profile.xp))
-                    .font(.system(size: 17, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                Text(L("noch {0} XP bis Level {1}", progress.remaining, store.level + 1))
-                    .font(.system(size: 12))
-                    .foregroundColor(Theme.textSecondary)
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.panelHighlight)
-                        Capsule().fill(Theme.mana).frame(width: max(6, geo.size.width * progress.fraction))
-                    }
-                }
-                .frame(height: 8)
-            }
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.panelRaised))
-        .animation(.easeOut(duration: 0.5), value: store.profile.xp)
-    }
-}
-
 // MARK: - Ein Puzzle spielen
 
 /// Hält das aktuelle Puzzle und tauscht es bei „Nächstes Puzzle“ direkt aus.

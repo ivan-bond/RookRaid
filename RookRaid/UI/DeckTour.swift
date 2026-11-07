@@ -320,8 +320,8 @@ final class DeckTour: ObservableObject {
         switch step {
         case .hello:
             return deck.count >= PlayerDeck.size
-                ? L("Hey, ich bin Rocky! Willkommen in meiner Deck-Werkstatt. Deine 4 Deckkarten hast du in jeder Partie auf der Hand – lass uns dein Deck mal durchchecken!")
-                : L("Hey, ich bin Rocky! Willkommen in meiner Deck-Werkstatt. Oben liegen deine 4 Deckplätze – genau diese Karten hast du in jeder Partie auf der Hand.")
+                ? L("Willkommen in meiner Deck-Werkstatt. Deine 4 Deckkarten hast du in jeder Partie auf der Hand – lass uns dein Deck mal durchchecken!")
+                : L("Willkommen in meiner Deck-Werkstatt. Oben liegen deine 4 Deckplätze – genau diese Karten hast du in jeder Partie auf der Hand.")
         case .pick:
             return (reaction.map { $0 + "\n" } ?? "")
                 + L("Tippe unten eine Karte an – schwupps, liegt sie auf Platz 1! Lange drücken zeigt dir vorher alle Details.")
@@ -927,8 +927,8 @@ struct RockyInviteOverlay: View {
                         .background(Capsule().fill(Theme.gold))
                         .padding(.top, 26)
                     TypewriterText(text: chestsWaiting
-                                   ? L("Hey, ich bin Rocky! Starke erste Schlacht! In deinen Truhen warten neue Karten – öffne sie zuerst, dann bauen wir zusammen dein Deck.")
-                                   : L("Hey, ich bin Rocky! Starke erste Schlacht! Jetzt brauchst du ein eigenes Deck – komm mit in meine Werkstatt, ich zeig dir, wie's geht."),
+                                   ? L("Starke erste Schlacht! In deinen Truhen warten neue Karten – öffne sie zuerst, dann bauen wir zusammen dein Deck.")
+                                   : L("Starke erste Schlacht! Jetzt brauchst du ein eigenes Deck – komm mit in meine Werkstatt, ich zeig dir, wie's geht."),
                                    size: 16)
                     // Vier leere Plätze warten
                     HStack(spacing: 8) {

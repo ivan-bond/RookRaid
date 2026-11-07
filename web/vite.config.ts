@@ -1,4 +1,5 @@
 import { build } from 'esbuild'
+import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -28,9 +29,30 @@ function rulesEsm(): Plugin {
   }
 }
 
+/** Public legal pages as real files (/privacy/index.html …) so every static host serves them, for App Store Connect. */
+function legalPages(): Plugin {
+  const pages: Record<string, string> = {
+    privacy: 'Privacy Policy · Datenschutz', imprint: 'Legal Notice · Impressum', terms: 'Terms of Use · Nutzungsbedingungen', support: 'Support · Hilfe & Kontakt',
+  }
+  return {
+    name: 'rookraid-legal-pages',
+    apply: 'build',
+    writeBundle(options) {
+      const dir = options.dir ?? path.resolve(__dirname, 'dist')
+      const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8')
+      for (const [slug, title] of Object.entries(pages)) {
+        fs.mkdirSync(path.join(dir, slug), { recursive: true })
+        fs.writeFileSync(path.join(dir, slug, 'index.html'), html.replace(/<title>.*?<\/title>/, `<title>${title} · Rook Raid</title>`))
+      }
+    },
+  }
+}
+
 export default defineConfig({
+  worker: { format: 'es', plugins: () => [rulesEsm()] },
   plugins: [
     rulesEsm(),
+    legalPages(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -38,22 +60,33 @@ export default defineConfig({
       manifest: {
         name: 'Rook Raid',
         short_name: 'Rook Raid',
-        description: 'Chess with cards',
+        description: 'Chess with cards – cards, mana and ultimates on a real chessboard.',
         theme_color: '#0C1628',
         background_color: '#070d18',
         display: 'standalone',
         start_url: '/',
-        lang: 'de',
+        lang: 'en',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,jpg,webp,ico}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,jpg,webp,ico,wav}'],
+        navigateFallbackDenylist: [/^\/(privacy|imprint|terms|support)/],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
   ],
   server: { fs: { allow: ['..'] } },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/@supabase')) return 'supabase'
+          if (id.includes('node_modules/react')) return 'react'
+        },
+      },
+    },
+  },
 })

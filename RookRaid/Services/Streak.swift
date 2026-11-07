@@ -49,6 +49,8 @@ extension ProfileStore {
     /// Beim Öffnen der App: Wurden Tage verpasst, retten vorhandene Flammenschutze die Serie.
     /// Reicht der Schutz nicht für alle Lücken, erlischt die Serie wie bisher.
     func checkStreak(now: Date = Date()) {
+        // Eine Serie, die über das Konto kam (anderes Gerät), hat ihre Meilensteine hier vielleicht noch nicht ausgelöst.
+        defer { grantStreakMilestones() }
         guard profile.streak > 0, let lastKey = profile.lastStreakDay,
               let last = ProfileStore.date(fromKey: lastKey) else { return }
         let cal = Calendar.current
@@ -83,7 +85,8 @@ extension ProfileStore {
 
     /// Meilenstein erreicht: Belohnung sofort gutschreiben, Truhen ins Lager.
     func grantStreakMilestones() {
-        for m in ProfileStore.streakMilestones where profile.streak >= m.days && !profile.streakMilestones.contains(m.days) {
+        let streak = currentStreak
+        for m in ProfileStore.streakMilestones where streak >= m.days && !profile.streakMilestones.contains(m.days) {
             profile.streakMilestones.append(m.days)
             if let chest = m.chest { grantChest(.streak, chest, label: "\(m.days) Tage") }
             if m.shards > 0 { earnShards(m.shards) }

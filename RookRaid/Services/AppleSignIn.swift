@@ -65,6 +65,57 @@ struct AppleSecureButton: View {
     }
 }
 
+/// Vor dem Löschen eines mit Apple gesicherten Kontos: ein frischer Autorisierungscode von Apple (Face ID / Code).
+/// Mit ihm widerruft der Server „Sign in with Apple“ für die App (App-Store-Richtlinie 5.1.1(v)).
+final class AppleReauth: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    enum Failure: Error { case cancelled, noCode }
+
+    private var continuation: CheckedContinuation<String, Error>?
+    /// Hält sich selbst, bis Apple antwortet (der Controller hält seinen Delegate nur schwach).
+    private var keepAlive: AppleReauth?
+
+    @MainActor
+    static func authorizationCode() async throws -> String {
+        try await AppleReauth().run()
+    }
+
+    @MainActor
+    private func run() async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            keepAlive = self
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = []
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            controller.performRequests()
+        }
+    }
+
+    private func finish(_ result: Result<String, Error>) {
+        continuation?.resume(with: result)
+        continuation = nil
+        keepAlive = nil
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        let code = (authorization.credential as? ASAuthorizationAppleIDCredential)?.authorizationCode
+            .flatMap { String(data: $0, encoding: .utf8) }
+        finish(code.map { .success($0) } ?? .failure(Failure.noCode))
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        let cancelled = (error as? ASAuthorizationError)?.code == .canceled
+        finish(.failure(cancelled ? Failure.cancelled : error))
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.flatMap(\.windows).first { $0.isKeyWindow } ?? scenes.first?.windows.first ?? ASPresentationAnchor()
+    }
+}
+
 /// Hält den Klartext-Nonce, ohne bei jedem Tippen die Ansicht neu zu bauen.
 private final class NonceBox {
     var raw = ""

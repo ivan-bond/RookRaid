@@ -646,30 +646,6 @@ struct OpponentHandStrip: View {
     }
 }
 
-/// Meldung nach einem Levelaufstieg: neue Karte für den Deck-Editor.
-struct NewCardRow: View {
-    let card: CardType
-
-    var body: some View {
-        HStack(spacing: 10) {
-            CardView(card: card, compact: true)
-                .frame(width: 40)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L("Neue Karte: {0}", card.name))
-                    .font(.system(size: 14, weight: .heavy))
-                    .foregroundColor(Theme.textPrimary)
-                Text(L("Jetzt im Tab „Deck“ verfügbar"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Theme.textSecondary)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Capsule().fill(Theme.panelRaised))
-        .overlay(Capsule().strokeBorder(Theme.gold.opacity(0.6), lineWidth: 1))
-    }
-}
-
 /// Großes Symbol, das beim Ausspielen kurz über dem Brett erscheint.
 struct CastBannerView: View {
     let banner: CastBanner

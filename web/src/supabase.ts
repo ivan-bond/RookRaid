@@ -7,6 +7,11 @@ export const supabase: SupabaseClient | null = url && key
   ? createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
   : null
 
+/** A second client that keeps its session in memory only (used to clean up the old guest account). */
+export function sessionClient(): SupabaseClient | null {
+  return url && key ? createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'rookraid-guest-cleanup' } }) : null
+}
+
 export const appleClientId = import.meta.env.VITE_APPLE_CLIENT_ID || ''
 
 function randomNonce(): string {

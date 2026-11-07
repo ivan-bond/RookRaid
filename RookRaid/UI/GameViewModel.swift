@@ -115,6 +115,8 @@ final class GameViewModel: ObservableObject {
     @Published private(set) var announcement: Announcement?
     @Published private(set) var manaFloats: [ManaFloat] = []
     @Published private(set) var finisher: Finisher?
+    /// Remis (Patt, Wiederholung, 50 Züge, vereinbart): Grund für die große Remis-Einblendung.
+    @Published private(set) var drawFinish: String?
     @Published private(set) var shake = 0
     /// Schachuhr als eigenes Objekt (v0.9.25): tickt 10× pro Sekunde, ohne dass Brett, Hand und Leisten neu berechnet werden.
     let clock = GameClock()
@@ -299,7 +301,9 @@ final class GameViewModel: ObservableObject {
         finished = false
         gameOver = nil
         finisher = nil
-        hint = mode == .tutorial ? nil : L("Kontrolliere Felder, um Mana zu laden. Volle Leiste = Ultimate.")
+        drawFinish = nil
+        // Kein Start-Hinweis (wie im Browser): Gebiet lädt seit v0.9.20 kein Mana mehr.
+        hint = nil
         clearSelection()
         refresh()
         if mode == .tutorial {
@@ -556,6 +560,12 @@ final class GameViewModel: ObservableObject {
             cancelPending()
             return
         }
+        // Nach einer Bonusaktion ist erst ein Figurzug dran (wie im Browser)
+        if state.bonusActionUsed {
+            hint = L("Erst noch dein Figurzug – dann wieder Karten.")
+            Feedback.play(nil, .invalid)
+            return
+        }
         let cooldown = state.cooldownRemaining(card, player: player)
         if cooldown > 0 {
             hint = L("{0} lädt noch {1} {2} nach.", card.name, cooldown, cooldown == 1 ? L("Zug") : L("Züge"))
@@ -594,6 +604,11 @@ final class GameViewModel: ObservableObject {
         }
         if pendingIsUltimate {
             cancelPending()
+            return
+        }
+        if state.bonusActionUsed {
+            hint = L("Erst noch dein Figurzug – dann wieder Karten.")
+            Feedback.play(nil, .invalid)
             return
         }
         let mana = state.mana[player, default: 0]
@@ -860,21 +875,17 @@ final class GameViewModel: ObservableObject {
         }
         if timeControl.isTimed { clocks[mover, default: 0] += timeControl.increment }
 
-        var hadCapture = processEvents()
+        let hadCapture = processEvents()
 
-        // Taktik-Erkennung: Ansage und Mana-Bonus
+        // Taktik-Erkennung: nur Ansage. Mana gibt es dafür nicht mehr – der Server (Regel-Port) kennt keinen
+        // Taktik-Bonus; mit Bonus auf dem Gerät wichen Mana-Stand und erlaubte Karten online vom Server ab.
         if !state.status().isOver, let tactic = TacticDetector.detect(after: state, move: move, mover: mover) {
-            // Guter Zug gibt höchstens +1: Hat der Zug schon geschlagen oder Schach gegeben, gibt es kein zweites Plus.
-            let alreadyRewarded = before[move.to] != nil || move.isEnPassant || state.isInCheck(mover.opponent)
-            if !alreadyRewarded { state.gainMana(mover, Tactic.manaBonus, .tactic) }
             let mine = !mode.isBot || mover == humanColor
             if countsForAchievements(mover) { pendingStats.tactics += 1 }
-            announce(tactic.title, alreadyRewarded ? L("Starker Zug von {0}", name(for: mover))
-                                                   : L("+{0} Mana für {1}", Tactic.manaBonus, name(for: mover)), tactic.icon,
+            announce(tactic.title, L("Starker Zug von {0}", name(for: mover)), tactic.icon,
                      color: mine ? Theme.green : Theme.red)
             addEffect(.sparkle, at: move.to, duration: 1.0)
             Feedback.play(.shield, .heavyCapture)
-            hadCapture = processEvents(tacticName: tactic.shortName) || hadCapture
         }
 
         let st = state.status()
@@ -1207,6 +1218,14 @@ final class GameViewModel: ObservableObject {
         guard !finished else { return }
         finished = true
         beginLoserBurst()
+        if finisher == nil, mode != .tutorial, !serverAborted {
+            switch status {
+            case .stalemate, .drawRepetition, .drawFiftyMoves:
+                drawFinish = serverDrawAgreed ? L("durch Einigung") : status.reason
+                Feedback.play(.notify, .shield)
+            default: break
+            }
+        }
         flushStats()
         clockTask?.cancel()
         clockTask = nil
@@ -1271,10 +1290,10 @@ final class GameViewModel: ObservableObject {
             delta = store.record(
                 result: result ?? .draw, rated: mode.isRated && !serverRated,
                 opponent: serverRated ? (onlineOpponent?.name ?? "") : (botLevel?.botName ?? "Zu zweit"),
-                reason: status.reason, moves: moves.count,
+                reason: serverDrawAgreed ? "durch Einigung" : status.reasonKey, moves: moves.count,
                 cardsPlayed: cardsPlayedByHuman, replayID: replayID,
                 countsForStats: mode.isLadder || serverRated,
-                opponentTrophies: botLevel?.rating)
+                opponentTrophies: botLevel?.rating, matchId: onlineMatchId)
         }
         // Zähler für Erfolge: Siegesserie und Matt-Siege (Kampf und Leiter)
         if mode.isBot && !mode.isPractice && mode != .tutorial, let result {
@@ -1331,17 +1350,16 @@ final class GameViewModel: ObservableObject {
                                 moveCount: moves.filter { $0.color == humanColor || !mode.isBot }.count,
                                 cardsPlayed: cardsPlayedByHuman,
                                 winnerColor: winner)
-        let delay: UInt64 = finisher != nil ? 3_200_000_000 : 900_000_000
+        let delay: UInt64 = finisher != nil ? 3_200_000_000 : (drawFinish != nil ? 2_200_000_000 : 900_000_000)
         Task { [weak self] in
             if botOnline, let result, let vm = self {
                 let reported = await vm.reportOnlineBot(result: result)
                 if let reported, reported != 0 {
                     info.trophyDelta = vm.pendingServerDelta ?? reported
-                } else if reported == nil || result == .win || result == .draw {
-                    // Netz weg, oder der Server hat einen Sieg nicht gutgeschrieben: dieselbe Formel wie lokal.
-                    info.trophyDelta = vm.creditLocalTrophies(result)
                 } else {
-                    info.trophyDelta = 0
+                    // Trophäen zählt nur der Server. Schon gewertet (45 s weg): dessen Änderung zeigen.
+                    // Netz weg: die Meldung geht beim nächsten Start nach, bis dahin ändert sich hier nichts.
+                    info.trophyDelta = vm.pendingServerDelta ?? 0
                 }
             }
             if humanOnline {
@@ -1383,22 +1401,14 @@ final class GameViewModel: ObservableObject {
             OnlineAccount.shared.backupQuietly()
             Task { await OnlineAccount.shared.reload() }
             return delta
+        } catch where error.isServerRejection {
+            // Abgelehnt (z. B. schon als Abbruch gewertet): keine Trophäen nur auf dem Gerät – der Server-Stand gilt.
+            PendingBotReports.clear()
+            Task { await OnlineAccount.shared.reload() }
+            return 0
         } catch {
             return nil
         }
-    }
-
-    /// Dieselbe Trophäenformel wie `ProfileStore.record`, wenn der Server die Partie nicht gewertet hat.
-    private func creditLocalTrophies(_ result: GameResultKind) -> Int {
-        let opponent = botLevel?.rating ?? BotLevel.forTrophies(store.profile.trophies).rating
-        let delta = TrophyStake.delta(mine: store.profile.trophies, opponent: opponent, result: result)
-        guard delta != 0 else { return 0 }
-        store.profile.trophies = max(0, store.profile.trophies + delta)
-        store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
-        if !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == 0 {
-            store.profile.history[0].trophyDelta = delta
-        }
-        return delta
     }
 
     private var onlineMatchId: UUID? {
@@ -1471,12 +1481,19 @@ final class GameViewModel: ObservableObject {
         PendingBotReports.clear()
         endOnlinePresence()
         let before = store.profile.trophies
+        // Die Änderung steht in der Partie selbst. Nicht aus „vorher/nachher“ rechnen: Kommt die App aus dem
+        // Hintergrund, hat sie die Server-Trophäen oft schon übernommen – dann wäre die Differenz 0.
+        var serverDelta: Int?
+        if let id = onlineMatchId, let client = Backend.client,
+           let end = await OnlineMatches.finishState(id: id, client: client, myColor: humanColor) {
+            serverDelta = end.myDelta
+        }
         await OnlineAccount.shared.reload()
         if let p = OnlineAccount.shared.progress {
             store.profile.trophies = p.trophies
             store.profile.bestTrophies = max(store.profile.bestTrophies, p.bestTrophies)
-            pendingServerDelta = p.trophies - before
         }
+        pendingServerDelta = serverDelta ?? OnlineAccount.shared.progress.map { $0.trophies - before }
         status = .timeout(winner: humanColor.opponent)
         finish()
     }
@@ -1678,6 +1695,11 @@ final class GameViewModel: ObservableObject {
         }
         let actions = moves.compactMap { entry in entry.action?.wire(ultimate: start.ultimates[entry.color]) }
         return MatchRecord(rulesVersion: RulesConfig.current.version, decks: decks, ultimates: ults, actions: actions)
+    }
+
+    /// Eine Online-Partie (Mensch oder Bot-Ersatz), die noch läuft: Sie lässt sich nach dem Verlassen wieder öffnen.
+    var canResumeOnline: Bool {
+        (onlineBotPlay != nil || mode.isOnline) && !finished && gameOver == nil && !status.isOver
     }
 
     func save() {

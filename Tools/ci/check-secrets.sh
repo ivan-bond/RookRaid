@@ -7,6 +7,14 @@ if git ls-files --error-unmatch Config/Secrets.xcconfig >/dev/null 2>&1; then
   exit 1
 fi
 
+# Env files hold keys (web/.env.local). Only the empty templates (.env.example) may be committed.
+envs=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v -E '\.env\.example$' || true)
+if [ -n "$envs" ]; then
+  echo "An env file is tracked. Keep it local and commit only .env.example:"
+  echo "$envs"
+  exit 1
+fi
+
 if git grep -n -E -e '-----BEGIN (RSA |OPENSSH |EC |PGP )?PRIVATE KEY-----' -- . ':!.git' >/dev/null; then
   echo "A private key is tracked:"
   git grep -n -E -e '-----BEGIN (RSA |OPENSSH |EC |PGP )?PRIVATE KEY-----' -- . ':!.git'

@@ -959,7 +959,7 @@ struct StatisticsView: View {
                     .font(.footnote)
                     .foregroundColor(Theme.textMuted)
             }
-            ForEach(store.profile.history.prefix(20)) { record in
+            ForEach(store.profile.history) { record in
                 Button {
                     if let r = store.replay(for: record.replayID) { replayToShow = r }
                 } label: {
@@ -973,7 +973,7 @@ struct StatisticsView: View {
                         Text(L("vs. {0}", ProfileStore.displayOpponent(record.opponent)))
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
-                        Text(L("{0} · {1} Züge · {2} Karten", record.reason, record.moves, record.cardsPlayed))
+                        Text(L("{0} · {1} Züge · {2} Karten", L(record.reason), record.moves, record.cardsPlayed))
                             .font(.system(size: 11))
                             .foregroundColor(Theme.textSecondary)
                     }
@@ -1299,12 +1299,46 @@ struct LanguageListView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
+                // Gerätesprache: folgt dem iPhone (auch der nur für Rook Raid gewählten Sprache in den iOS-Einstellungen)
+                let followsDevice = store.profile.settings.appLanguage == nil
+                Button {
+                    guard !followsDevice else { return }
+                    Haptics.shared.play(.select)
+                    store.profile.settings.appLanguage = nil
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "iphone")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(Theme.blueLight)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(L("Gerätesprache"))
+                                .font(.system(size: 16, weight: followsDevice ? .heavy : .semibold))
+                                .foregroundColor(.white)
+                            Text(AppLanguage.system.flag + " " + AppLanguage.system.nativeName)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(Theme.textSecondary)
+                        }
+                        Spacer()
+                        if followsDevice {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(Theme.green)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 58)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L("Gerätesprache") + (followsDevice ? ", " + L("aktiv") : ""))
+                Rectangle().fill(Theme.panelHighlight).frame(height: 1).padding(.leading, 56)
                 ForEach(Array(AppLanguage.allCases.enumerated()), id: \.element) { i, lang in
-                    let active = store.profile.settings.language == lang
+                    let active = store.profile.settings.appLanguage == lang
                     Button {
                         guard !active else { return }
                         Haptics.shared.play(.select)
-                        store.profile.settings.language = lang
+                        store.profile.settings.appLanguage = lang
                     } label: {
                         HStack(spacing: 12) {
                             Text(lang.flag).font(.system(size: 24))
@@ -1340,151 +1374,273 @@ struct LanguageListView: View {
 
 // MARK: - Regeln
 
+/// Regeln (v0.9.36 neu gestaltet): Ziel mit Kurzinfos, Sprungleiste und drei Gruppen von Kapiteln mit kleinen Bildern.
+/// Jede Zahl ist gegen Engine, Profil-Logik und Server (trophy_delta, maintain_matches) geprüft.
 struct RulesView: View {
     @Environment(\.dismiss) var dismiss
+    @State private var detail: DetailItem?
+    @State private var tab = "play"
+
+    private enum Item { case note(String), line(String, String, String) }
+    private enum Visual { case turn, mana, deck, cards, ults, trophies, chests }
+    private struct Chapter: Identifiable { let id: String; let title: String; let icon: String; let tint: Color; var visual: Visual? = nil; let items: [Item] }
+    private struct Tile: Identifiable { var id: String { title }; let icon: String; let tint: Color; let title: String; let text: String }
+    private struct Group: Identifiable { let id: String; let tab: String; let icon: String; var visual: Visual? = nil; var chapters: [Chapter] = []; var tiles: [Tile] = [] }
+
+    // „So wird gespielt“ trägt die eigentlichen Regeln; Kampf und Fortschritt sind ein paar Einzeiler (wie im Web).
+    private var groups: [Group] {
+        [
+            Group(id: "play", tab: L("So wird gespielt"), icon: "book.fill", chapters: [
+                Chapter(id: "turn", title: L("Ablauf eines Zuges"), icon: "arrow.clockwise", tint: Theme.blueLight, visual: .turn, items: [
+                    .note(L("Zu Beginn deines Zuges bekommst du +1 Mana.")),
+                    .note(L("Dann wählst du eine Aktion: Schachzug, Karte oder Ultimate.")),
+                    .note(L("Bonuskarten und die Festung beenden deinen Zug nicht – danach folgt noch ein Figurzug."))
+                ]),
+                Chapter(id: "mana", title: L("Mana (maximal {0})", GameState.maxMana), icon: "drop.fill", tint: Theme.manaLight, visual: .mana, items: [
+                    .line("arrow.clockwise", L("Jeder Zug"), L("+1 Mana zu Beginn deines Zuges")),
+                    .line("star.fill", L("Guter Zug"), L("+1 extra für Schlagen oder Schach – höchstens +1 pro Zug"))
+                ]),
+                Chapter(id: "deck", title: L("Deck"), icon: "rectangle.stack.fill", tint: Theme.blueLight, visual: .deck, items: [
+                    .line("rectangle.stack.fill", L("4 Karten + 1 Ultimate"), L("Bleiben die ganze Partie auf der Hand – es wird nicht nachgezogen.")),
+                    .line("hourglass", L("Abklingzeit"), L("Nach dem Ausspielen lädt eine Karte {0} eigene Züge nach (Blitz {1}), bevor du sie wieder spielen kannst.", GameState.cardCooldown, CardType.lightning.cooldown))
+                ]),
+                Chapter(id: "ult", title: L("Ultimate"), icon: "sparkles", tint: Theme.gold, visual: .ults, items: [
+                    .note(L("Lädt sich mit Mana auf und ersetzt deinen Zug. Neue Ultimates gibt es in neuen Arenen."))
+                ]),
+                Chapter(id: "cards", title: L("Karten"), icon: "sparkle", tint: Theme.redLight, visual: .cards, items: []),
+                Chapter(id: "territory", title: L("Gebiet"), icon: "square.grid.3x3.fill", tint: Theme.green, items: [
+                    .note(L("Jede Figur beherrscht ihr Feld und die 8 Nachbarfelder. Dein Gebiet ist heller getönt – Mana bringt es nicht."))
+                ]),
+                Chapter(id: "safety", title: L("Schutzregeln"), icon: "shield.fill", tint: Theme.blueLight, items: [
+                    .note(L("Der König ist immun gegen Karten und Ultimates. Die Dame ist immun gegen Frost und Meteor.")),
+                    .note(L("Karten und Ultimates geben kein Schach.")),
+                    .note(L("Frost erzwingt nie ein Patt."))
+                ]),
+                Chapter(id: "draw", title: L("Remis"), icon: "equal.circle.fill", tint: Color(hex: 0x8DA0C4), items: [
+                    .note(L("Durch Patt, dreifache Wiederholung, die 50-Züge-Regel oder ein angenommenes Angebot."))
+                ])
+            ]),
+            Group(id: "battle", tab: L("Kampf & Gegner"), icon: "bolt.fill", visual: .trophies, tiles: [
+                Tile(icon: "person.2.fill", tint: Theme.redLight, title: L("Kampf"), text: L("Ein Online-Gegner mit ähnlich vielen Trophäen. 5 Minuten pro Spieler.")),
+                Tile(icon: "trophy.fill", tint: Theme.gold, title: L("Trophäen"), text: L("Gegen Stärkere gewinnst du mehr, gegen Schwächere weniger.")),
+                Tile(icon: "figure.stairs", tint: Color(hex: 0xC084FC), title: L("Bot-Leiter"), text: L("Zwölf Bots der Reihe nach besiegen – für XP und Truhen."))
+            ]),
+            Group(id: "progress", tab: L("Fortschritt"), icon: "trophy.fill", visual: .chests, tiles: [
+                Tile(icon: "shippingbox.fill", tint: Color(hex: 0xC084FC), title: L("Truhen"), text: L("Aus Siegen, Tageszielen, Levels und dem Trophäenpfad. Jeder Tap kann sie aufwerten.")),
+                Tile(icon: "puzzlepiece.fill", tint: Theme.gold, title: L("Puzzles & XP"), text: L("Jedes gelöste Puzzle bringt XP, das Tagespuzzle einen Bonus.")),
+                Tile(icon: "flame.fill", tint: Color(hex: 0xFF8A3D), title: L("Tägliche Flammen"), text: L("Ein Puzzle oder eine Partie pro Tag hält deine Serie am Leben.")),
+                Tile(icon: "diamond.fill", tint: Color(hex: 0x7FE3FF), title: L("Splitter & Laden"), text: L("Sammeln und im Laden gegen Karten, Avatare und Truhen tauschen."))
+            ])
+        ]
+    }
 
     var body: some View {
+        let groups = self.groups
+        let group = groups.first { $0.id == tab } ?? groups[0]
         NavigationStack {
-            GeometryReader { geo in
             ScrollView {
-                VStack(spacing: 14) {
-                    goalBanner
-                    chapter(L("Ablauf eines Zuges"), Theme.blueLight, RulesSceneTurn()) {
-                        note(L("Zu Beginn deines Zuges bekommst du +1 Mana."))
-                        note(L("Dann wählst du genau eine Aktion: einen Schachzug, eine Karte oder – ab {0} Mana – deine Ultimate.", GameState.ultimateCost))
-                    }
-                    chapter(L("Gebiet"), Theme.green, RulesSceneTerritory()) {
-                        line("square.grid.3x3.fill", L("Besetzt"), L("Jede Figur besetzt ihr Feld und alle 8 Nachbarfelder, auch diagonal. Grenzt ein Feld an Figuren beider Seiten oder an gar keine, ist es neutral."))
-                        line("circle.lefthalf.filled", L("Anzeige"), L("Dein Gebiet ist heller und frischer getönt, das gegnerische gedeckter. Es zeigt, wo deine Figuren das Brett beherrschen – Mana bringt es nicht."))
-                    }
-                    chapter(L("Mana (maximal {0})", GameState.maxMana), Theme.manaLight, RulesSceneMana()) {
-                        line("arrow.clockwise", L("Jeder Zug"), L("+1 Mana zu Beginn deines Zuges"))
-                        line("star.fill", L("Guter Zug"), L("+1 extra für Schlagen, Schach oder eine Taktik (Gabel, Fesselung, Spieß, Abzugs- oder Doppelschach) – höchstens +1 pro Zug"))
-                        line("drop.fill", L("Mana-Karten"), L("Konzentration, Manaraub und Bauernopfer bringen zusätzlich Mana."))
-                    }
-                    chapter(L("Deck"), Theme.blueLight, RulesSceneDeck()) {
-                        line("rectangle.stack.fill", L("4 Karten + 1 Ultimate"), L("Vor der Partie stellst du im Tab „Deck“ dein Deck zusammen. Die vier Karten bleiben die ganze Partie auf der Hand – es wird nicht nachgezogen. Beide Decks sind offen."))
-                        line("hourglass", L("Abklingzeit"), L("Nach dem Ausspielen lädt eine Karte {0} eigene Züge nach (Blitz {1}), bevor du sie wieder spielen kannst.", GameState.cardCooldown, CardType.lightning.cooldown))
-                        line("lock.open.fill", L("Freischalten"), L("4 Startkarten hast du sofort, 10 weitere kommen aus Truhen. Jeder Levelaufstieg bringt eine Truhe, der Level-Pfad garantiert die wichtigsten Karten. Gesperrte Karten lassen sich auch mit Splittern kaufen (Gewöhnlich 500, Selten 1.500, Episch 3.000). Seltene Karten gibt es ab Level 5, epische ab Level 10."))
-                        line("square.stack.3d.up.fill", L("Vorlagen"), L("Sechs fertige Decks für sechs Strategien – ein Tipp übernimmt Karten und Ultimate."))
-                    }
-                    chapter(L("Ultimate"), Theme.gold, RulesSceneIcon(icon: "sparkles", tint: Theme.gold)) {
-                        line("sparkles", L("Teil deines Decks"), L("Einsetzbar ab {0} Mana, die Festung schon ab {1} (dann leuchtet die Mana-Leiste golden). Verbraucht so viel Mana – der Rest bleibt – und ersetzt deinen Zug (Festung: danach noch ein Figurzug ohne Schlagen und ohne Schach). Der Gegner sieht deine Wahl.", GameState.ultimateCost, Ultimate.fortress.cost))
-                    }
-                    chapter(L("Bots"), Theme.redLight, RulesSceneIcon(icon: "person.3.fill", tint: Theme.redLight)) {
-                        line("bolt.fill", L("Kampf!"), L("Im Kampf triffst du dieselben zwölf Charaktere wie in der Bot-Leiter, jeweils mit ihrem Deck. Welcher es ist, richtet sich nach deinen Trophäen: alle 200 Trophäen wartet ein stärkerer. Gegen einen stärkeren Gegner bringt ein Sieg mehr und eine Niederlage weniger, gegen einen schwächeren umgekehrt. Unter 0 Trophäen fällst du nicht, aus einer Arena schon."))
-                        line("figure.stairs", L("Bot-Leiter"), L("Zwölf Charaktere von Bruno bis zur Turmkönigin. Besiege sie der Reihe nach: Der erste Sieg bringt 30 bis 200 XP und schaltet den nächsten frei, jede Revanche 10 XP. Keine Trophäen."))
-                        line("timer", L("Denkzeit"), L("Die Bots rechnen höchstens 0,4 bis 8 Sekunden pro Zug – je stärker, desto länger und tiefer. Ab Sir Konrad nutzen sie eine verbesserte Suche mit Stellungsgedächtnis."))
-                    }
-                    chapter(L("Truhen"), Color(hex: 0xC084FC), RulesSceneChests()) {
-                        line("shippingbox.fill", L("Woher"), L("Erste Schlacht, die ersten 3 Kampf-Siege des Tages, alle Tagesziele, jeder erste Leiter-Sieg, jedes 5. gelöste Puzzle, jeder Levelaufstieg, der Trophäenpfad, Flammen-Meilensteine und der Splitter-Laden."))
-                        line("trophy.fill", L("Trophäenpfad"), L("Alle 50 bis 150 Trophäen wartet eine Belohnung: Truhen, Splitter, Sammelbretter und an jeder neuen Arena eine Magische oder Legendäre Truhe. Abgerechnet wird nach deinem Rekord – wer abrutscht, behält seine Stufen."))
-                        line("hand.tap.fill", L("Öffnen"), L("Drei Taps laden die Truhe auf – jeder Tap kann sie zu einer besseren machen (Holz → Silber → Gold → Magisch → Legendär). Der vierte Tap sprengt sie auf. Danach läuft alles von selbst weiter, Tippen beschleunigt; wartende Truhen folgen direkt."))
-                        line("gift.fill", L("Inhalt"), L("XP und Splitter, mit Glück eine neue Karte, ein Sammelbrett, ein Avatar, ein Rahmen oder ein Titel. Spätestens nach 18 Truhen ohne neue Karte ist eine dabei. Wer alle Karten hat, bekommt stattdessen einen Splitter-Fund (150)."))
-                    }
-                    chapter(L("Puzzles & XP"), Theme.gold, RulesSceneIcon(icon: "puzzlepiece.fill", tint: Theme.gold)) {
-                        line("puzzlepiece.fill", L("Puzzles"), L("Rook Raid: erst Karte oder Ultimate, dann Matt. Klassisch: Matt in 1, 2 oder 3 und Materialgewinn. Bei Matt-Aufgaben zählt jedes Matt."))
-                        line("star.fill", L("XP"), L("Leicht 10 · Mittel 20 · Schwer 35 XP beim ersten Lösen. Mit Fehler oder Hinweis gibt es die Hälfte, nach „Lösung“ keine XP."))
-                        line("calendar", L("Tagespuzzle"), L("Jeden Tag ein neues – einmal am Tag +15 XP Bonus."))
-                        line("flame.fill", L("Serie"), L("Jede Lösung ohne Fehler und ohne Hinweis verlängert deine Puzzle-Serie. Ein Fehler, ein Hinweis oder „Lösung“ setzt sie zurück."))
-                        line("bolt.circle.fill", L("Puzzle-Rausch"), L("3 Minuten, 3 Leben: so viele Puzzles wie möglich, erst leicht, dann schwerer. Jedes gelöste bringt 3 XP – jage deinen Bestwert."))
-                    }
-                    chapter(L("Tägliche Flammen"), Color(hex: 0xFF8A3D), RulesSceneIcon(icon: "flame.fill", tint: Color(hex: 0xFF8A3D))) {
-                        line("flame.fill", L("Flamme entzünden"), L("Löse ein Puzzle oder beende eine Partie (mindestens 10 Züge). Pro Tag zählt eine Flamme."))
-                        line("calendar.badge.exclamationmark", L("Serie"), L("Lässt du einen Tag aus, beginnt die Serie wieder bei 1 – außer ein Flammenschutz springt ein."))
-                        line("snowflake", L("Flammenschutz"), L("Höchstens 2 auf Vorrat. Verpasst du einen Tag, friert ein Schutz deine Flamme automatisch ein: Die Serie bleibt, wächst an diesem Tag aber nicht. Kostet 200 Splitter, gratis bei 7, 30, 100 und 365 Tagen."))
-                        line("rosette", L("Meilensteine"), L("3 Tage: 25 Splitter · 7: Goldtruhe + Schutz · 14: 100 Splitter · 30: Magische Truhe + Schutz · 50: 250 Splitter · 100: Legendäre Truhe + Schutz · 365: Legendäre Truhe + 1000 Splitter."))
-                    }
-                    chapter(L("Splitter & Laden"), Color(hex: 0x7FE3FF), RulesSceneIcon(icon: "diamond.fill", tint: Color(hex: 0x7FE3FF))) {
-                        line("diamond.fill", L("Sammeln"), L("Aus Truhen, dem Trophäenpfad, Flammen-Meilensteinen und jedem Erfolg (10 bis 400 Splitter beim Abholen)."))
-                        line("bag.fill", L("Ausgeben"), L("Karten (500 / 1.500 / 3.000, ab ihrer Levelgrenze), Avatare (250 bis 2.000), Flammenschutz (200), Sammelbretter (300), Laden-Rahmen (500) und Truhen. Jeden Tag drei Tagesangebote mit Rabatt."))
-                        line("star.fill", L("Sparziel"), L("Markiere im Laden einen Artikel mit dem Stern – der Fortschritt erscheint auf der Startseite."))
-                    }
-                    chapter(L("Erfolge"), Theme.gold, RulesSceneIcon(icon: "rosette", tint: Theme.gold)) {
-                        line("rosette", L("63 Erfolge"), L("In neun Bereichen von Kampf bis Level, viele in Stufen (Bronze, Silber, Gold). Jeder bringt Splitter, manche zusätzlich einen Titel oder Avatar-Rahmen."))
-                    }
-                    chapter(L("Karten"), Theme.redLight, RulesSceneRoles()) {
-                        note(L("{0} Zauber in fünf Rollen: Angriff, Kontrolle, Verteidigung, Mana und Comeback. Zeitliche Effekte gelten bis zum Ende des nächsten gegnerischen Zuges.", CardType.allCases.count))
-                        line("figure.walk", L("Bonusaktionen"), L("Schild, Frost, Bollwerk, Sturmlauf, Bauernopfer, Vormarsch und Leibwache ersetzen deinen Zug nicht: Danach machst du noch einen Figurzug. Die Figur unter dem Schild und der vorgestürmte Bauer bleiben dabei stehen (goldenes Schloss). Eine weitere Karte oder die Ultimate geht in diesem Zug nicht mehr."))
-                    }
-                    chapter(L("Schutzregeln"), Theme.blueLight, RulesSceneShield()) {
-                        note(L("Der König ist immun gegen Karten und Ultimates. Die Dame ist immun gegen Frost und Meteor."))
-                        note(L("Karten und Ultimates geben kein Schach und lassen den eigenen König nicht im Schach."))
-                        note(L("Dem Gegner muss danach ein legaler Zug bleiben."))
-                        note(L("„Ungeschützt“ (Meteor) heißt: von keiner eigenen Figur gedeckt und nicht unter Schild oder Bollwerk. Blitz trifft jeden gegnerischen Bauern in deiner Hälfte, der nicht unter Schild oder Bollwerk steht."))
-                        note(L("Eingefrorene Figuren bedrohen weiterhin Felder."))
-                        note(L("Tauwetter: Kann ein Spieler, der nicht im Schach steht, nur wegen Frost nicht ziehen, tauen seine Figuren sofort auf. Frost erzwingt also nie ein Patt – ein Matt mit Hilfe von Frost bleibt ein Matt."))
-                    }
-                    chapter(L("Prototyp-Hinweise"), Theme.textMuted, RulesSceneIcon(icon: "info.circle.fill", tint: Theme.textSecondary)) {
-                        note(L("Remis durch Patt, dreifache Stellungswiederholung und die 50-Züge-Regel. Karteneinsätze setzen den 50-Züge-Zähler zurück."))
-                        note(L("Offline bleibt der Spielstand auf dem iPhone. Online liegen Konto und Partien auf dem Server. Details stehen unter Einstellungen, Datenschutz."))
+                LazyVStack(spacing: 14, pinnedViews: [.sectionHeaders]) {
+                    hero
+                    Section {
+                        VStack(spacing: 12) {
+                            if let v = group.visual {
+                                visual(v)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 18)
+                                    .padding(.horizontal, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .fill(RadialGradient(colors: [Theme.gold.opacity(0.18), Theme.panelRaised], center: .bottom, startRadius: 4, endRadius: 220))
+                                    )
+                            }
+                            ForEach(group.tiles) { tileView($0) }
+                            ForEach(Array(group.chapters.enumerated()), id: \.element.id) { i, ch in chapterCard(ch, number: i + 1) }
+                        }
+                        .id(tab)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    } header: {
+                        tabBar(groups)
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 28)
-                .frame(width: geo.size.width)
-            }
             }
             .navigationTitle(L("Regeln"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button(L("Fertig")) { dismiss() } }
             }
+            .background(
+                ZStack {
+                    Theme.background.ignoresSafeArea()
+                    RadialGradient(colors: [Color(hex: 0x6B4FD8).opacity(0.28), .clear], center: .top, startRadius: 10, endRadius: 480)
+                        .ignoresSafeArea()
+                }
+            )
         }
-        .background(
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                RadialGradient(colors: [Color(hex: 0x6B4FD8).opacity(0.28), .clear], center: .top, startRadius: 10, endRadius: 480)
-                    .ignoresSafeArea()
-            }
-        )
         .preferredColorScheme(.dark)
+        .sheet(item: $detail) { item in DetailSheet(item: item) }
     }
 
-    private var goalBanner: some View {
-        VStack(spacing: 12) {
+    // MARK: Kopf
+
+    private var hero: some View {
+        HStack(spacing: 14) {
             RulesSceneMate()
-            Text(L("Ziel"))
-                .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundColor(.white)
-            Text(L("Setze den gegnerischen König matt. Mit Uhr verliert auch, wessen Zeit abläuft."))
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+                .rotationEffect(.degrees(-5))
+                .shadow(color: .black.opacity(0.4), radius: 0, y: 5)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L("Ziel").uppercased())
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .tracking(1.5)
+                    .foregroundColor(Theme.navy)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom)))
+                Text(L("Setze den gegnerischen König matt."))
+                    .font(.system(size: 19, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                pill("drop.fill", L("+1 Mana pro Zug"))
+                pill("rectangle.stack.fill", L("4 Karten + 1 Ultimate"))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 22)
-                .fill(LinearGradient(colors: [Color(hex: 0x2A2366), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(LinearGradient(colors: [Color(hex: 0x2A1F55), Color(hex: 0x172443)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                RadialGradient(colors: [Color(hex: 0x8B5CF6).opacity(0.3), .clear], center: .leading, startRadius: 4, endRadius: 220)
+                LightRays(color: Theme.gold, count: 12, speed: 0.15)
+                    .frame(width: 320, height: 320)
+                    .opacity(0.3)
+                    .offset(x: -100)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 22))
         )
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.gold.opacity(0.45), lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.gold.opacity(0.35), lineWidth: 1))
     }
 
-    private func chapter<Art: View, Lines: View>(_ title: String, _ tint: Color, _ art: Art, @ViewBuilder lines: () -> Lines) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            art
-                .frame(maxWidth: .infinity)
-            Text(title)
-                .font(.system(size: 20, weight: .black, design: .rounded))
-                .foregroundColor(.white)
-            lines()
+    private func pill(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 11, weight: .black)).foregroundColor(Theme.gold)
+            Text(text).font(.system(size: 12, weight: .heavy, design: .rounded)).foregroundColor(.white).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(Color.black.opacity(0.3)))
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+    }
+
+    private func tabBar(_ groups: [Group]) -> some View {
+        HStack(spacing: 4) {
+            ForEach(groups) { g in
+                let on = g.id == tab
+                Button {
+                    guard !on else { return }
+                    Haptics.shared.play(.select)
+                    withAnimation(.easeOut(duration: 0.25)) { tab = g.id }
+                } label: {
+                    Text(g.tab)
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundColor(on ? Theme.navy : Theme.textMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(on ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(Color.clear))
+                                .shadow(color: on ? CardStyle.ultimateDeep : .clear, radius: 0, y: 2)
+                        )
+                }
+                .buttonStyle(PressScaleStyle())
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.panel))
+        .shadow(color: .black.opacity(0.35), radius: 8, y: 4)
+        .padding(.vertical, 6)
+    }
+
+    private func tileView(_ x: Tile) -> some View {
+        HStack(spacing: 12) {
+            badge(x.icon, x.tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(x.title).font(.system(size: 15, weight: .black, design: .rounded)).foregroundColor(.white)
+                Text(x.text).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 18).fill(LinearGradient(colors: [x.tint.opacity(0.16), Theme.panelRaised, Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(x.tint.opacity(0.35), lineWidth: 1))
+    }
+
+    private func badge(_ icon: String, _ tint: Color) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 16, weight: .black))
+            .foregroundColor(.white)
+            .frame(width: 38, height: 38)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(LinearGradient(colors: [tint, tint.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .shadow(color: .black.opacity(0.35), radius: 0, y: 3)
+            )
+    }
+
+    // MARK: Kapitel
+
+    private func chapterCard(_ ch: Chapter, number: Int) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(spacing: 11) {
+                badge(ch.icon, ch.tint)
+                Text(ch.title)
+                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                Text(String(format: "%02d", number))
+                    .font(.system(size: 13, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundColor(ch.tint.opacity(0.6))
+            }
+            if let v = ch.visual { visual(v).frame(maxWidth: .infinity) }
+            ForEach(ch.items.indices, id: \.self) { i in
+                switch ch.items[i] {
+                case .note(let text): note(text, tint: ch.tint)
+                case .line(let icon, let title, let text): line(icon, title, text, tint: ch.tint)
+                }
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 18).fill(Theme.panelRaised))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(tint.opacity(0.4), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 20).fill(LinearGradient(colors: [ch.tint.opacity(0.16), Theme.panelRaised, Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(ch.tint.opacity(0.35), lineWidth: 1))
     }
 
-    private func line(_ icon: String, _ title: String, _ text: String) -> some View {
+    @ViewBuilder private func visual(_ v: Visual) -> some View {
+        switch v {
+        case .turn: RulesSceneTurn()
+        case .mana: RulesSceneMana()
+        case .deck: RulesSceneDeck()
+        case .chests: RulesSceneChests()
+        case .trophies: RulesSceneTrophies()
+        case .ults: RulesSceneUlts(onTap: { detail = .ultimate($0) })
+        case .cards: RulesSceneCards(onTap: { detail = .card($0) })
+        }
+    }
+
+    private func line(_ icon: String, _ title: String, _ text: String, tint: Color) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .black))
-                .foregroundColor(Theme.gold)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(Color.black.opacity(0.28)))
+                .foregroundColor(tint)
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 9).fill(tint.opacity(0.16)))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 15, weight: .heavy, design: .rounded))
@@ -1499,44 +1655,177 @@ struct RulesView: View {
         }
     }
 
-    private func note(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(Theme.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
+    private func note(_ text: String, tint: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 9) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(tint)
+                .frame(width: 6, height: 6)
+                .rotationEffect(.degrees(45))
+                .offset(y: -2)
+            Text(text)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
-/// Kleines Mattbild: der König in der Ecke, eine Dame schneidet ihm den Weg ab.
-private struct RulesSceneMate: View {
+/// Sieg, Remis, Niederlage gegen einen gleich starken Gegner.
+private struct RulesSceneTrophies: View {
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(0..<5, id: \.self) { col in
-                VStack(spacing: 0) {
-                    ForEach(0..<4, id: \.self) { row in
+        HStack(spacing: 8) {
+            tile("trophy.fill", "+20", L("Sieg"), [Color(hex: 0x2F7D4A), Color(hex: 0x1D5A33)], Color(hex: 0x7CF0A2))
+            tile("equal", "±0", L("Remis"), [Color(hex: 0x3B4A6B), Color(hex: 0x283350)], .white)
+            tile("heart.slash.fill", "−20", L("Niederlage"), [Color(hex: 0x7D2F36), Color(hex: 0x5A1D22)], Color(hex: 0xFF8A92))
+        }
+        .frame(maxWidth: 300)
+    }
+    private func tile(_ icon: String, _ value: String, _ label: String, _ bg: [Color], _ ink: Color) -> some View {
+        VStack(spacing: 1) {
+            Image(systemName: icon).font(.system(size: 15, weight: .black)).foregroundColor(.white.opacity(0.85))
+            Text(value).font(.system(size: 28, weight: .black, design: .rounded)).foregroundColor(ink)
+            Text(label).font(.system(size: 12, weight: .heavy, design: .rounded)).foregroundColor(.white.opacity(0.9)).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 14).fill(LinearGradient(colors: bg, startPoint: .top, endPoint: .bottom)).shadow(color: .black.opacity(0.3), radius: 0, y: 3))
+    }
+}
+
+/// Alle Ultimates mit Arena – antippen öffnet die Details.
+private struct RulesSceneUlts: View {
+    let onTap: (Ultimate) -> Void
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            ForEach(Ultimate.allCases.sorted { $0.arena < $1.arena }) { u in
+                Button { onTap(u) } label: {
+                    CardArtImage(name: "art-ult-\(u.rawValue)", thumb: true)
+                        .aspectRatio(0.78, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 9))
+                        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.gold, lineWidth: 2))
+                        .shadow(color: Theme.gold.opacity(0.35), radius: 6)
+                        .overlay(alignment: .bottom) {
+                            Text(L("Arena {0}", u.arena))
+                                .font(.system(size: 8, weight: .black, design: .rounded))
+                                .foregroundColor(Theme.gold)
+                                .lineLimit(1)
+                                .fixedSize()
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Theme.navy))
+                                .overlay(Capsule().strokeBorder(Theme.gold.opacity(0.6), lineWidth: 1))
+                                .offset(y: 7)
+                        }
+                }
+                .buttonStyle(PressScaleStyle())
+                .accessibilityLabel(u.name)
+            }
+        }
+        .frame(maxWidth: 320)
+        .padding(.bottom, 8)
+    }
+}
+
+/// Alle Karten nach Rolle sortiert, als kleine Zeilen – antippen öffnet die Details.
+private struct RulesSceneCards: View {
+    let onTap: (CardType) -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(CardRole.allCases, id: \.self) { role in
+                let cards = CardType.allCases.filter { $0.role == role }
+                if !cards.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 5) {
+                            Image(systemName: role.icon).font(.system(size: 10, weight: .black))
+                            Text(role.name.uppercased()).font(.system(size: 11, weight: .black, design: .rounded)).tracking(1.1)
+                        }
+                        .foregroundColor(Color(hex: role.colorHex))
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                            ForEach(cards) { c in row(c, roleColor: Color(hex: role.colorHex)) }
+                        }
+                    }
+                }
+            }
+            HStack(spacing: 5) {
+                Image(systemName: "hand.tap.fill").font(.system(size: 11))
+                Text(L("Tippe auf eine Karte für alle Details."))
+                bonusBadge.padding(.leading, 6)
+                Text(L("Danach noch ein Zug"))
+            }
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(Theme.textMuted)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+        }
+    }
+    private func row(_ c: CardType, roleColor: Color) -> some View {
+        Button { onTap(c) } label: {
+            HStack(spacing: 8) {
+                CardArtImage(name: "art-card-\(c.rawValue)", thumb: true)
+                    .frame(width: 32, height: 42)
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color(hex: c.tier.colorHex), lineWidth: 1.5))
+                    .overlay(alignment: .topLeading) { ManaDrop(text: "\(c.cost)", size: 17).offset(x: -6, y: -6) }
+                Text(c.name)
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if c.keepsTurn { bonusBadge }
+            }
+            .padding(6)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.18)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(roleColor.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(PressScaleStyle())
+        .accessibilityLabel(c.name)
+    }
+    private var bonusBadge: some View {
+        Image(systemName: "figure.walk")
+            .font(.system(size: 8, weight: .black))
+            .foregroundColor(.white)
+            .frame(width: 17, height: 17)
+            .background(Circle().fill(Theme.blue))
+            .overlay(Circle().strokeBorder(.white, lineWidth: 1.2))
+    }
+}
+
+/// Kleines Mattbild: der schwarze König in der Ecke wackelt, Dame und König setzen matt.
+private struct RulesSceneMate: View {
+    @State private var wobble = false
+    private let cell: CGFloat = 24
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<4, id: \.self) { row in
+                HStack(spacing: 0) {
+                    ForEach(0..<4, id: \.self) { col in
                         ZStack {
                             Rectangle().fill((row + col).isMultiple(of: 2) ? Color(hex: 0xF0D9A8) : Color(hex: 0xB58863))
                             piece(row: row, col: col)
                         }
-                        .frame(height: 28)
+                        .frame(width: cell, height: cell)
                     }
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.black.opacity(0.35), lineWidth: 2))
-        .frame(height: 112)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.black.opacity(0.35), lineWidth: 2))
+        .onAppear { wobble = true }
     }
 
     @ViewBuilder private func piece(row: Int, col: Int) -> some View {
-        if row == 0 && col == 4 {
-            Image(systemName: "crown.fill")
-                .font(.system(size: 16, weight: .black))
-                .foregroundColor(Color(hex: 0x9E2B25))
-        } else if row == 2 && col == 2 {
-            Image(systemName: "arrow.up.right.circle.fill")
-                .font(.system(size: 16, weight: .black))
-                .foregroundColor(Theme.navy)
+        if row == 0 && col == 3 {
+            PieceImage(type: .king, color: .black)
+                .frame(width: cell * 0.85, height: cell * 0.85)
+                .shadow(color: Color(hex: 0xE0413A), radius: 3)
+                .rotationEffect(.degrees(wobble ? 10 : -10), anchor: .bottom)
+                .animation(.easeInOut(duration: 0.35).repeatForever(autoreverses: true), value: wobble)
+        } else if row == 1 && col == 1 {
+            PieceImage(type: .queen, color: .white).frame(width: cell * 0.85, height: cell * 0.85)
+        } else if row == 2 && col == 3 {
+            PieceImage(type: .king, color: .white).frame(width: cell * 0.85, height: cell * 0.85)
         }
     }
 }
@@ -1545,163 +1834,94 @@ private struct RulesSceneMate: View {
 private struct RulesSceneTurn: View {
     var body: some View {
         HStack(spacing: 10) {
-            choice("crown.fill", Theme.navy, Color(hex: 0xF0D9A8))
-            choice("rectangle.stack.fill", .white, Theme.blue)
-            choice("sparkles", Theme.navy, Theme.gold)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-    }
-
-    private func choice(_ icon: String, _ ink: Color, _ fill: Color) -> some View {
-        Image(systemName: icon)
-            .font(.system(size: 22, weight: .black))
-            .foregroundColor(ink)
-            .frame(width: 64, height: 64)
-            .background(RoundedRectangle(cornerRadius: 16).fill(fill))
-            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
-    }
-}
-
-/// Eine Figur und die acht Felder um sie herum.
-private struct RulesSceneTerritory: View {
-    var body: some View {
-        VStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { row in
-                HStack(spacing: 3) {
-                    ForEach(0..<3, id: \.self) { col in
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(row == 1 && col == 1 ? Theme.gold : Theme.green.opacity(0.55))
-                            if row == 1 && col == 1 {
-                                Image(systemName: "crown.fill")
-                                    .font(.system(size: 16, weight: .black))
-                                    .foregroundColor(Theme.navy)
-                            }
-                        }
-                        .frame(width: 36, height: 36)
-                    }
-                }
-            }
+            choice("crown.fill", L("Schachzug"), Theme.navy, [Color(hex: 0xF6E3B8), Color(hex: 0xD9B97A)])
+            choice("rectangle.stack.fill", L("Karte"), .white, [Color(hex: 0x4A86F0), Theme.blue])
+            choice("sparkles", L("Ultimate"), Theme.navy, [Color(hex: 0xFFE38A), Theme.gold])
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
     }
+
+    private func choice(_ icon: String, _ label: String, _ ink: Color, _ fill: [Color]) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 22, weight: .black))
+            Text(label).font(.system(size: 11, weight: .black, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .foregroundColor(ink)
+        .frame(width: 78, height: 70)
+        .background(RoundedRectangle(cornerRadius: 16).fill(LinearGradient(colors: fill, startPoint: .top, endPoint: .bottom)).shadow(color: .black.opacity(0.35), radius: 0, y: 3))
+    }
 }
 
-/// Mana füllt sich Zug für Zug, höchstens bis zum Maximum.
+/// Mana füllt sich Zug für Zug, höchstens bis zum Maximum – der nächste Tropfen pulsiert.
 private struct RulesSceneMana: View {
+    @State private var pulse = false
     var body: some View {
         HStack(spacing: 6) {
             ForEach(0..<GameState.maxMana, id: \.self) { i in
-                Circle()
-                    .fill(i < 4 ? Theme.manaLight : Color.white.opacity(0.12))
-                    .frame(width: 14, height: 14)
+                Ellipse()
+                    .fill(i < 4 ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xD7C8FF), Color(hex: 0x8B5CF6)], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(Color.white.opacity(i == 4 ? 0.2 : 0.1)))
+                    .frame(width: 15, height: 21)
+                    .shadow(color: i < 4 ? Color(hex: 0x8B5CF6).opacity(0.6) : .clear, radius: 4)
                     .overlay {
-                        if i == 3 {
-                            Image(systemName: "plus")
-                                .font(.system(size: 9, weight: .black))
-                                .foregroundColor(Theme.navy)
+                        if i == 4 {
+                            Ellipse().strokeBorder(Color(hex: 0xB9A2FF), style: StrokeStyle(lineWidth: 2, dash: [3, 2]))
+                                .scaleEffect(pulse ? 1.15 : 1)
+                                .opacity(pulse ? 0.5 : 1)
                         }
                     }
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
+        .onAppear { withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { pulse = true } }
     }
 }
 
-/// Vier Karten und eine goldene Ultimate.
+/// Vier echte Karten im Fächer und die goldene Ultimate.
 private struct RulesSceneDeck: View {
-    private let colors: [Color] = [Color(hex: 0xE85D4C), Theme.blueLight, Theme.green, Theme.manaLight]
+    private let cards: [CardType] = [.lightning, .shield, .sprint, .freeze]
     var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            ForEach(0..<4, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(colors[i])
-                    .frame(width: 36, height: 50)
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.3), lineWidth: 1))
+        HStack(alignment: .bottom, spacing: -8) {
+            ForEach(Array(cards.enumerated()), id: \.offset) { i, c in
+                CardArtImage(name: "art-card-\(c.rawValue)", thumb: true)
+                    .frame(width: 46, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color(hex: c.tier.colorHex), lineWidth: 2))
+                    .rotationEffect(.degrees(Double(i) * 7 - 10.5))
+                    .shadow(color: .black.opacity(0.4), radius: 3, y: 2)
             }
-            RoundedRectangle(cornerRadius: 8)
-                .fill(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
-                .frame(width: 42, height: 58)
-                .overlay(Image(systemName: "sparkles").font(.system(size: 16, weight: .black)).foregroundColor(Theme.navy))
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.5), lineWidth: 1))
+            CardArtImage(name: "art-ult-meteor", thumb: true)
+                .frame(width: 54, height: 70)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.gold, lineWidth: 2))
+                .shadow(color: Theme.gold.opacity(0.5), radius: 8)
+                .padding(.leading, 22)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
     }
 }
 
+/// Alle fünf Truhenarten, die sanft auf und ab wippen.
 private struct RulesSceneChests: View {
     var body: some View {
         GeometryReader { geo in
-            let bases: [CGFloat] = [48, 52, 56, 60, 66]
-            let spacing: CGFloat = 8
+            let bases: [CGFloat] = [42, 48, 54, 60, 68]
+            let spacing: CGFloat = 10
             let gaps = spacing * CGFloat(bases.count - 1)
             let natural = bases.reduce(0, +) * 1.2
             let scale = min(1, max(0, geo.size.width - gaps) / max(natural, 1))
-            let sizes = bases.map { $0 * scale }
             let rarities: [ChestRarity] = [.wood, .silver, .gold, .magic, .legendary]
             HStack(alignment: .bottom, spacing: spacing) {
                 ForEach(Array(rarities.enumerated()), id: \.offset) { i, rarity in
-                    ChestView(rarity: rarity, size: sizes[i])
+                    ChestView(rarity: rarity, size: bases[i] * scale, glow: i >= 3 ? 0.5 : 0)
+                        .modifier(RoadBob(active: true, amplitude: 3, speed: 2.4 + Double(i) * 0.2))
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
         }
-        .frame(height: 80)
+        .frame(height: 84)
         .frame(maxWidth: .infinity)
-    }
-}
-
-private struct RulesSceneRoles: View {
-    private let roles: [(String, Color)] = [
-        ("burst.fill", Color(hex: 0xE85D4C)),
-        ("snowflake", Theme.blueLight),
-        ("shield.fill", Theme.green),
-        ("drop.fill", Theme.manaLight),
-        ("arrow.uturn.backward", Theme.gold)
-    ]
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<roles.count, id: \.self) { i in
-                Image(systemName: roles[i].0)
-                    .font(.system(size: 16, weight: .black))
-                    .foregroundColor(Theme.navy)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(roles[i].1))
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-    }
-}
-
-private struct RulesSceneShield: View {
-    var body: some View {
-        ZStack {
-            Image(systemName: "shield.fill")
-                .font(.system(size: 64, weight: .black))
-                .foregroundStyle(LinearGradient(colors: [Theme.blueLight, Theme.blueDark], startPoint: .top, endPoint: .bottom))
-            Image(systemName: "crown.fill")
-                .font(.system(size: 22, weight: .black))
-                .foregroundColor(Theme.gold)
-                .offset(y: 4)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 78)
-    }
-}
-
-private struct RulesSceneIcon: View {
-    var icon: String
-    var tint: Color
-    var body: some View {
-        Image(systemName: icon)
-            .font(.system(size: 36, weight: .black))
-            .foregroundStyle(LinearGradient(colors: [.white, tint], startPoint: .top, endPoint: .bottom))
-            .frame(maxWidth: .infinity)
-            .frame(height: 64)
     }
 }

@@ -77,6 +77,8 @@ struct RootView: View {
     @State private var tab: RootTab = .play
     @State private var session: GameSession?
     @State private var puzzleSession: PuzzleSession?
+    /// Interaktive Einführung vor der ersten Schlacht – beim Schließen startet die Tutorial-Partie.
+    @State private var showIntro = false
     @State private var showSplash = true
     @State private var lastTab: RootTab = .play
     /// Der zuletzt ruhende Tab. Er folgt `tab` erst nach dem Seitenwechsel – so animiert der alte Tab weiter,
@@ -182,6 +184,14 @@ struct RootView: View {
                         PuzzlePlayer(vm: s.vm)
                     }
             )
+            .background(
+                Color.clear
+                    .fullScreenCover(isPresented: $showIntro, onDismiss: {
+                        session = GameSession(vm: GameViewModel(mode: .tutorial, humanColor: .white, timeControl: .none))
+                    }) {
+                        IntroView { showIntro = false }
+                    }
+            )
 
             if showRockyInvite && !showSplash {
                 RockyInviteOverlay(chestsWaiting: !store.pendingChests.isEmpty, onPrimary: {
@@ -274,7 +284,7 @@ struct RootView: View {
             session = GameSession(vm: GameViewModel(mode: .practice(.easy), humanColor: .white, timeControl: .none))
         }
         .onReceive(NotificationCenter.default.publisher(for: .startTutorial)) { _ in
-            session = GameSession(vm: GameViewModel(mode: .tutorial, humanColor: .white, timeControl: .none))
+            showIntro = true
         }
         .task {
             // Startbildschirm kurz zeigen, dann – beim ersten Start – direkt in die erste Schlacht
@@ -285,7 +295,7 @@ struct RootView: View {
             Task { await CardArtImage.preload() }
             if !store.profile.tutorialSeen {
                 try? await Task.sleep(nanoseconds: 250_000_000)
-                session = GameSession(vm: GameViewModel(mode: .tutorial, humanColor: .white, timeControl: .none))
+                showIntro = true
             } else {
                 scheduleRockyInvite(after: 0.5)
             }
@@ -439,6 +449,13 @@ struct HomeView: View {
     @State private var matchError: String?
     @State private var rulesNotice: OnlineRulesLock?
     @State private var didSeekOnlineResume = false
+    /// Laufende Online-Partie, die verlassen wurde (Zurück-Knopf). Sie bleibt im Speicher und lässt sich über
+    /// „Partie fortsetzen“ wieder öffnen – nach 45 s ohne Lebenszeichen wertet der Server sie als verloren.
+    @State private var parkedGame: GameViewModel?
+    /// Die gerade offene Partie (damit sie beim Schließen geparkt werden kann)
+    @State private var liveGame: GameViewModel?
+    /// Laufende Partie gegen einen Menschen auf dem Server (z. B. nach einem Neustart der App)
+    @State private var resumableMatch: UUID?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -536,7 +553,17 @@ struct HomeView: View {
                 }
             }
             .onChange(of: session?.id) { id in
-                if id == nil { OnlineRules.shared.applyPending(deferAdopt: store.hasSavedGame) }
+                if id == nil {
+                    OnlineRules.shared.applyPending(deferAdopt: store.hasSavedGame)
+                    if let vm = liveGame, vm.canResumeOnline { parkedGame = vm }
+                    liveGame = nil
+                    Task { await refreshResumableMatch() }
+                } else {
+                    liveGame = session?.vm
+                }
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active, session == nil { Task { await refreshResumableMatch() } }
             }
             .onChange(of: matchmaking.phase) { phase in
                 handleMatchmaking(phase)
@@ -547,7 +574,7 @@ struct HomeView: View {
     private func page(compact: Bool, large: Bool = false) -> some View {
         VStack(spacing: compact ? 10 : 14) {
             header
-            if store.hasSavedGame {
+            if canContinue {
                 ContinueBanner(compact: compact) { resume() }
             }
             BattleHeroCard(compact: compact, large: large,
@@ -641,9 +668,17 @@ struct HomeView: View {
     private func handleMatchmaking(_ phase: MatchmakingController.Phase) {
         switch phase {
         case .found(let found):
-            showMatchmaking = false
-            matchmaking.phase = .idle
-            startFoundMatch(found)
+            // Erst kurz „Gegner gefunden“ zeigen, dann das Suchfenster schließen – und die Partie erst öffnen, wenn das
+            // Fenster ganz weg ist. (Vorher öffnete die Partie im selben Moment, in dem sich das Suchfenster schloss;
+            // SwiftUI verwirft dann das zweite Vollbild, und die gefundene Partie ging nie auf.)
+            Feedback.play(.reward, .victory)
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_400_000_000)
+                guard case .found = matchmaking.phase else { return }
+                showMatchmaking = false
+                matchmaking.phase = .idle
+                afterSheet { startFoundMatch(found) }
+            }
         case .failed(let message):
             showMatchmaking = false
             if message == L("Bitte aktualisiere Rook Raid, um online zu spielen.") {
@@ -663,6 +698,7 @@ struct HomeView: View {
             return
         }
         guard let level = found.botLevel, let id = found.matchId else { return }
+        parkedGame = nil
         store.clearGame()
         let play = OnlineBotPlay(matchId: id, opponent: found.opponent)
         session = GameSession(vm: GameViewModel(mode: .bot(level),
@@ -680,6 +716,8 @@ struct HomeView: View {
             let info = try await OnlineMatches.load(id: id, client: client)
             guard !info.isBot, info.record.actions.count < 800 else { return }
             let live = SupabaseMatchSession(info: info, client: client)
+            parkedGame = nil
+            resumableMatch = nil
             store.clearGame()
             session = GameSession(vm: GameViewModel(online: info, session: live, resumed: resumed))
         } catch {
@@ -727,6 +765,7 @@ struct HomeView: View {
     }
 
     private func start(mode: GameMode, humanColor: PlayerColor) {
+        parkedGame = nil
         guard store.deckIsFull else {
             Haptics.shared.play(.invalid)
             showEmptyDeck = true
@@ -741,7 +780,31 @@ struct HomeView: View {
         session = GameSession(vm: GameViewModel(mode: mode, humanColor: humanColor, timeControl: tc))
     }
 
+    /// Etwas zum Fortsetzen: eine verlassene Online-Partie, eine laufende Partie auf dem Server oder ein Spielstand.
+    private var canContinue: Bool {
+        (parkedGame?.canResumeOnline ?? false) || resumableMatch != nil || store.hasSavedGame
+    }
+
+    /// Fragt den Server nach einer laufenden Partie gegen einen Menschen (nur ohne offene oder geparkte Partie).
+    private func refreshResumableMatch() async {
+        guard OnlineConfig.isLive, session == nil, let client = Backend.client else { return }
+        if parkedGame?.canResumeOnline == true { resumableMatch = nil; return }
+        parkedGame = nil
+        resumableMatch = await OnlineMatches.activeHumanMatch(client: client)
+    }
+
     private func resume() {
+        if let vm = parkedGame, vm.canResumeOnline {
+            parkedGame = nil
+            session = GameSession(vm: vm)
+            return
+        }
+        parkedGame = nil
+        if let id = resumableMatch {
+            resumableMatch = nil
+            Task { await startHumanMatch(id, resumed: true) }
+            return
+        }
         guard let saved = store.loadGame() else {
             store.clearGame()
             return
@@ -1213,265 +1276,5 @@ struct ShineSweep: View {
     }
 }
 
-/// Tagesziele mit Flammen-Serie und Truhe.
-struct DailyGoalsCard: View {
-    @ObservedObject var store = ProfileStore.shared
-    let onGoal: (ProfileStore.DailyGoal.Kind) -> Void
-    let onChest: () -> Void
-    @State var wobble = false
-
-    var body: some View {
-        let goals = store.dailyGoals
-        let done = goals.filter(\.done).count
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(L("TAGESZIELE"))
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundColor(Theme.textMuted)
-                Spacer()
-                HStack(spacing: 4) {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(store.flameLitToday
-                                         ? AnyShapeStyle(LinearGradient(colors: [FlameStyle.glow, FlameStyle.lit], startPoint: .top, endPoint: .bottom))
-                                         : AnyShapeStyle(FlameStyle.off))
-                    Text(store.currentStreak == 1 ? L("1 Tag in Folge") : L("{0} Tage in Folge", store.currentStreak))
-                        .font(.system(size: 12, weight: .heavy, design: .rounded))
-                        .foregroundColor(store.flameLitToday ? FlameStyle.lit : Theme.textSecondary)
-                }
-            }
-            HStack(alignment: .center, spacing: 12) {
-                VStack(spacing: 6) {
-                    ForEach(goals) { g in
-                        Button { if !g.done { onGoal(g.kind) } } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: g.done ? "checkmark" : g.icon)
-                                    .font(.system(size: 12, weight: .black))
-                                    .foregroundColor(g.done ? Theme.navy : Theme.textSecondary)
-                                    .frame(width: 26, height: 26)
-                                    .background(Circle().fill(g.done ? Theme.gold : Theme.panelHighlight))
-                                Text(g.title)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(g.done ? Theme.textMuted : Theme.textPrimary)
-                                    .strikethrough(g.done, color: Theme.textMuted)
-                                Spacer(minLength: 0)
-                                if !g.done {
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(Theme.textMuted)
-                                }
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                chest(done: done, total: goals.count)
-            }
-            WeekStrip()
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.panelRaised))
-        .onAppear {
-            foreverAnimation(.easeInOut(duration: 0.18).repeatForever(autoreverses: true)) { wobble = true }
-        }
-    }
-
-    private func chest(done: Int, total: Int) -> some View {
-        let ready = store.dailyChestReady
-        let opened = store.dailyChestOpened
-        return Button(action: onChest) {
-            VStack(spacing: 4) {
-                ZStack {
-                    Circle()
-                        .trim(from: 0, to: Double(done) / Double(max(1, total)))
-                        .stroke(Theme.gold, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Circle().stroke(Theme.panelHighlight, lineWidth: 4).opacity(done == total ? 0 : 1)
-                    if opened {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(Theme.gold)
-                    } else {
-                        ChestView(rarity: .gold, size: 36, glow: ready ? 0.7 : 0)
-                            .saturation(ready ? 1 : 0.2)
-                            .rotationEffect(.degrees(ready ? (wobble ? 8 : -8) : 0))
-                    }
-                }
-                .frame(width: 60, height: 60)
-                Text(opened ? L("Geöffnet") : (ready ? L("Öffnen!") : "\(done)/\(total)"))
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .foregroundColor(ready ? Theme.gold : Theme.textSecondary)
-                Text(L("Goldtruhe"))
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(Theme.gold)
-                    .opacity(opened ? 0.4 : 1)
-            }
-            .frame(width: 76)
-        }
-        .buttonStyle(.plain)
-        .disabled(!ready)
-        .accessibilityLabel(opened ? L("Tagestruhe geöffnet") : L("Tagestruhe, {0} von {1} Zielen", done, total))
-    }
-}
-
-/// Kachel für weitere Spielmodi.
-struct ModeTile: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let tint: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(tint)
-                    .frame(width: 38, height: 38)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(tint.opacity(0.15)))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.system(size: 15, weight: .bold))
-                    Text(subtitle).font(.system(size: 11)).foregroundColor(Theme.textSecondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-        }
-        .buttonStyle(PanelButtonStyle())
-    }
-}
-
-/// Dekoratives Mini-Brett auf der Startseite.
-struct MiniBoardHero: View {
-    private let pieces: [(Int, Int, PieceType, PlayerColor)] = [
-        (0, 4, .king, .black), (1, 3, .pawn, .black), (1, 5, .pawn, .black), (2, 2, .knight, .black),
-        (3, 4, .pawn, .black), (4, 4, .pawn, .white), (5, 5, .knight, .white), (6, 3, .pawn, .white),
-        (7, 4, .king, .white), (4, 2, .bishop, .white), (2, 6, .queen, .black)
-    ]
-
-    var body: some View {
-        GeometryReader { geo in
-            let s = geo.size.width / 8
-            let colors = BoardColors.forTheme(ProfileStore.shared.profile.settings.boardTheme)
-            ZStack(alignment: .topLeading) {
-                ForEach(0..<64, id: \.self) { i in
-                    let r = i / 8, c = i % 8
-                    Rectangle()
-                        .fill((r + c) % 2 == 0 ? colors.light : colors.dark)
-                        .frame(width: s, height: s)
-                        .offset(x: CGFloat(c) * s, y: CGFloat(r) * s)
-                }
-                ForEach(0..<pieces.count, id: \.self) { i in
-                    let p = pieces[i]
-                    PieceImage(type: p.2, color: p.3)
-                        .frame(width: s * 0.92, height: s * 0.92)
-                        .offset(x: CGFloat(p.1) * s + s * 0.04, y: CGFloat(p.0) * s + s * 0.04)
-                }
-                // Karten-Akzente
-                Image(systemName: "snowflake")
-                    .font(.system(size: s * 0.35, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(4)
-                    .background(Circle().fill(Color(hex: 0x0288D1)))
-                    .offset(x: 2.6 * s, y: 2 * s)
-                Image(systemName: "shield.fill")
-                    .font(.system(size: s * 0.35, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(4)
-                    .background(Circle().fill(Color(hex: 0x1976D2)))
-                    .offset(x: 5.6 * s, y: 5 * s)
-            }
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .shadow(color: .black.opacity(0.4), radius: 10, y: 6)
-    }
-}
-
 // MARK: - Willkommen
 
-struct WelcomeView: View {
-    @ObservedObject private var store = ProfileStore.shared
-    let onDone: () -> Void
-    @State private var page = 0
-
-    private let pages: [(String, String, String)] = [
-        ("crown.fill", L("Willkommen bei Rook Raid"),
-         L("Es gelten alle Schachregeln. Gewonnen wird nur durch Schachmatt oder wenn die Uhr des Gegners abläuft.")),
-        ("drop.fill", L("Zug oder Karte"),
-         L("Jede Runde machst du genau eine Aktion: einen Schachzug oder eine Karte. Karten kosten Mana – einfrieren, schützen, Bauern verstärken.")),
-        ("star.fill", L("Mana sammeln"),
-         L("Jeder Zug lädt +1 Mana, ein guter Zug – Schlagen, Schach oder eine Taktik – nochmal +1. Ab 8 Mana zündest du deine Ultimate."))
-    ]
-
-    var body: some View {
-        ZStack {
-            Theme.background.ignoresSafeArea()
-            VStack(spacing: 24) {
-                Spacer()
-                if page < pages.count {
-                    let p = pages[page]
-                    Image(systemName: p.0)
-                        .font(.system(size: 64, weight: .bold))
-                        .foregroundColor(page == 1 ? Theme.mana : Theme.gold)
-                        .frame(height: 90)
-                        .id(page)
-                        .transition(.scale.combined(with: .opacity))
-                    Text(p.1)
-                        .font(.system(size: 28, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
-                    Text(p.2)
-                        .font(.system(size: 17))
-                        .foregroundColor(Theme.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 30)
-                } else {
-                    Text(L("Wie gut kennst du Schach?"))
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
-                    VStack(spacing: 10) {
-                        experienceButton(L("Ich bin neu"), hints: true, level: .easy)
-                        experienceButton(L("Ich kenne die Regeln"), hints: true, level: .medium)
-                        experienceButton(L("Ich spiele regelmäßig"), hints: false, level: .hard)
-                    }
-                    .padding(.horizontal, 24)
-                }
-                Spacer()
-                if page < pages.count {
-                    HStack(spacing: 8) {
-                        ForEach(0..<pages.count, id: \.self) { i in
-                            Circle().fill(i == page ? Theme.green : Theme.panelHighlight).frame(width: 8, height: 8)
-                        }
-                    }
-                    Button(L("Weiter")) {
-                        withAnimation(.spring()) { page += 1 }
-                        Haptics.shared.play(.select)
-                    }
-                    .buttonStyle(ChunkyButtonStyle())
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 20)
-                }
-            }
-        }
-    }
-
-    private func experienceButton(_ title: String, hints: Bool, level: BotLevel) -> some View {
-        Button {
-            var settings = store.profile.settings
-            settings.hints = hints
-            settings.botLevel = level
-            store.profile.settings = settings
-            store.profile.tutorialSeen = true
-            Haptics.shared.play(.victory)
-            onDone()
-        } label: {
-            Text(title)
-                .font(.system(size: 17, weight: .bold))
-                .frame(maxWidth: .infinity, minHeight: 54)
-        }
-        .buttonStyle(PanelButtonStyle())
-    }
-}

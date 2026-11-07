@@ -130,7 +130,9 @@ extension ProfileStore {
 /// Der Server prüft die Werte auf Plausibilität (z. B. Trophäen passend zu Siegen) und speichert sie dann.
 struct ProgressSnapshot: Codable, Equatable {
     /// 3: Truhen-Zähler und gesehene Karten, damit XP, Karten und Truhen auf einem neuen Gerät gleich weitergehen.
-    var schema = 3
+    /// 4: Flamme, Laden, Rätsel-Serien, Erfolgs-Zähler und Brett – der ganze Spielstand geht mit (App und Browser).
+    /// 5: der Partie-Verlauf aller Geräte.
+    var schema = 5
     var guestId: UUID
     var createdAt: Date
     var rulesVersion: Int
@@ -182,6 +184,72 @@ struct ProgressSnapshot: Codable, Equatable {
     var winChestsToday: Int? = nil
     var tutorialChestGiven: Bool? = nil
     var seenCards: [String]? = nil
+
+    // Schema 4
+    var lastStreakDay: String? = nil
+    var activeDays: [String]? = nil
+    var frozenDays: [String]? = nil
+    var streakMilestones: [Int]? = nil
+    var dailyBonusDay: String? = nil
+    var dailyChestDay: String? = nil
+    var puzzleStreak: Int? = nil
+    var bestPuzzleStreak: Int? = nil
+    var rushBest: Int? = nil
+    var rushPlayed: Int? = nil
+    var shardGoal: String? = nil
+    var shopDay: String? = nil
+    var shopBought: [String]? = nil
+    var shopFrames: [String]? = nil
+    var cardsByType: [String: Int]? = nil
+    var ultimatesUsed: Int? = nil
+    var bonusActions: Int? = nil
+    var tacticBonuses: Int? = nil
+    var mateWins: Int? = nil
+    var winStreak: Int? = nil
+    var bestWinStreak: Int? = nil
+    var cardsBought: Int? = nil
+    var boardTheme: String? = nil
+
+    // Schema 5
+    var history: SnapshotHistory? = nil
+}
+
+/// Verlauf in der Sicherung. Ein Eintrag, den diese Fassung nicht lesen kann, wird übersprungen –
+/// er darf nicht die ganze Sicherung unlesbar machen.
+struct SnapshotHistory: Codable, Equatable {
+    var items: [GameRecord]
+    init(_ items: [GameRecord]) { self.items = items }
+
+    private struct Skip: Decodable {}
+
+    init(from decoder: Decoder) throws {
+        var c = try decoder.unkeyedContainer()
+        var out: [GameRecord] = []
+        while !c.isAtEnd {
+            if let r = try? c.decode(GameRecord.self) { out.append(r) }
+            else if (try? c.decode(Skip.self)) == nil { break }
+        }
+        items = out
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(items)
+    }
+
+    /// Beide Listen zusammen, neueste zuerst, jede Partie einmal (nach ID oder Server-Partie).
+    static func merge(_ a: [GameRecord], _ b: [GameRecord]) -> [GameRecord] {
+        var ids = Set<UUID>(), matches = Set<UUID>()
+        var out: [GameRecord] = []
+        for r in (a + b).sorted(by: { $0.date > $1.date }) {
+            if ids.contains(r.id) { continue }
+            if let m = r.matchId, matches.contains(m) { continue }
+            ids.insert(r.id)
+            if let m = r.matchId { matches.insert(m) }
+            out.append(r)
+        }
+        return Array(out.prefix(GameRecord.limit))
+    }
 }
 
 extension ProfileStore {
@@ -208,14 +276,25 @@ extension ProfileStore {
                                 pityCounter: p.pityCounter, chestsOpened: p.chestsOpened,
                                 legendaryChests: p.legendaryChests, winChestDay: p.winChestDay,
                                 winChestsToday: p.winChestsToday, tutorialChestGiven: p.tutorialChestGiven,
-                                seenCards: p.seenCards)
+                                seenCards: p.seenCards,
+                                lastStreakDay: p.lastStreakDay, activeDays: p.activeDays, frozenDays: p.frozenDays,
+                                streakMilestones: p.streakMilestones, dailyBonusDay: p.dailyBonusDay,
+                                dailyChestDay: p.dailyChestDay, puzzleStreak: p.puzzleStreak,
+                                bestPuzzleStreak: p.bestPuzzleStreak, rushBest: p.rushBest, rushPlayed: p.rushPlayed,
+                                shardGoal: p.shardGoal, shopDay: p.shopDay, shopBought: p.shopBought,
+                                shopFrames: p.shopFrames, cardsByType: p.cardsByType, ultimatesUsed: p.ultimatesUsed,
+                                bonusActions: p.bonusActions, tacticBonuses: p.tacticBonuses, mateWins: p.mateWins,
+                                winStreak: p.winStreak, bestWinStreak: p.bestWinStreak, cardsBought: p.cardsBought,
+                                boardTheme: p.settings.boardTheme.rawValue, history: SnapshotHistory(p.history))
     }
 
-    /// Spielstand aus der Server-Sicherung übernehmen (neues Gerät, Anleitung Schritt 7).
-    /// Trophäen kommen immer vom Server; Einstellungen, Verlauf und Wiederholungen bleiben die dieses Geräts.
-    func restore(from s: ProgressSnapshot, serverTrophies: Int, serverBest: Int) {
+    /// Spielstand aus der Server-Sicherung übernehmen. Der Server ist maßgeblich: Trophäen, Name und Spielstand kommen
+    /// von dort. Nur der Verlauf wird zusammengeführt (Partien dieses Geräts, die der Server noch nicht kennt, bleiben).
+    /// `accountName`: der Name des Kontos (profiles.display_name) – er geht vor dem Namen in der Sicherung.
+    func restore(from s: ProgressSnapshot, serverTrophies: Int, serverBest: Int, accountName: String? = nil) {
         var p = profile
-        p.name = s.name
+        if let accountName, !accountName.isEmpty { p.name = accountName }
+        else if !s.name.isEmpty { p.name = s.name }
         p.trophies = serverTrophies
         p.bestTrophies = max(serverBest, s.bestTrophies, serverTrophies)
         p.wins = s.wins
@@ -255,9 +334,35 @@ extension ProfileStore {
         if let v = s.winChestsToday { p.winChestsToday = v }
         if let v = s.tutorialChestGiven { p.tutorialChestGiven = v }
         if let v = s.seenCards { p.seenCards = v }
+        // Schema 4 (ältere Sicherungen lassen die Felder weg: dann bleibt der Stand dieses Geräts)
+        if let v = s.lastStreakDay { p.lastStreakDay = v }
+        if let v = s.activeDays { p.activeDays = v }
+        if let v = s.frozenDays { p.frozenDays = v }
+        if let v = s.streakMilestones { p.streakMilestones = v }
+        if let v = s.dailyBonusDay { p.dailyBonusDay = v }
+        if let v = s.dailyChestDay { p.dailyChestDay = v }
+        if let v = s.puzzleStreak { p.puzzleStreak = v }
+        if let v = s.bestPuzzleStreak { p.bestPuzzleStreak = v }
+        if let v = s.rushBest { p.rushBest = v }
+        if let v = s.rushPlayed { p.rushPlayed = v }
+        if s.schema >= 4 { p.shardGoal = s.shardGoal }
+        if let v = s.shopDay { p.shopDay = v }
+        if let v = s.shopBought { p.shopBought = v }
+        if let v = s.shopFrames { p.shopFrames = v }
+        if let v = s.cardsByType { p.cardsByType = v }
+        if let v = s.ultimatesUsed { p.ultimatesUsed = v }
+        if let v = s.bonusActions { p.bonusActions = v }
+        if let v = s.tacticBonuses { p.tacticBonuses = v }
+        if let v = s.mateWins { p.mateWins = v }
+        if let v = s.winStreak { p.winStreak = v }
+        if let v = s.bestWinStreak { p.bestWinStreak = v }
+        if let v = s.cardsBought { p.cardsBought = v }
+        if let v = s.boardTheme.flatMap(BoardTheme.init(rawValue:)) { p.settings.boardTheme = v }
         p.settings.deck = s.deck.compactMap(CardType.init(rawValue:))
         if let u = Ultimate(rawValue: s.ultimate) { p.settings.ultimate = u }
+        if let h = s.history { p.history = SnapshotHistory.merge(h.items, p.history) }
         profile = p
+        grantStreakMilestones()
         flushSave()
     }
 
@@ -347,12 +452,15 @@ struct ServerProgress: Codable, Equatable {
     var onlineWins: Int
     var onlineLosses: Int
     var onlineDraws: Int
-    /// Letzte Sicherung des lokalen Fortschritts (zum Wiederherstellen auf einem neuen Gerät)
+    /// Letzte Sicherung des Spielstands (maßgeblich für alle Geräte)
     var snapshot: ProgressSnapshot?
+    /// Nummer dieser Sicherung (zählt bei jedem Speichern hoch; nil = Server ohne die Migration progress_sync)
+    var snapshotRev: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case trophies, snapshot
         case bestTrophies = "best_trophies", onlineWins = "online_wins", onlineLosses = "online_losses", onlineDraws = "online_draws"
+        case snapshotRev = "snapshot_rev"
     }
 
     init(trophies: Int, bestTrophies: Int, onlineWins: Int, onlineLosses: Int, onlineDraws: Int, snapshot: ProgressSnapshot?) {
@@ -373,6 +481,7 @@ struct ServerProgress: Codable, Equatable {
         onlineLosses = try c.decodeIfPresent(Int.self, forKey: .onlineLosses) ?? 0
         onlineDraws = try c.decodeIfPresent(Int.self, forKey: .onlineDraws) ?? 0
         snapshot = try? c.decodeIfPresent(ProgressSnapshot.self, forKey: .snapshot)
+        snapshotRev = try? c.decodeIfPresent(Int.self, forKey: .snapshotRev)
     }
 }
 
@@ -401,7 +510,8 @@ protocol AccountService: AnyObject {
     func fetchProgress() async throws -> ServerProgress
     func signOut() async throws
     /// Apple-Pflicht: Konto und alle Daten löschen (Edge Function `delete-account`)
-    func deleteAccount() async throws
+    /// `appleCode`: frischer Apple-Autorisierungscode (Konto mit Apple gesichert), sonst nil.
+    func deleteAccount(appleCode: String?) async throws
 }
 
 // MARK: - Online-Partie

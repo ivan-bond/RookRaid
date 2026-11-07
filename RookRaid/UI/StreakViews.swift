@@ -439,6 +439,7 @@ struct FlameSheet: View {
             ForEach(ProfileStore.streakMilestones) { m in
                 let reached = store.profile.streakMilestones.contains(m.days)
                 let isNext = store.nextStreakMilestone?.days == m.days
+                VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 12) {
                     ZStack {
                         Circle().fill(reached ? FlameStyle.lit : Theme.panel)
@@ -454,11 +455,6 @@ struct FlameSheet: View {
                         Text(m.rewardText)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(reached ? Theme.textMuted : Theme.gold)
-                        if isNext {
-                            ProgressPill(fraction: Double(store.currentStreak) / Double(m.days),
-                                         text: "\(min(store.currentStreak, m.days))/\(m.days)")
-                                .padding(.horizontal, -6)
-                        }
                     }
                     Spacer()
                     if let chest = m.chest, !reached {
@@ -467,6 +463,13 @@ struct FlameSheet: View {
                     Image(systemName: reached ? "checkmark.circle.fill" : "lock.fill")
                         .font(.system(size: reached ? 18 : 12, weight: .bold))
                         .foregroundColor(reached ? Theme.green : Theme.textMuted)
+                }
+                // Fortschritt zum nächsten Meilenstein: eigene Zeile unter dem Text, so breit wie die Karte (ohne Überstand).
+                if isNext {
+                    ProgressPill(fraction: min(1, Double(store.currentStreak) / Double(m.days)),
+                                 text: "\(min(store.currentStreak, m.days))/\(m.days)")
+                        .padding(.leading, 48)
+                }
                 }
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 12).fill(isNext ? FlameStyle.lit.opacity(0.1) : Theme.panelRaised))
@@ -549,103 +552,6 @@ struct FreezeNoticeOverlay: View {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { appear = true }
             Haptics.shared.play(.frost)
             SoundPlayer.shared.play(.frost)
-        }
-    }
-}
-
-/// Karte auf der Startseite: Serie, Status für heute und die aktuelle Woche.
-struct StreakCard: View {
-    @ObservedObject var store = ProfileStore.shared
-    let onPuzzle: () -> Void
-
-    var body: some View {
-        let lit = store.flameLitToday
-        let streak = store.currentStreak
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                LivingFlame(colors: lit ? FlameTier.forStreak(streak).colors : [FlameStyle.off, Color(hex: 0x7A86A3), Color(hex: 0xA9B4C8)],
-                            lit: lit, embers: lit ? 4 : 0)
-                    .frame(width: 44, height: 50)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(streak == 1 ? L("1 Tag in Folge") : L("{0} Tage in Folge", streak))
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
-                        .foregroundColor(Theme.textPrimary)
-                    Text(statusText(lit: lit, streak: streak))
-                        .font(.system(size: 12))
-                        .foregroundColor(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-            }
-            WeekStrip()
-            if !lit {
-                Button(action: onPuzzle) {
-                    Label(L("Tagespuzzle lösen"), systemImage: "puzzlepiece.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(ChunkyButtonStyle(color: FlameStyle.lit, shadow: Color(hex: 0xB04E14), height: 46))
-            }
-            if store.profile.bestStreak > 1 {
-                Text(L("Rekord: {0} Tage", store.profile.bestStreak))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Theme.textMuted)
-            }
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.panelRaised))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(lit ? FlameStyle.lit.opacity(0.6) : .clear, lineWidth: 1.5))
-    }
-
-    private func statusText(lit: Bool, streak: Int) -> String {
-        if lit { return L("Heute entzündet – bis morgen!") }
-        if streak > 0 { return L("Deine Flamme erlischt um Mitternacht. Löse ein Puzzle oder beende eine Partie.") }
-        return L("Löse ein Puzzle oder beende eine Partie, um deine Flamme zu entzünden.")
-    }
-}
-
-/// Mo–So der aktuellen Woche, aktive Tage mit Flamme, heute umrandet.
-struct WeekStrip: View {
-    @ObservedObject var store = ProfileStore.shared
-
-    private var days: [Date] {
-        var cal = Calendar(identifier: .gregorian)
-        cal.firstWeekday = 2   // Montag
-        cal.locale = Localizer.shared.language.locale
-        let today = cal.startOfDay(for: Date())
-        let weekday = cal.component(.weekday, from: today)
-        let offset = (weekday + 5) % 7   // Montag = 0
-        let monday = cal.date(byAdding: .day, value: -offset, to: today) ?? today
-        return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: monday) }
-    }
-
-    var body: some View {
-        let labels = [L("Mo"), L("Di"), L("Mi"), L("Do"), L("Fr"), L("Sa"), L("So")]
-        let todayKey = ProfileStore.dayKey()
-        HStack(spacing: 0) {
-            ForEach(Array(days.enumerated()), id: \.offset) { i, day in
-                let active = store.wasActive(on: day)
-                let isToday = ProfileStore.dayKey(day) == todayKey
-                VStack(spacing: 4) {
-                    Text(labels[i])
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(isToday ? Theme.textPrimary : Theme.textMuted)
-                    ZStack {
-                        Circle()
-                            .fill(active ? FlameStyle.lit.opacity(0.22) : Theme.panelHighlight.opacity(0.6))
-                        if active {
-                            Image(systemName: "flame.fill")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(FlameStyle.lit)
-                        }
-                        if isToday {
-                            Circle().strokeBorder(Theme.cream, lineWidth: 1.5)
-                        }
-                    }
-                    .frame(width: 30, height: 30)
-                }
-                .frame(maxWidth: .infinity)
-            }
         }
     }
 }

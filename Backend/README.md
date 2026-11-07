@@ -17,3 +17,9 @@ node Tools/rules-js/seed-rules.js
 cd Backend && supabase link --project-ref <ref> && supabase db push
 supabase functions deploy submit-action && supabase functions deploy finish-bot-match && supabase functions deploy delete-account
 ```
+
+Konto löschen widerruft „Sign in with Apple“ (Richtlinie 5.1.1(v)). Dafür braucht `delete-account` den „Sign in with Apple“-Schlüssel:
+```bash
+supabase secrets set APPLE_TEAM_ID=X2XXYAQYX6 APPLE_KEY_ID=<Key-ID> APPLE_PRIVATE_KEY="$(cat AuthKey_<Key-ID>.p8)"
+```
+(`APPLE_CLIENT_ID` nur setzen, wenn die Bundle-ID nicht `com.ivan.rookraid` ist.) Fehlen die Geheimnisse, wird trotzdem gelöscht – nur ohne Widerruf (steht im Log).

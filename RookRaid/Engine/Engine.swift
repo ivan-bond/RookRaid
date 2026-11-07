@@ -11,7 +11,7 @@ enum Dir {
 /// Kompletter Spielzustand als Werttyp – kopierbar für Simulationen und speicherbar als JSON.
 ///
 /// Regeln v0.6: Pro Runde genau EINE Aktion (Schachzug, Karte oder Ultimate).
-/// Mana (v0.9.20): Jeder Zug lädt +1, ein guter Zug (Schlagen, Schach oder Taktik) nochmal +1.
+/// Mana (v0.9.20): Jeder Zug lädt +1, ein guter Zug (Schlagen oder Schach) nochmal +1.
 /// Das Gebiet bleibt als Anzeige auf dem Brett, bringt aber kein Mana mehr.
 struct GameState: Codable {
     // Seit v0.9.26 aus `RulesConfig` (rookraid-rules.json, später vom Server aktualisierbar).
@@ -20,7 +20,7 @@ struct GameState: Codable {
     static var ultimateCost: Int { RulesConfig.current.ultimateCost }
     /// Mana zu Beginn jedes eigenen Zugs.
     static var manaPerTurn: Int { RulesConfig.current.manaPerTurn }
-    /// Zusatz-Mana für einen guten Zug (Schlagen, Schach oder Taktik) – höchstens einmal pro Zug.
+    /// Zusatz-Mana für einen guten Zug (Schlagen oder Schach) – höchstens einmal pro Zug.
     static var goodMoveBonus: Int { RulesConfig.current.goodMoveBonus }
     /// Nach dem Ausspielen lädt eine Karte so viele eigene Züge nach.
     static var cardCooldown: Int { RulesConfig.current.cardCooldown }
