@@ -1,12 +1,6 @@
+// The rules are the shared JavaScript port (Tools/rules-js), the same code the server uses to check moves.
 import rules from '../../RookRaid/Engine/rookraid-rules.json'
 import core from 'rookraid-rules'
-
-type Port = {
-  E: EngineApi
-  applyRules: (rules: unknown) => unknown
-  apply: (state: MatchState, code: string) => boolean
-  initialFromRecord: (record: { decks: Record<string, string[]>; ultimates: Record<string, string> }) => MatchState
-}
 
 export type Side = 'w' | 'b'
 export type Piece = { t: string; c: Side; moved?: boolean; sh: number; fr: number }
@@ -15,34 +9,57 @@ export type Move = { f: number; t: number; promo?: string; dbl?: boolean; epc?: 
 export type MatchState = {
   b: (Piece | null)[]
   ply: number
+  ep: number
+  half: number
   mana: Record<Side, number>
   decks: Record<Side, { hand: string[]; queue: string[] }>
   ults: Record<Side, string>
+  captured: Record<Side, Piece[]>
+  cd: Record<Side, Record<string, number>>
   bonus: boolean
-  cur: Side
+  lock: number
+  peace?: boolean
+  readonly cur: Side
   last: Move | null
   clone(): MatchState
-  status(): string
+  status(): 'ongoing' | 'check' | 'mate' | 'stalemate' | 'fifty' | 'repetition'
   allLegal(col: Side): Move[]
   legalMoves(i: number): Move[]
+  hasAnyLegal(col: Side): boolean
   canPlay(card: string, col: Side): boolean
+  cardReady(card: string, col: Side): boolean
   targets(card: string, col: Side): number[]
   canUseUlt(col: Side): boolean
   ultTargets(col: Side): number[]
   material(col: Side): number
   inCheck(col: Side): boolean
+  attacked(i: number, by: Side): boolean
   controlMap(): (Side | null)[]
+  territory(c: Side): number
   kingSquare(col: Side): number
+  isBonusLocked(i: number): boolean
+  attackSquares(i: number): number[]
 }
 
 type EngineApi = {
+  State: { new (): MatchState; fromFEN(fen: string): MatchState; initial(ults: Partial<Record<Side, string>>, rng: () => number, decks: Record<Side, string[]>): MatchState }
   COST: Record<string, number>
   NO_TARGET: Record<string, number>
+  CFG: Record<string, unknown> & { cooldown: Record<string, number> }
   ultCost: (u: string) => number
   ultNeedsTarget: (u: string) => boolean
   sqName: (i: number) => string
   uci: (s: MatchState, m: Move) => string
   opp: (c: Side) => Side
+  detectTactic: (s: MatchState, m: Move, mover: Side) => string | null
+  VALUE: Record<string, number>
+}
+
+type Port = {
+  E: EngineApi
+  applyRules: (rules: unknown) => unknown
+  apply: (state: MatchState, code: string) => boolean
+  initialFromRecord: (record: { decks: Record<string, string[]>; ultimates: Record<string, string> }) => MatchState
 }
 
 const api = ((core as { default?: Port }).default ?? core) as Port
@@ -51,58 +68,40 @@ api.applyRules(rules)
 export const E = api.E
 export const apply = api.apply
 export const initialFromRecord = api.initialFromRecord
-
 export const RULES_VERSION = (rules as { version: number }).version
+export const MAX_MANA = (rules as { maxMana: number }).maxMana
 
-export const CARDS = [
-  'lightning', 'shield', 'sprint', 'freeze',
-  'reinforce', 'knighting', 'bulwark', 'advance', 'retreat',
-  'revive', 'sacrifice', 'swap',
-  'focus', 'drain', 'bishopize',
-] as const
+export const sqIndex = (name: string) => (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97)
+export const sqName = (i: number) => E.sqName(i)
 
-export const STARTER_CARDS = ['lightning', 'shield', 'sprint', 'freeze']
-export const ULTS = ['meteor', 'fortress', 'iceAge', 'coronation', 'rebirth'] as const
-
-export const CARD_NAME: Record<string, string> = {
-  shield: 'Schild', freeze: 'Frost', bulwark: 'Bollwerk', sprint: 'Sturmlauf',
-  lightning: 'Blitz', knighting: 'Ritterschlag', reinforce: 'Verstärkung', revive: 'Wiederkehr',
-  bishopize: 'Läuferweihe', advance: 'Vormarsch', swap: 'Leibwache', drain: 'Manaraub',
-  focus: 'Konzentration', sacrifice: 'Bauernopfer', retreat: 'Rückzug',
-  meteor: 'Meteor', iceAge: 'Eiszeit', fortress: 'Festung', coronation: 'Krönung', rebirth: 'Wiedergeburt',
+/** A fresh state from a position (puzzles, card school, tutorial). */
+export function fromFEN(fen: string): MatchState {
+  return E.State.fromFEN(fen)
 }
 
-const art = import.meta.glob('../../RookRaid/Assets.xcassets/CardArtPainted/**/*.jpg', {
-  eager: true, import: 'default', query: '?url',
-}) as Record<string, string>
-
-export function cardArt(id: string): string | undefined {
-  const file = id === 'meteor' || id === 'iceAge' || id === 'fortress' || id === 'coronation' || id === 'rebirth'
-    ? `painted-art-ult-${id}.jpg`
-    : `painted-art-card-${id}.jpg`
-  return Object.entries(art).find(([path]) => path.endsWith('/' + file))?.[1]
+/** Remaining own turns until a card is ready again (0 = ready). */
+export function cooldownLeft(s: MatchState, card: string, col: Side): number {
+  const ready = s.cd[col]?.[card]
+  if (ready === undefined || s.ply >= ready) return 0
+  return Math.ceil((ready - s.ply) / 2)
 }
 
-export function ultMinArena(id: string): number {
-  if (id === 'iceAge' || id === 'coronation') return 2
-  if (id === 'rebirth') return 3
-  return 1
-}
+export const isShielded = (p: Piece, ply: number) => p.sh >= ply
+export const isFrozen = (p: Piece, ply: number) => p.fr >= ply
 
-export function arenaOf(trophies: number): number {
-  if (trophies >= 2100) return 6
-  if (trophies >= 1200) return 5
-  if (trophies >= 600) return 4
-  if (trophies >= 240) return 3
-  if (trophies >= 90) return 2
-  return 1
-}
+/** Wire code for a move (with promotion letter). */
+export const uci = (s: MatchState, m: Move) => E.uci(s, m)
 
-export function sq(i: number): string {
-  return E.sqName(i)
-}
-
-export const GLYPH: Record<string, string> = {
-  wk: '♔', wq: '♕', wr: '♖', wb: '♗', wn: '♘', wp: '♙',
-  bk: '♚', bq: '♛', br: '♜', bb: '♝', bn: '♞', bp: '♟',
+/** How many pieces a fork hits – same targets as detectTactic (Tactic.fork(count:) in the app: 3+ is a "MEGA-GABEL!"). */
+export function forkCount(s: MatchState, m: Move, mover: Side): number {
+  const p = s.b[m.t]
+  if (!p) return 0
+  const o = E.opp(mover)
+  return s.attackSquares(m.t).filter(t => {
+    const q = s.b[t]
+    if (!q || q.c !== o) return false
+    if (q.t === 'k') return true
+    if (E.VALUE[q.t] > E.VALUE[p.t] + 0.5) return true
+    return E.VALUE[q.t] >= 3 && !s.attacked(t, o)
+  }).length
 }

@@ -39,21 +39,17 @@ struct ProfileStats {
         let rated = p.history.filter { $0.opponent != "Zu zweit" }
 
         form = rated.prefix(10).reversed().map(\.result)
-        currentWinStreak = rated.prefix(while: { $0.result == .win }).count
-        var best = 0, run = 0
-        for r in rated.reversed() {
-            run = r.result == .win ? run + 1 : 0
-            best = max(best, run)
-        }
-        bestWinStreak = best
+        // Zähler aus dem Spielstand: Sie gehen mit dem Konto auf jedes Gerät, App und Browser zeigen dieselben Zahlen.
+        currentWinStreak = p.winStreak
+        bestWinStreak = max(p.bestWinStreak, p.winStreak)
 
         let games = p.history
         avgMoves = games.isEmpty ? 0 : Double(games.reduce(0) { $0 + $1.moves }) / Double(games.count)
-        fastestWin = rated.filter { $0.result == .win }.map(\.moves).min()
-        let cards = games.reduce(0) { $0 + $1.cardsPlayed }
-        totalCards = cards
-        avgCards = games.isEmpty ? 0 : Double(cards) / Double(games.count)
-        mateWins = rated.filter { $0.result == .win && $0.reason.contains("Schachmatt") }.count
+        fastestWin = rated.filter { $0.result == .win && $0.moves > 0 }.map(\.moves).min()
+        let historyCards = games.reduce(0) { $0 + $1.cardsPlayed }
+        totalCards = max(p.cardsByType.values.reduce(0, +), historyCards)
+        avgCards = games.isEmpty ? 0 : Double(historyCards) / Double(games.count)
+        mateWins = p.mateWins
 
         bots = BotLevel.allCases.map { level in
             let rs = rated.filter { $0.opponent == level.botName }
@@ -63,28 +59,17 @@ struct ProfileStats {
                              draws: rs.filter { $0.result == .draw }.count)
         }
 
-        var counts: [CardType: Int] = [:]
-        var ults = 0
-        for replay in store.replays {
-            for e in replay.entries where e.color == replay.humanColor {
-                switch e.action {
-                case .card(let c, _)?: counts[c, default: 0] += 1
-                case .ultimate?: ults += 1
-                default: break
-                }
-            }
-        }
-        if let top = counts.max(by: { $0.value < $1.value }) {
-            favoriteCard = (top.key, top.value)
+        if let top = p.cardsByType.compactMap({ k, v in CardType(rawValue: k).map { ($0, v) } }).max(by: { $0.1 < $1.1 }) {
+            favoriteCard = (top.0, top.1)
         } else {
             favoriteCard = nil
         }
-        ultimatesFired = ults
+        ultimatesFired = p.ultimatesUsed
 
         // Trophäenverlauf rückwärts aus dem aktuellen Stand rekonstruieren
         var t = p.trophies
         var points = [t]
-        for r in rated where r.trophyDelta != 0 {
+        for r in rated.prefix(40) where r.trophyDelta != 0 {
             t = max(0, t - r.trophyDelta)
             points.append(t)
         }
@@ -443,7 +428,7 @@ struct StatGrid: View {
                          value: stats.favoriteCard?.card.name ?? "–",
                          label: L("Lieblingskarte"), detail: stats.favoriteCard.map { L("{0}× gespielt", $0.count) } ?? L("noch keine"))
                 StatTile(icon: "sparkles", tint: CardStyle.ultimate, value: "\(stats.ultimatesFired)",
-                         label: L("Ultimates gezündet"), detail: L("letzte 10 Partien"))
+                         label: L("Ultimates gezündet"), detail: L("insgesamt"))
                 StatTile(icon: "calendar", tint: FlameStyle.glow, value: "\(stats.activeDays)",
                          label: L("Aktive Tage"), detail: L("mit Flamme"))
             }
@@ -573,71 +558,6 @@ struct PuzzleProgressCard: View {
 
 // MARK: - Erfolge
 
-struct AchievementGrid: View {
-    let achievements: [Achievement]
-
-    var body: some View {
-        let unlocked = achievements.filter(\.unlocked).count
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                CardTitle(icon: "rosette", title: L("Erfolge"))
-                Spacer()
-                Text("\(unlocked)/\(achievements.count)")
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.gold)
-            }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 12) {
-                ForEach(achievements) { a in
-                    VStack(spacing: 5) {
-                        ZStack {
-                            Circle()
-                                .fill(a.unlocked
-                                      ? AnyShapeStyle(LinearGradient(colors: [CardStyle.ultimateTop, Theme.gold], startPoint: .top, endPoint: .bottom))
-                                      : AnyShapeStyle(Theme.panel))
-                            Image(systemName: a.icon)
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(a.unlocked ? Theme.navy : Theme.textMuted.opacity(0.6))
-                            if !a.unlocked {
-                                Image(systemName: "lock.fill")
-                                    .font(.system(size: 9, weight: .black))
-                                    .foregroundColor(Theme.textMuted)
-                                    .frame(width: 18, height: 18)
-                                    .background(Circle().fill(Theme.panelHighlight))
-                                    .offset(x: 18, y: 18)
-                            }
-                        }
-                        .frame(width: 52, height: 52)
-                        .shadow(color: a.unlocked ? Theme.gold.opacity(0.45) : .clear, radius: 8)
-                        Text(a.title)
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(a.unlocked ? Theme.textPrimary : Theme.textMuted)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                        Text(a.detail)
-                            .font(.system(size: 9))
-                            .foregroundColor(Theme.textMuted)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                        if !a.unlocked {
-                            ProgressPill(fraction: a.fraction, text: "\(min(a.progress, a.goal))/\(a.goal)")
-                        } else if a.rewardText != nil {
-                            Image(systemName: a.rewardFrame != nil ? "circle.circle.fill" : "textformat")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(Theme.gold)
-                        }
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(a.title), \(a.unlocked ? "freigeschaltet" : "gesperrt: \(a.detail)")")
-                }
-            }
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.panelRaised))
-    }
-}
-
 /// Überschrift einer Profilkarte.
 struct CardTitle: View {
     let icon: String
@@ -666,7 +586,7 @@ struct ProgressPill: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.1))
-                    Capsule().fill(Theme.gold).frame(width: max(3, geo.size.width * fraction))
+                    Capsule().fill(Theme.gold).frame(width: max(3, geo.size.width * min(1, max(0, fraction))))
                 }
             }
             .frame(height: 4)

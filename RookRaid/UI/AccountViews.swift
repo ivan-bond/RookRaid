@@ -297,7 +297,7 @@ struct OnlineNameSheet: View {
                 .disabled(!canSave)
 
                 if purpose == .create {
-                    Text(L("Deine Trophäen werden übernommen (höchstens 1.500). Danach zählen online nur die Trophäen vom Server."))
+                    Text(L("Trophäen gibt es für gewertete Online-Partien – sie zählt der Server."))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Theme.textMuted)
                         .fixedSize(horizontal: false, vertical: true)

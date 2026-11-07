@@ -14,7 +14,7 @@ Schach mit Karten: Jeder Zug lädt Mana, Mana bezahlt Karten, und ab 8 Mana läs
   - Auf dem Brett ist dein Gebiet heller und frischer getönt, das gegnerische etwas gedeckter (Variante „Farbton“). Es zeigt nur, wo deine Figuren das Brett beherrschen – **Mana bringt es seit v0.9.20 nicht mehr**.
 - **Mana (maximal 10, Start 1):**
   - Zu Beginn jedes eigenen Zugs: +1.
-  - Guter Zug: +1 extra für Schlagen, Schach oder eine Taktik (Gabel, Fesselung, Spieß, Abzugs- oder Doppelschach) – höchstens +1 pro Zug, egal wie viel davon zusammenkommt.
+  - Guter Zug: +1 extra für Schlagen oder Schach – höchstens +1 pro Zug. Taktiken (Gabel, Fesselung, Spieß, Abzugs- oder Doppelschach) werden angesagt und zählen für Erfolge, bringen aber kein Mana (wie der Server).
   - Mana-Karten (Konzentration, Manaraub, Bauernopfer) bringen weiterhin zusätzlich Mana.
   - Jede Gutschrift erscheint kurz an der Mana-Leiste, zum Beispiel „+1 Gabel“.
 - **Ultimate:** Wird vor der Partie gewählt und ist ab **8 Mana** einsetzbar, die Festung schon ab **6 Mana** (die gefüllten Felder der Mana-Leiste leuchten dann golden). Sie verbraucht so viel Mana, der Rest bleibt. Der Gegner sieht die Wahl und den Ladestand.
@@ -53,7 +53,7 @@ Alle zwölf Entscheidungen stehen in `Backend/ONLINE-IMPLEMENTIERUNG.md` (Abschn
 - **45 s ohne Verbindung = verloren** (gegen Menschen und Bot-Ersatz): Lebenszeichen alle 10 s (`match_heartbeat`), Wertung durch `claim_timeout` und den Wartungsjob; sind beide weg, Abbruch ohne Wertung.
 - **Eindeutige Spielernamen** (2–16 Zeichen, Groß-/Kleinschreibung egal): `name_available`, `set_display_name`, `setup_account` lehnt vergebene Namen ab.
 - **Bestenliste erst in Phase 2** (Server-Funktionen bleiben vorbereitet).
-- Wie empfohlen: Bot-Ersatz zählt für Trophäen, Server führt nur Trophäen und Online-Bilanz, Gast-Trophäen bis 1 500, Remis-Angebot, anonym spielen und später mit Apple sichern, Server in Frankfurt, Suche ±100 → ±400 mit Bot nach 10 s.
+- Wie empfohlen: Bot-Ersatz zählt für Trophäen, Server führt nur Trophäen und Online-Bilanz, neue Konten starten bei 0 Trophäen, Remis-Angebot, anonym spielen und später mit Apple sichern, Server in Frankfurt, Suche ±100 → ±400 mit Bot nach 10 s.
 - Backend-Tests jetzt **50 Prüfungen** (vorher 38), alle bestanden.
 
 ## Neu in v0.9.35: Online-Implementierung vorbereitet (Supabase)

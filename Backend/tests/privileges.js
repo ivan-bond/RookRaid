@@ -35,7 +35,7 @@ const checks = [
               'find_match','name_available','record_action','finish_match','setup_account',
               'set_display_name','backup_progress','create_match','apply_result','start_bot_match',
               'resign_match','offer_draw','answer_draw','claim_timeout','maintain_matches',
-              'purge_abandoned_anonymous')`,
+              'purge_abandoned_anonymous','adopt_device_trophies','sync_progress','bot_match_started')`,
   },
   {
     name: 'App darf eine Tabelle schreiben, die nur der Server schreiben darf',

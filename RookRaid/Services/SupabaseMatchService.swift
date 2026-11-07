@@ -217,9 +217,22 @@ enum PendingBotReports {
                             humanIsWhite: report.humanIsWhite ?? true)
                 clear()
                 await OnlineAccount.shared.reload()
+            } catch where error.isServerRejection {
+                // Der Server hat geantwortet und lehnt ab (schon gewertet, 45 s weg, Zug passt nicht zu den Regeln):
+                // nochmal schicken hilft nie. Meldung verwerfen, ab jetzt gilt der Server-Stand.
+                clear()
+                await OnlineAccount.shared.reload()
             } catch {
-                // Partie war schon gewertet (45 s weg) oder Netz immer noch weg – beim nächsten Start nochmal
+                // Netz immer noch weg – beim nächsten Start nochmal
             }
         }
+    }
+}
+
+extension Error {
+    /// Edge Function hat mit 4xx geantwortet: Die Anfrage selbst wird abgelehnt, ein neuer Versuch ändert nichts.
+    var isServerRejection: Bool {
+        if case .httpError(let code, _)? = self as? FunctionsError { return (400..<500).contains(code) }
+        return false
     }
 }

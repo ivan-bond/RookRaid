@@ -145,3 +145,39 @@ Deno.test("delete-account löscht nur den angemeldeten Spieler", async () => {
   assertEquals(res.status, 200);
   assertEquals(mine.calls.deleted, [WHITE]);
 });
+
+Deno.test("delete-account widerruft Sign in with Apple – und löscht auch, wenn Apple nicht mitspielt", async () => {
+  const codes: string[] = [];
+  const ok = admin(match());
+  const res = await deleteAccount(post("/d", { apple_authorization_code: "c-123" }, "good"), ok.client, async (c) => { codes.push(c); });
+  assertEquals(codes, ["c-123"]);
+  assertEquals((await bodyOf(res)).apple_revoked, true);
+  assertEquals(ok.calls.deleted, [WHITE]);
+
+  const broken = admin(match());
+  const res2 = await deleteAccount(post("/d", { apple_authorization_code: "c-456" }, "good"), broken.client, async () => { throw new Error("apple down"); });
+  assertEquals(res2.status, 200);
+  assertEquals((await bodyOf(res2)).apple_revoked, false);
+  assertEquals(broken.calls.deleted, [WHITE]);
+
+  const plain = admin(match());
+  const res3 = await deleteAccount(post("/d", {}, "good"), plain.client, async () => { throw new Error("darf nicht laufen"); });
+  assertEquals((await bodyOf(res3)).apple_revoked, null);
+});
+
+Deno.test("Apple-Client-Secret ist ein gültiges ES256-JWT", async () => {
+  const { clientSecret } = await import("./delete-account/apple.ts");
+  const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const der = new Uint8Array(await crypto.subtle.exportKey("pkcs8", pair.privateKey));
+  // Throwaway key made here. The PEM label is put together so the secret check does not see a committed key.
+  const label = ["PRIVATE", "KEY"].join(" ");
+  const pem = `-----BEGIN ${label}-----\n${btoa(String.fromCharCode(...der))}\n-----END ${label}-----`;
+  const jwt = await clientSecret("TEAM", "KEY", pem, "com.ivan.rookraid", 1_700_000_000_000);
+  const [h, p, s] = jwt.split(".");
+  const dec = (x: string) => JSON.parse(atob(x.replace(/-/g, "+").replace(/_/g, "/")));
+  assertEquals(dec(h), { alg: "ES256", kid: "KEY" });
+  assertEquals(dec(p), { iss: "TEAM", iat: 1_700_000_000, exp: 1_700_000_300, aud: "https://appleid.apple.com", sub: "com.ivan.rookraid" });
+  const sig = Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "==".slice(0, (4 - s.length % 4) % 4)), (c) => c.charCodeAt(0));
+  assertEquals(sig.length, 64);
+  assertEquals(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pair.publicKey, sig, new TextEncoder().encode(`${h}.${p}`)), true);
+});

@@ -96,36 +96,6 @@ struct ShardIcon: View {
     }
 }
 
-/// Sparziel-Zeile: „Noch 65 bis Lava“ mit Balken – oder ein Hinweis, eins zu wählen.
-struct ShardGoalRow: View {
-    @ObservedObject var store = ProfileStore.shared
-    var compact = false
-
-    var body: some View {
-        if let goal = store.shardGoalItem {
-            let have = store.profile.shards
-            let frac = min(1, Double(have) / Double(max(1, goal.price)))
-            HStack(spacing: 6) {
-                ShardIcon(size: 10)
-                Text(have >= goal.price ? L("{0}: bereit!", goal.item.shortTitle) : L("Noch {0} bis {1}", goal.price - have, goal.item.shortTitle))
-                    .font(.system(size: 10, weight: .heavy, design: .rounded))
-                    .foregroundColor(have >= goal.price ? ShardStyle.color : Theme.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.1))
-                        Capsule()
-                            .fill(LinearGradient(colors: [ShardStyle.deep, ShardStyle.color], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: max(4, geo.size.width * frac))
-                    }
-                }
-                .frame(width: compact ? 44 : 60, height: 5)
-            }
-        }
-    }
-}
-
 // MARK: - Laden
 
 /// Splitter-Laden: oben die Schatzkammer mit Stand und Sparziel, darunter Reiter statt einer langen Liste.

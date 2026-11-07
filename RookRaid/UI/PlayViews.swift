@@ -141,289 +141,6 @@ struct VersusIntro: View {
 
 // MARK: - Truhen-Plätze
 
-/// Unter dem Kampf-Knopf: drei Plätze für die Siegtruhen des Tages und die Tagestruhe.
-/// Jeder Sieg füllt sichtbar einen Platz – so sieht man, was der nächste Kampf bringt.
-struct ChestSlotsBar: View {
-    @ObservedObject var store = ProfileStore.shared
-    /// Kleinere Plätze für kleine Bildschirme (Startseite ohne Scrollen, v0.9.24)
-    var compact = false
-    /// Truhe öffnen
-    let onOpen: (Chest) -> Void
-    /// Tagesziele anzeigen
-    let onDaily: () -> Void
-
-    private var earnedToday: Int {
-        store.profile.winChestDay == ProfileStore.dayKey() ? store.profile.winChestsToday : 0
-    }
-    private var pendingWin: [Chest] { store.pendingChests.filter { $0.source == .win } }
-    private var unopenedToday: Int { min(earnedToday, pendingWin.count) }
-    /// Alles andere im Lager: Level, Leiter, Puzzle, Arena, Straße, ältere Siegtruhen …
-    private var others: [Chest] {
-        let olderWins = Array(pendingWin.dropFirst(unopenedToday))
-        return store.pendingChests.filter { $0.source != .win && $0.source != .daily } + olderWins
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
-            header
-            HStack(spacing: 8) {
-                ForEach(0..<ProfileStore.winChestsPerDay, id: \.self) { i in
-                    winSlot(i)
-                }
-                dailySlot
-            }
-            if let next = others.first {
-                Button { onOpen(next) } label: {
-                    HStack(spacing: 8) {
-                        ChestView(rarity: next.rarity, size: 26, glow: 0.5)
-                            .modifier(Jiggle(active: true, amplitude: 4, period: 1.1))
-                        Text(others.count == 1 ? L("{0} bereit", next.title) : L("{0} weitere Truhen bereit", others.count))
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
-                            .foregroundColor(Theme.textPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                        Spacer(minLength: 0)
-                        Text(L("Öffnen"))
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
-                            .foregroundColor(Theme.navy)
-                            .padding(.horizontal, 10)
-                            .frame(height: 28)
-                            .background(Capsule().fill(LinearGradient(colors: [CardStyle.ultimateTop, Theme.gold], startPoint: .top, endPoint: .bottom)))
-                            .overlay(ShineSweep().clipShape(Capsule()).allowsHitTesting(false))
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: compact ? 34 : 40)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.28)))
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.gold.opacity(0.55), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(compact ? 10 : 12)
-        .background(TreasureBackdrop(cornerRadius: 16))
-    }
-
-    // MARK: Kopf
-
-    /// „TRUHEN“ mit wippender Goldtruhe, Siegzähler für heute und Splitter-Sparziel.
-    private var header: some View {
-        Button(action: onDaily) {
-        HStack(spacing: 6) {
-            ChestView(rarity: .gold, size: 20, glow: 0.4)
-                .modifier(RoadBob(active: true, amplitude: 1.5, speed: 3))
-            Text(L("TRUHEN"))
-                .font(.system(size: 11, weight: .black, design: .rounded))
-                .tracking(1.2)
-                .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
-            // Heute gewonnene Siegtruhen als kleine Pokale
-            HStack(spacing: 2) {
-                ForEach(0..<ProfileStore.winChestsPerDay, id: \.self) { i in
-                    Image(systemName: "trophy.fill")
-                        .font(.system(size: 8, weight: .black))
-                        .foregroundColor(i < earnedToday ? Theme.gold : Color.white.opacity(0.18))
-                }
-            }
-            .padding(.horizontal, 6)
-            .frame(height: 16)
-            .background(Capsule().fill(Color.black.opacity(0.3)))
-            .accessibilityLabel(L("{0} von {1} Siegtruhen heute", earnedToday, ProfileStore.winChestsPerDay))
-            Spacer(minLength: 4)
-            ShardGoalRow(compact: true)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .black))
-                .foregroundColor(Theme.gold.opacity(0.7))
-        }
-        .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint(L("Öffnet die Schatzkammer"))
-    }
-
-    private enum SlotState { case empty, next, closed, opened }
-
-    private func winState(_ i: Int) -> SlotState {
-        guard i < earnedToday else { return i == earnedToday ? .next : .empty }
-        return i >= earnedToday - unopenedToday ? .closed : .opened
-    }
-
-    private var chestSize: CGFloat { compact ? 36 : 46 }
-    private var slotHeight: CGFloat { compact ? 42 : 56 }
-
-    /// Siegplätze: noch offen als Schatten-Truhe (der nächste golden umrandet und atmend),
-    /// gewonnen als wackelnde Truhe vor Lichtstrahlen, geöffnet ausgegraut mit Haken.
-    private func winSlot(_ i: Int) -> some View {
-        let state = winState(i)
-        return Button {
-            // Wartende Truhe sofort öffnen, sonst die Schatzkammer zeigen
-            if state == .closed, let chest = pendingWin.first { onOpen(chest) } else { onDaily() }
-        } label: {
-            VStack(spacing: 4) {
-                ZStack {
-                    switch state {
-                    case .empty, .next:
-                        ChestView(rarity: .wood, size: chestSize * 0.86)
-                            .saturation(0)
-                            .brightness(-0.25)
-                            .opacity(state == .next ? 0.55 : 0.28)
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: compact ? 10 : 12, weight: .black))
-                            .foregroundColor(.white.opacity(state == .next ? 0.9 : 0.5))
-                            .offset(y: compact ? 4 : 6)
-                    case .closed:
-                        LightRays(color: Theme.gold, count: 8, speed: 0.4)
-                            .frame(width: slotHeight * 1.5, height: slotHeight * 1.5)
-                            .clipShape(Circle())
-                            .opacity(0.55)
-                        ChestView(rarity: .wood, size: chestSize, glow: 0.7)
-                            .modifier(Jiggle(active: true, amplitude: 5, period: 0.7))
-                            .modifier(RoadBob(active: true, amplitude: 2, speed: 4))
-                    case .opened:
-                        ChestView(rarity: .wood, size: chestSize, lid: 1)
-                            .saturation(0)
-                            .opacity(0.35)
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(Theme.green)
-                            .background(Circle().fill(Theme.background).padding(2))
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                }
-                .frame(height: slotHeight)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                slotLabel(state, index: i)
-            }
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity)
-            .background(slotBackground(state))
-            .overlay(slotBorder(state))
-            .modifier(PulseGlow(color: Theme.gold, active: state == .closed, strength: 0.6))
-        }
-        .buttonStyle(PressScaleStyle())
-        .accessibilityLabel(state == .closed ? L("Siegtruhe bereit, öffnen")
-                            : (state == .opened ? L("Siegtruhe geöffnet") : L("Siegtruhe {0}: noch nicht gewonnen", i + 1)))
-    }
-
-    @ViewBuilder
-    private func slotLabel(_ state: SlotState, index i: Int) -> some View {
-        switch state {
-        case .closed:
-            Text(L("Öffnen!"))
-                .font(.system(size: 10, weight: .black, design: .rounded))
-                .foregroundColor(Theme.navy)
-                .padding(.horizontal, 7)
-                .frame(height: 16)
-                .background(Capsule().fill(Theme.gold))
-        case .next:
-            Text(L("Nächster Sieg"))
-                .font(.system(size: 10, weight: .heavy, design: .rounded))
-                .foregroundColor(Theme.gold)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(height: 16)
-        case .empty:
-            Text(L("Sieg {0}", i + 1))
-                .font(.system(size: 10, weight: .heavy, design: .rounded))
-                .foregroundColor(Theme.textMuted)
-                .frame(height: 16)
-        case .opened:
-            Text(L("Geöffnet"))
-                .font(.system(size: 10, weight: .heavy, design: .rounded))
-                .foregroundColor(Theme.textMuted)
-                .frame(height: 16)
-        }
-    }
-
-    private func slotBackground(_ state: SlotState) -> some View {
-        RoundedRectangle(cornerRadius: 11)
-            .fill(state == .closed
-                  ? AnyShapeStyle(RadialGradient(colors: [Theme.gold.opacity(0.35), Color.black.opacity(0.25)], center: .center, startRadius: 2, endRadius: 60))
-                  : AnyShapeStyle(Color.black.opacity(state == .opened ? 0.18 : 0.3)))
-    }
-
-    @ViewBuilder
-    private func slotBorder(_ state: SlotState) -> some View {
-        switch state {
-        case .next:
-            RoundedRectangle(cornerRadius: 11)
-                .strokeBorder(Theme.gold.opacity(0.75), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                .modifier(PulseGlow(color: Theme.gold, active: true, strength: 0.5))
-        case .closed:
-            RoundedRectangle(cornerRadius: 11).strokeBorder(Theme.gold, lineWidth: 1.5)
-        default:
-            RoundedRectangle(cornerRadius: 11).strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-        }
-    }
-
-    /// Tagestruhe: Goldtruhe im Fortschrittsring der Tagesziele – bereit mit Strahlen, danach Countdown.
-    private var dailySlot: some View {
-        let goals = store.dailyGoals
-        let done = goals.filter(\.done).count
-        let pendingDaily = store.pendingChests.first { $0.source == .daily }
-        let ready = store.dailyChestReady || pendingDaily != nil
-        let opened = store.dailyChestOpened && pendingDaily == nil
-        return Button {
-            if let chest = pendingDaily { onOpen(chest) } else { onDaily() }
-        } label: {
-            VStack(spacing: 4) {
-                ZStack {
-                    if ready {
-                        LightRays(color: Theme.gold, count: 10, speed: 0.5)
-                            .frame(width: slotHeight * 1.5, height: slotHeight * 1.5)
-                            .clipShape(Circle())
-                            .opacity(0.6)
-                    }
-                    Circle()
-                        .stroke(Color.white.opacity(0.1), lineWidth: 3)
-                        .frame(width: compact ? 42 : 54, height: compact ? 42 : 54)
-                        .opacity(opened ? 0 : 1)
-                    Circle()
-                        .trim(from: 0, to: Double(done) / Double(max(1, goals.count)))
-                        .stroke(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom),
-                                style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: compact ? 42 : 54, height: compact ? 42 : 54)
-                        .opacity(opened ? 0 : 1)
-                    if opened {
-                        Image(systemName: "moon.stars.fill")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(Theme.gold.opacity(0.75))
-                            .modifier(RoadBob(active: true, amplitude: 1.5, speed: 2))
-                    } else {
-                        ChestView(rarity: .gold, size: compact ? 30 : 40, glow: ready ? 0.8 : 0)
-                            .saturation(ready ? 1 : 0.35)
-                            .modifier(RoadBob(active: ready, amplitude: 2, speed: 4))
-                            .modifier(Jiggle(active: ready, amplitude: 4, period: 0.8))
-                    }
-                }
-                .frame(height: slotHeight)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                TimelineView(.periodic(from: Date(), by: 30)) { ctx in
-                    Text(opened ? L("Neu in {0}", ProfileStore.untilMidnightShort(ctx.date)) : (ready ? L("Öffnen!") : L("Ziele {0}/{1}", done, goals.count)))
-                        .font(.system(size: 10, weight: .heavy, design: .rounded).monospacedDigit())
-                        .foregroundColor(ready ? Theme.navy : Theme.textSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .padding(.horizontal, ready ? 7 : 0)
-                        .frame(height: 16)
-                        .background(Capsule().fill(ready ? Theme.gold : Color.clear))
-                }
-            }
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 11)
-                    .fill(LinearGradient(colors: [Theme.gold.opacity(ready ? 0.32 : 0.14), Color.black.opacity(0.25)], startPoint: .top, endPoint: .bottom))
-            )
-            .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Theme.gold.opacity(ready ? 0.9 : 0.4), lineWidth: ready ? 1.5 : 1))
-            .modifier(PulseGlow(color: Theme.gold, active: ready, strength: 0.6))
-        }
-        .buttonStyle(PressScaleStyle())
-        .accessibilityLabel(opened ? L("Tagestruhe geöffnet, neue in {0}", ProfileStore.untilMidnightText()) : L("Tagestruhe, {0} von {1} Tageszielen", done, goals.count))
-    }
-}
-
 /// Hintergrund einer Schatzkiste: warmes Holz mit Maserung, goldener Beschlag mit Nieten und funkelndem Goldstaub.
 struct TreasureBackdrop: View {
     var cornerRadius: CGFloat = 16
@@ -510,7 +227,7 @@ struct ChestHubSheet: View {
     private var pendingWin: [Chest] { store.pendingChests.filter { $0.source == .win } }
     private var unopenedToday: Int { min(earnedToday, pendingWin.count) }
     /// Alles im Lager außer der Tagestruhe
-    private var stored: [Chest] { store.pendingChests.filter { $0.source != .daily } }
+    private var stored: [Chest] { store.pendingChests.filter { $0.source != .daily }.sorted { $0.rarity > $1.rarity } }
 
     var body: some View {
         NavigationStack {
@@ -525,10 +242,11 @@ struct ChestHubSheet: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         header
+                        statsStrip
                         winSection
                         dailySection
                         if !stored.isEmpty { storageSection }
-                        raritySection
+                        moreChestsSection
                     }
                     .padding(16)
                     .padding(.bottom, 20)
@@ -702,7 +420,7 @@ struct ChestHubSheet: View {
         switch kind {
         case .flame: return L("Löse ein Puzzle oder beende eine Partie")
         case .puzzle: return L("Das Rätsel des Tages im Puzzle-Tab")
-        case .win: return L("Gewinne gegen einen Bot – Kampf oder Leiter")
+        case .win: return L("Gewinne eine Partie – Kampf oder Leiter")
         }
     }
 
@@ -877,29 +595,122 @@ struct ChestHubSheet: View {
         .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
     }
 
-    // MARK: Truhenarten
+    // MARK: Kennzahlen
 
-    private var raritySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionTitle(L("TRUHENARTEN"), icon: "sparkles")
-            HStack(alignment: .bottom, spacing: 4) {
-                ForEach(ChestRarity.allCases) { r in
-                    VStack(spacing: 4) {
-                        ChestView(rarity: r, size: 30 + CGFloat(r.rawValue) * 6, glow: r >= .magic ? 0.5 : 0)
-                            .modifier(RoadBob(active: r == .legendary, amplitude: 2, speed: 3))
-                        Text(r.name)
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundColor(r.glowColor)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                    }
-                    .frame(maxWidth: .infinity)
+    /// Bereit, geöffnet, Glücksschutz – und ein großer Knopf für die beste wartende Truhe.
+    private var statsStrip: some View {
+        let allCards = CardType.allCases.allSatisfy { store.isUnlocked($0) }
+        let left = max(1, ProfileStore.pityLimit - store.profile.pityCounter)
+        let pity = allCards ? L("Alle Karten gesammelt")
+            : (left == 1 ? L("Neue Karte spätestens in der nächsten Truhe") : L("Neue Karte spätestens in {0} Truhen", left))
+        let best = store.pendingChests.max { $0.rarity < $1.rarity }
+        return VStack(spacing: 10) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) { chip("shippingbox.fill", L("{0} bereit", store.pendingChests.count), hot: best != nil); chip("checkmark.circle.fill", L("{0} geöffnet", store.profile.chestsOpened)); chip("rectangle.stack.fill", pity, tint: Color(hex: 0xC084FC)) }
+                VStack(spacing: 6) {
+                    HStack(spacing: 6) { chip("shippingbox.fill", L("{0} bereit", store.pendingChests.count), hot: best != nil); chip("checkmark.circle.fill", L("{0} geöffnet", store.profile.chestsOpened)) }
+                    chip("rectangle.stack.fill", pity, tint: Color(hex: 0xC084FC))
                 }
             }
-            Text(L("Je seltener die Truhe, desto mehr Splitter und desto größer die Chance auf neue Karten, Avatare und Sammelbretter."))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Theme.textMuted)
-                .fixedSize(horizontal: false, vertical: true)
+            if let best {
+                Button {
+                    dismiss()
+                    if best.source == .daily { onChest() } else { onOpen(best) }
+                } label: {
+                    HStack(spacing: 10) {
+                        ChestView(rarity: best.rarity, size: 34, glow: 0.6)
+                            .modifier(Jiggle(active: true, amplitude: 4, period: 0.8))
+                        Text(L("{0} öffnen", best.rarity.name))
+                    }
+                }
+                .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: CardStyle.ultimateDeep, height: 56, textColor: Theme.navy))
+                .overlay(ShineSweep().clipShape(RoundedRectangle(cornerRadius: 12)).allowsHitTesting(false))
+                .modifier(PulseGlow(color: Theme.gold, active: true))
+            }
+        }
+    }
+
+    private func chip(_ icon: String, _ text: String, hot: Bool = false, tint: Color = Theme.gold) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 11, weight: .black)).foregroundColor(tint)
+            Text(text).font(.system(size: 12, weight: .heavy, design: .rounded)).foregroundColor(hot ? Theme.gold : Theme.textPrimary).lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(Capsule().fill(hot ? Theme.gold.opacity(0.15) : Color.black.opacity(0.3)))
+        .overlay(Capsule().strokeBorder(hot ? Theme.gold.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1))
+    }
+
+    // MARK: Mehr Truhen
+
+    private struct Source: Identifiable {
+        let id: String; let icon: String; let title: String; let sub: String; let fraction: Double; let rarity: ChestRarity?; let tint: Color
+    }
+
+    /// Woher die nächsten Truhen kommen – mit echtem Fortschritt.
+    private var sources: [Source] {
+        let lp = store.levelProgress
+        let solved = store.profile.solvedPuzzles.count % ProfileStore.puzzlesPerChest
+        let road = store.roadTrophies
+        let nextRoad = ProfileStore.road.first { $0.trophies > road }
+        let prevRoad = ProfileStore.road.last { $0.trophies <= road }?.trophies ?? 0
+        let roadRarity: ChestRarity? = {
+            switch nextRoad?.reward {
+            case .chest(let r)?: return r
+            case .arena(_, let r)?: return r
+            default: return nil
+            }
+        }()
+        let streak = store.currentStreak
+        let nextFlame = ProfileStore.streakMilestones.first { $0.chest != nil && $0.days > streak && !store.profile.streakMilestones.contains($0.days) }
+        let prevFlame = ProfileStore.streakMilestones.last { $0.days <= streak }?.days ?? 0
+        let nextBot = store.ladderNext
+        return [
+            Source(id: "level", icon: "arrow.up.circle.fill", title: L("Level-Truhe"), sub: L("{0} XP bis Level {1}", lp.remaining, store.level + 1),
+                   fraction: lp.fraction, rarity: LevelRoadStep.step(for: store.level + 1).rarity, tint: Theme.blueLight),
+            Source(id: "puzzle", icon: "puzzlepiece.fill", title: L("Rätseltruhe"), sub: L("{0}/{1} gelöst", solved, ProfileStore.puzzlesPerChest),
+                   fraction: Double(solved) / Double(ProfileStore.puzzlesPerChest), rarity: .silver, tint: Theme.gold),
+            Source(id: "road", icon: "trophy.fill", title: L("Trophäenpfad"), sub: nextRoad.map { L("Noch {0} Trophäen", $0.trophies - road) } ?? L("Alles erreicht"),
+                   fraction: nextRoad.map { Double(road - prevRoad) / Double(max(1, $0.trophies - prevRoad)) } ?? 1, rarity: roadRarity, tint: Theme.redLight),
+            Source(id: "flame", icon: "flame.fill", title: L("Flammentruhe"), sub: nextFlame.map { L("Noch {0} Tage", $0.days - streak) } ?? L("Alles erreicht"),
+                   fraction: nextFlame.map { Double(streak - prevFlame) / Double(max(1, $0.days - prevFlame)) } ?? 1, rarity: nextFlame?.chest, tint: Color(hex: 0xFF8A3D)),
+            Source(id: "ladder", icon: "figure.stairs", title: L("Leiter-Truhe"), sub: nextBot.map { L("Nächster: {0}", $0.displayName) } ?? L("Alles erreicht"),
+                   fraction: Double(store.profile.ladderBeaten) / Double(BotLevel.allCases.count), rarity: nextBot?.ladderChest, tint: Color(hex: 0xC084FC))
+        ]
+    }
+
+    private var moreChestsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle(L("MEHR TRUHEN"), icon: "plus.circle.fill")
+            ForEach(sources) { src in
+                let f = min(1, max(0, src.fraction))
+                HStack(spacing: 10) {
+                    Image(systemName: src.icon)
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundColor(.white)
+                        .frame(width: 34, height: 34)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(LinearGradient(colors: [src.tint, src.tint.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(src.title).font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundColor(Theme.textPrimary)
+                        Text(src.sub).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.textSecondary).lineLimit(1).minimumScaleFactor(0.8)
+                        GeometryReader { g in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color.white.opacity(0.08))
+                                Capsule().fill(LinearGradient(colors: [src.tint.opacity(0.7), src.tint], startPoint: .leading, endPoint: .trailing))
+                                    .frame(width: g.size.width * (appeared ? f : 0))
+                            }
+                        }
+                        .frame(height: 6)
+                    }
+                    if let r = src.rarity {
+                        ChestView(rarity: r, size: 38, glow: f >= 0.8 ? 0.6 : 0)
+                            .modifier(Jiggle(active: f >= 0.8, amplitude: 4, period: 0.9))
+                    }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.22)))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(src.tint.opacity(0.3), lineWidth: 1))
+            }
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 20).fill(Theme.panelRaised.opacity(0.85)))

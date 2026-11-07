@@ -47,6 +47,8 @@ Offline play stays on the device and is not sent to the server.
 
 The app already deletes the online account from Settings → Account → Delete account. Say **Yes** to “account deletion” in App Store Connect once accounts are available.
 
+For an account secured with Apple, the app first asks the player to confirm with Apple (Face ID). The server then revokes Sign in with Apple through Apple's REST API (`delete-account`, guideline 5.1.1(v)) and deletes the account. If Apple is unreachable, the account is still deleted.
+
 Deleting the account removes the profile, the display name on the profile, trophies, the online record and the progress backup. Finished games stay so the opponent still has the result. Those games keep the moves and the player card, including the name shown in that game. The account is no longer linked to them. Progress stored on the iPhone stays until the player resets it in Settings.
 
 ## Age rating, from the same release notes

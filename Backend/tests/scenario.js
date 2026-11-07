@@ -17,17 +17,23 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   await c.query(`insert into auth.users values ('${A}'), ('${B}')`);
   const deck = `{shield,freeze,sprint,lightning}`;
   let r = await as(A, `select setup_account($1, $2) s`, [{ trophies: 120, guestId: '33333333-3333-3333-3333-333333333333' }, { name: 'Ivan', avatar: 'knight', level: 4 }]);
-  ok(r[0].s.status === 'created' && r[0].s.progress.trophies === 120, 'A: Konto angelegt, 120 Trophäen übernommen');
+  // Trophäen gibt es nur aus gewerteten Partien: ein neues Konto startet bei 0, egal was das Gerät meldet.
+  ok(r[0].s.status === 'created' && r[0].s.progress.trophies === 0, 'A: Konto angelegt, Start bei 0 (Gast-Trophäen nicht übernommen)');
   r = await as(A, `select setup_account($1, $2) s`, [{ trophies: 999 }, { name: 'Ivan' }]);
-  ok(r[0].s.status === 'existing' && r[0].s.progress.trophies === 120, 'A: zweites setup_account → existing, keine Änderung');
+  ok(r[0].s.status === 'existing' && r[0].s.progress.trophies === 0, 'A: zweites setup_account → existing, keine Änderung');
   r = await as(B, `select setup_account($1, $2) s`, [{ trophies: 5000 }, { name: 'ivan' }]);
   ok(r.error === 'name_taken', 'Name schon vergeben (Groß-/Kleinschreibung egal) → name_taken');
   r = await as(B, `select setup_account($1, $2) s`, [{ trophies: 5000 }, { name: ' M' }]);
   ok(r.error === 'name_invalid', 'ungültiger Name → name_invalid');
   r = await as(B, `select name_available('Mia') a`); ok(r[0].a === true, 'name_available: Mia ist frei');
   r = await as(B, `select setup_account($1, $2) s`, [{ trophies: 5000 }, { name: 'Mia' }]);
-  ok(r[0].s.progress.trophies === 1500, 'B: Gast-Trophäen gedeckelt auf 1500');
-  await as('service', `update progress set trophies = 0, best_trophies = 0 where user_id = '${B}'`);
+  ok(r[0].s.progress.trophies === 0, 'B: 5000 gemeldete Gast-Trophäen → trotzdem 0');
+  r = await as(A, `select adopt_device_trophies(5000) t`);
+  ok(r[0].t === 0, 'Geräte-Trophäen ohne nachweislich verlorene Bot-Partie: nichts dazu');
+  r = await as(A, `select adopt_device_trophies(5000) t`);
+  ok(r[0].t === 0, 'adopt_device_trophies wirkt nur einmal');
+  // Ab hier: A hat 120 aus früheren Partien, B 0.
+  await as('service', `update progress set trophies = 120, best_trophies = 120 where user_id = '${A}'`);
   r = await as(A, `select find_match(3, 'blitz5', $1, 'meteor', '{"name":"Ivan"}') id`, [deck]);
   ok(r[0].id === null, 'A sucht, noch kein Gegner');
   r = await as(B, `select find_match(3, 'blitz5', $1, 'fortress', '{"name":"Mia"}') id`, [deck]);
@@ -108,10 +114,25 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   ok(r[0].winner_color === r[0].a, 'der verbliebene Spieler gewinnt');
   r = await as(A, `select * from start_bot_match(3, 'blitz5', $1, 'meteor', '{"name":"Ivan"}', '{"name":"Luca42"}', '{reinforce,bulwark,sprint,retreat}', 'fortress', false)`, [deck]);
   const bid2 = r[0].match_id;
+  r = await as(A, `select * from start_bot_match(3, 'blitz5', $1, 'meteor', '{"name":"Ivan"}', '{"name":"Luca42"}', '{reinforce,bulwark,sprint,retreat}', 'fortress', false)`, [deck]);
+  ok(r[0] && r[0].match_id === bid2, 'Doppelter Start: dieselbe Bot-Partie statt einer zweiten');
+  // Gespielt: angelegt vor 60 s, letztes Lebenszeichen vor 50 s.
+  await c.query(`update matches set created_at = now() - interval '60 seconds' where id = $1`, [bid2]);
   await c.query(`update match_presence set seen_at = now() - interval '50 seconds' where match_id = $1`, [bid2]);
   r = await as('service', `select maintain_matches() n`);
   r = await as('service', `select result, winner_color from matches where id = $1`, [bid2]);
   ok(r[0].result === 'abandoned' && r[0].winner_color === 'white', 'Bot-Partie: Mensch 50 s weg → Bot (Weiß) gewinnt');
+  // Nie gespielt: das Gerät hat nach dem Anlegen kein Lebenszeichen geschickt (z. B. doppelter Start).
+  r = await as(A, `select * from start_bot_match(3, 'blitz5', $1, 'meteor', '{"name":"Ivan"}', '{"name":"Luca42"}', '{reinforce,bulwark,sprint,retreat}', 'fortress', true)`, [deck]);
+  const bid3 = r[0].match_id;
+  r = await as('service', `select trophies, online_losses from progress where user_id = $1`, [A]); const before = r[0];
+  await c.query(`update matches set created_at = now() - interval '60 seconds' where id = $1`, [bid3]);
+  await c.query(`update match_presence set seen_at = now() - interval '60 seconds' where match_id = $1`, [bid3]);
+  await as('service', `select maintain_matches() n`);
+  r = await as('service', `select status, result from matches where id = $1`, [bid3]);
+  const after = (await as('service', `select trophies, online_losses from progress where user_id = $1`, [A]))[0];
+  ok(r[0].status === 'aborted' && after.trophies === before.trophies && after.online_losses === before.online_losses,
+     'Bot-Partie ohne Lebenszeichen: abgebrochen, keine Niederlage');
   r = await as('anon', `select * from get_leaderboard(10)`); ok(r.length === 2 && r[0].display_name, 'Bestenliste für alle lesbar');
   r = await as('anon', `select * from progress`); ok(Array.isArray(r) ? r.length === 0 : true, 'Gäste sehen keine Fortschritte');
   r = await as(A, `select my_rank() r`); ok(r[0].r >= 1, 'eigener Rang');
