@@ -5,16 +5,16 @@ Status as of 2026-11-09. Based on the code and project files; the Supabase dashb
 ## Must happen before publishing
 
 ### 1. Commit and test the latest changes
-- [ ] Commit everything (68 files were uncommitted, including server sync, history sync, the phantom-game fix, the chest window and the profile).
+- [x] Commit everything (bc30328, 2026-11-09).
 - [ ] Test on a real iPhone and in the browser:
   - [ ] Sign in on the web, play a game, then open the iPhone app: trophies, cards, chests and history are the same.
   - [ ] Sign out and back in: nothing is lost.
   - [ ] Start a "Kampf!" game, then check in Supabase that exactly one match was created.
 
 ### 2. Put the web app online
-- [ ] Pick a host (Cloudflare Pages, Netlify or Vercel) and a domain, then upload `web/dist`. The build already writes `/privacy`, `/imprint`, `/terms` and `/support` as separate pages.
-- [ ] Set at the host: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_APPLE_CLIENT_ID`, `VITE_VAPID_PUBLIC_KEY`.
-- [ ] Host: Hostinger, domain rookraid.com. Upload `web/dist` into `public_html` (it includes the hidden `.htaccess`, which does
+- [x] Pick a host and a domain (Hostinger, rookraid.com), then upload `web/dist`. The build already writes `/privacy`, `/imprint`, `/terms` and `/support` as separate pages.
+- [x] Built with: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_APPLE_CLIENT_ID`, `VITE_VAPID_PUBLIC_KEY`.
+- [x] Host: Hostinger, domain rookraid.com. Upload `web/dist` into `public_html` (it includes the hidden `.htaccess`, which does
   what `_redirects` and `_headers` do on Cloudflare/Netlify), and turn on Force HTTPS in hPanel. Check that `/f/ABCDEF` serves the
   app and that `/.well-known/apple-app-site-association` is served as `application/json`.
 - [x] `RR_WEB_DOMAIN = rookraid.com` in `Config/RookRaid.xcconfig`. Invite links and the app's Universal Links use it.
@@ -26,7 +26,7 @@ Status as of 2026-11-09. Based on the code and project files; the Supabase dashb
   (`rookraid://f/CODE`). If Safari still opens, long-press the link → "In Rook Raid öffnen" (iOS remembers that choice).
 - [ ] First start (fresh install / private browser window): welcome (world → name + avatar → chess level) → Rocky greets by
   name → five intro screens → battle against Mila. "Tutorial wiederholen" skips the welcome.
-- [ ] Do this before the App Store submission: App Store Connect needs a live privacy policy URL and support URL.
+- [x] Live privacy policy and support URLs for App Store Connect: `https://rookraid.com/privacy`, `https://rookraid.com/support`.
 - [x] The web privacy policy names Hostinger as the host.
 
 ### 3. Supabase settings
@@ -36,7 +36,7 @@ Status as of 2026-11-09. Based on the code and project files; the Supabase dashb
 - [x] Deploy the new `push-dispatch`.
 - [x] Deploy `delete-account` again (version 8, 2026-11-09, with the Apple secrets).
 - [ ] Test it: delete a test account secured with Apple → Rook Raid disappears from Settings → Apple ID → Sign in with Apple.
-- [ ] Apply the migration `20261107120000_friends.sql` (`supabase db push`). Check that the cron job `rookraid-cleanup-social` exists.
+- [x] Apply the migration `20261107120000_friends.sql` (`supabase db push`). Check that the cron job `rookraid-cleanup-social` exists.
 - [x] Push secrets: `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_PRIVATE_KEY`, `APNS_TOPIC`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (commands in `Backend/README.md`).
 - [x] Apply `20261109120000_bot_players.sql` (bot players, online status, friendly matches). The cron jobs `rookraid-bot-players` and `rookraid-bot-drift` run.
 - [x] Redeploy `push-dispatch` with `--no-verify-jwt`, set `CRON_SECRET`, and add the Vault secrets `rookraid_project_url` and `rookraid_cron_secret`.
