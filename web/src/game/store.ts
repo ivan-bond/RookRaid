@@ -47,6 +47,8 @@ export type Profile = {
   chests: Chest[]; shards: number; unlockedCards: string[]; ownedBoards: string[]; pityCounter: number; chestsOpened: number
   legendaryChests: number; levelChestsGranted: number; arenaChestsGranted: number; puzzleChestsGranted: number
   winChestDay: string | null; winChestsToday: number; tutorialChestGiven: boolean
+  /** The gold chest for the first friend was given (friends.ts) */
+  firstFriendChestGiven: boolean
   puzzleStreak: number; bestPuzzleStreak: number; rushBest: number; rushPlayed: number
   roadClaimed: number[]; selectedTitle: string | null; selectedFrame: string | null; seenCards: string[]
   streakFreezes: number; frozenDays: string[]; freezeNotice: number | null; streakMilestones: number[]
@@ -70,7 +72,7 @@ export function freshProfile(): Profile {
     tutorialSeen: false, xp: 0, solvedPuzzles: [], dailyBonusDay: null, streak: 0, bestStreak: 0, lastStreakDay: null,
     activeDays: [], dailyChestDay: null, ladderBeaten: 0, ladderWins: {}, chests: [], shards: 0, unlockedCards: [],
     ownedBoards: [], pityCounter: 0, chestsOpened: 0, legendaryChests: 0, levelChestsGranted: 1, arenaChestsGranted: 1,
-    puzzleChestsGranted: 0, winChestDay: null, winChestsToday: 0, tutorialChestGiven: false, puzzleStreak: 0,
+    puzzleChestsGranted: 0, winChestDay: null, winChestsToday: 0, tutorialChestGiven: false, firstFriendChestGiven: false, puzzleStreak: 0,
     bestPuzzleStreak: 0, rushBest: 0, rushPlayed: 0, roadClaimed: [], selectedTitle: null, selectedFrame: null,
     seenCards: [], streakFreezes: 1, frozenDays: [], freezeNotice: null, streakMilestones: [], shardsEarned: 0,
     shardGoal: null, shopDay: null, shopBought: [], shopFrames: [], claimedAchievements: [], cardsByType: {},

@@ -1,140 +1,203 @@
-// RulesView and DetailSheet of the app: goal, quick facts, a jump bar and three groups of chapters with small visuals.
-import { useState } from 'react'
+// RulesView and DetailSheet of the app: four tabs (basics, cards, battle, progress) with small visuals.
+import { useRef, useState } from 'react'
 import { pieceImage, cardArt } from '../art'
 import { CARDS, CARD_IDS, ROLES, TIERS, ULTS, cardCost, isUlt, ultCost, KEEPS_TURN, type CardId, type Role, type UltId } from '../game/catalog'
 import { E } from '../engine'
 import { useI18n } from '../i18n'
 import { Icon } from '../ui/Icon'
-import { ChestView, ManaDrop, Rays, Sheet } from '../ui/kit'
+import { ChestView, ManaDrop, Sheet } from '../ui/kit'
 import { openOverlay, closeSheet } from '../nav'
 
 type Item = { icon?: string; title?: string; text: string; args?: Array<string | number> }
 type Visual = 'turn' | 'mana' | 'deck' | 'ults' | 'trophies' | 'chests' | 'cards'
-type Chapter = { id: string; title: string; targs?: Array<string | number>; tint: string; icon: string; items: Item[]; visual?: Visual; wide?: boolean }
+type Chapter = { id: string; title: string; targs?: Array<string | number>; tint: string; icon: string; items: Item[]; visual?: Visual; steps?: boolean }
 type Tile = { icon: string; tint: string; title: string; text: string }
-type Group = { id: string; tab: string; icon: string; chapters: Chapter[]; tiles?: Tile[]; visual?: Visual }
+type TabId = 'basics' | 'cards' | 'battle' | 'progress'
 
 const cooldownAll = (E.CFG.cooldown as Record<string, number>).all ?? 2
 const cooldownBolt = (E.CFG.cooldown as Record<string, number>).lightning ?? 3
 
-// "So wird gespielt" carries the real rules; battles and progress are a few one-line tiles.
-const GROUPS: Group[] = [
-  { id: 'play', tab: 'So wird gespielt', icon: 'book', chapters: [
-    { id: 'turn', title: 'Ablauf eines Zuges', tint: '#6E9BF0', icon: 'arrowCounter', visual: 'turn', items: [
-      { text: 'Zu Beginn deines Zuges bekommst du +1 Mana.' },
-      { text: 'Dann wählst du eine Aktion: Schachzug, Karte oder Ultimate.' },
-      { text: 'Bonuskarten und die Festung beenden deinen Zug nicht – danach folgt noch ein Figurzug.' },
-    ] },
-    { id: 'mana', title: 'Mana (maximal {0})', targs: [10], tint: '#B9A2FF', icon: 'drop', visual: 'mana', items: [
-      { icon: 'arrowCounter', title: 'Jeder Zug', text: '+1 Mana zu Beginn deines Zuges' },
-      { icon: 'star', title: 'Guter Zug', text: '+1 extra für Schlagen oder Schach – höchstens +1 pro Zug' },
-    ] },
-    { id: 'deck', title: 'Deck', tint: '#6E9BF0', icon: 'stack', visual: 'deck', items: [
-      { icon: 'stack', title: '4 Karten + 1 Ultimate', text: 'Bleiben die ganze Partie auf der Hand – es wird nicht nachgezogen.' },
-      { icon: 'hourglass', title: 'Abklingzeit', text: 'Nach dem Ausspielen lädt eine Karte {0} eigene Züge nach (Blitz {1}), bevor du sie wieder spielen kannst.', args: [cooldownAll, cooldownBolt] },
-    ] },
-    { id: 'ult', title: 'Ultimate', tint: '#F2C14E', icon: 'sparkles', visual: 'ults', items: [
-      { text: 'Lädt sich mit Mana auf und ersetzt deinen Zug. Neue Ultimates gibt es in neuen Arenen.' },
-    ] },
-    { id: 'cards', title: 'Karten', tint: '#F07A72', icon: 'sparkle', visual: 'cards', wide: true, items: [] },
-    { id: 'territory', title: 'Gebiet', tint: '#4FBF8A', icon: 'grid', items: [
-      { text: 'Jede Figur beherrscht ihr Feld und die 8 Nachbarfelder. Dein Gebiet ist heller getönt – Mana bringt es nicht.' },
-    ] },
-    { id: 'safety', title: 'Schutzregeln', tint: '#6E9BF0', icon: 'shield', items: [
-      { text: 'Der König ist immun gegen Karten und Ultimates. Die Dame ist immun gegen Frost und Meteor.' },
-      { text: 'Karten und Ultimates geben kein Schach.' },
-      { text: 'Frost erzwingt nie ein Patt.' },
-    ] },
-    { id: 'draw', title: 'Remis', tint: '#8DA0C4', icon: 'equal', items: [
-      { text: 'Durch Patt, dreifache Wiederholung, die 50-Züge-Regel oder ein angenommenes Angebot.' },
-    ] },
+// Four calm tabs (RulesView in the app): the basics first, the card list on its own page, battles and progress as one-liners.
+// Rarely needed rules sit folded under „Gut zu wissen“, so the first page shows only what a new player needs.
+const TABS: Array<{ id: TabId; label: string; icon: string }> = [
+  { id: 'basics', label: 'Grundlagen', icon: 'book' },
+  { id: 'cards', label: 'Karten', icon: 'stack' },
+  { id: 'battle', label: 'Kampf', icon: 'bolt' },
+  { id: 'progress', label: 'Fortschritt', icon: 'trophy' },
+]
+
+const BASICS: Chapter[] = [
+  { id: 'turn', title: 'Ablauf eines Zuges', tint: '#6E9BF0', icon: 'arrowCounter', visual: 'turn', steps: true, items: [
+    { text: 'Zu Beginn deines Zuges bekommst du +1 Mana.' },
+    { text: 'Dann wählst du eine Aktion: Schachzug, Karte oder Ultimate.' },
+    { text: 'Bonuskarten und die Festung beenden deinen Zug nicht – danach folgt noch ein Figurzug.' },
   ] },
-  { id: 'battle', tab: 'Kampf & Gegner', icon: 'bolt', visual: 'trophies', chapters: [], tiles: [
-    { icon: 'person2', tint: '#F07A72', title: 'Kampf', text: 'Ein Online-Gegner mit ähnlich vielen Trophäen. 5 Minuten pro Spieler.' },
-    { icon: 'trophy', tint: '#F2C14E', title: 'Trophäen', text: 'Gegen Stärkere gewinnst du mehr, gegen Schwächere weniger.' },
-    { icon: 'stairs', tint: '#C084FC', title: 'Bot-Leiter', text: 'Zwölf Bots der Reihe nach besiegen – für XP und Truhen.' },
+  { id: 'mana', title: 'Mana (maximal {0})', targs: [10], tint: '#B9A2FF', icon: 'drop', visual: 'mana', items: [
+    { icon: 'arrowCounter', title: 'Jeder Zug', text: '+1 Mana zu Beginn deines Zuges' },
+    { icon: 'star', title: 'Guter Zug', text: '+1 extra für Schlagen oder Schach – höchstens +1 pro Zug' },
   ] },
-  { id: 'progress', tab: 'Fortschritt', icon: 'trophy', visual: 'chests', chapters: [], tiles: [
-    { icon: 'box', tint: '#C084FC', title: 'Truhen', text: 'Aus Siegen, Tageszielen, Levels und dem Trophäenpfad. Jeder Tap kann sie aufwerten.' },
-    { icon: 'puzzle', tint: '#F2C14E', title: 'Puzzles & XP', text: 'Jedes gelöste Puzzle bringt XP, das Tagespuzzle einen Bonus.' },
-    { icon: 'flame', tint: '#FF8A3D', title: 'Tägliche Flammen', text: 'Ein Puzzle oder eine Partie pro Tag hält deine Serie am Leben.' },
-    { icon: 'diamond', tint: '#7FE3FF', title: 'Splitter & Laden', text: 'Sammeln und im Laden gegen Karten, Avatare und Truhen tauschen.' },
+  { id: 'deck', title: 'Deck', tint: '#6E9BF0', icon: 'stack', visual: 'deck', items: [
+    { icon: 'stack', title: '4 Karten + 1 Ultimate', text: 'Bleiben die ganze Partie auf der Hand – es wird nicht nachgezogen.' },
+    { icon: 'hourglass', title: 'Abklingzeit', text: 'Nach dem Ausspielen lädt eine Karte {0} eigene Züge nach (Blitz {1}), bevor du sie wieder spielen kannst.', args: [cooldownAll, cooldownBolt] },
   ] },
+]
+
+const MORE: Chapter[] = [
+  { id: 'territory', title: 'Gebiet', tint: '#4FBF8A', icon: 'grid', items: [
+    { text: 'Jede Figur beherrscht ihr Feld und die 8 Nachbarfelder. Dein Gebiet ist heller getönt – Mana bringt es nicht.' },
+  ] },
+  { id: 'safety', title: 'Schutzregeln', tint: '#6E9BF0', icon: 'shield', items: [
+    { text: 'Der König ist immun gegen Karten und Ultimates. Die Dame ist immun gegen Frost und Meteor.' },
+    { text: 'Karten und Ultimates geben kein Schach.' },
+    { text: 'Frost erzwingt nie ein Patt.' },
+  ] },
+  { id: 'draw', title: 'Remis', tint: '#8DA0C4', icon: 'equal', items: [
+    { text: 'Durch Patt, dreifache Wiederholung, die 50-Züge-Regel oder ein angenommenes Angebot.' },
+  ] },
+]
+
+const BATTLE: Tile[] = [
+  { icon: 'person2', tint: '#F07A72', title: 'Kampf', text: 'Ein Online-Gegner mit ähnlich vielen Trophäen. 5 Minuten pro Spieler.' },
+  { icon: 'trophy', tint: '#F2C14E', title: 'Trophäen', text: 'Gegen Stärkere gewinnst du mehr, gegen Schwächere weniger.' },
+  { icon: 'stairs', tint: '#C084FC', title: 'Bot-Leiter', text: 'Zwölf Bots der Reihe nach besiegen – für XP und Truhen.' },
+]
+const PROGRESS: Tile[] = [
+  { icon: 'box', tint: '#C084FC', title: 'Truhen', text: 'Aus Siegen, Tageszielen, Levels und dem Trophäenpfad. Jeder Tap kann sie aufwerten.' },
+  { icon: 'puzzle', tint: '#F2C14E', title: 'Puzzles & XP', text: 'Jedes gelöste Puzzle bringt XP, das Tagespuzzle einen Bonus.' },
+  { icon: 'flame', tint: '#FF8A3D', title: 'Tägliche Flammen', text: 'Ein Puzzle oder eine Partie pro Tag hält deine Serie am Leben.' },
+  { icon: 'diamond', tint: '#7FE3FF', title: 'Splitter & Laden', text: 'Sammeln und im Laden gegen Karten, Avatare und Truhen tauschen.' },
 ]
 
 export function RulesSheet({ onClose }: { onClose: () => void }) {
   const { t } = useI18n()
   const [detail, setDetail] = useState<string | null>(null)
-  const [tab, setTab] = useState(GROUPS[0].id)
-  const group = GROUPS.find(g => g.id === tab)!
-  const mate: Array<[number, number, 'w' | 'b', string]> = [[0, 3, 'b', 'k'], [1, 1, 'w', 'q'], [2, 3, 'w', 'k']]
+  const [tab, setTab] = useState<TabId>('basics')
+  const [open, setOpen] = useState<string | null>(null)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const pick = (id: TabId) => {
+    setTab(id)
+    pageRef.current?.closest('.sheet')?.scrollTo({ top: 0 })
+  }
+  const tabs = (
+    <div className="rules3-tabs" role="tablist">
+      {TABS.map(x => (
+        <button key={x.id} role="tab" aria-selected={tab === x.id} className={tab === x.id ? 'on' : ''} onClick={() => pick(x.id)}>
+          <Icon name={x.icon} size={14} /><span>{t(x.label)}</span>
+        </button>
+      ))}
+    </div>
+  )
   return (
-    <Sheet title={t('Regeln')} onClose={onClose} tall wide>
-      <div className="rules2">
-        <header className="rules2-hero">
-          <span className="rules2-rays"><Rays size={360} style={{ opacity: 0.35 }} /></span>
-          <div className="rules-board" aria-hidden="true">
-            {Array.from({ length: 16 }, (_, i) => {
-              const row = Math.floor(i / 4), col = i % 4
-              const p = mate.find(([r, c]) => r === row && c === col)
-              return <div key={i} className={(row + col) % 2 ? 'd' : 'l'}>{p && <img src={pieceImage(p[2], p[3])} alt="" className={p[3] === 'k' && p[2] === 'b' ? 'mated' : ''} />}</div>
+    <Sheet title={t('Regeln')} onClose={onClose} tall wide sub={tabs}>
+      <div className="rules3" key={tab} ref={pageRef}>
+        {tab === 'basics' && <>
+          <header className="rules3-goal">
+            <MateBoard />
+            <div className="rules3-goal-text">
+              <span className="rules3-kicker">{t('Ziel')}</span>
+              <b>{t('Setze den gegnerischen König matt.')}</b>
+              <span>{t('Schach mit Karten, Mana und Ultimates.')}</span>
+            </div>
+          </header>
+          {BASICS.map(ch => <ChapterCard key={ch.id} ch={ch} onCard={setDetail} />)}
+          <section className="rules3-card" style={{ ['--tint' as string]: '#F2C14E' }}>
+            <ChapterHead icon="sparkles" title={t('Ultimate')} />
+            <p className="rules3-text">{t('Lädt sich mit Mana auf und ersetzt deinen Zug. Neue Ultimates gibt es in neuen Arenen.')}</p>
+            <button className="rules3-link" onClick={() => pick('cards')}>{t('Alle Karten ansehen')}<Icon name="chevronRight" size={14} /></button>
+          </section>
+          <h3 className="rules3-section">{t('Gut zu wissen')}</h3>
+          <div className="rules3-list">
+            {MORE.map(ch => {
+              const on = open === ch.id
+              return (
+                <div key={ch.id} className={`rules3-fold${on ? ' on' : ''}`} style={{ ['--tint' as string]: ch.tint }}>
+                  <button className="rules3-fold-head" aria-expanded={on} onClick={() => setOpen(on ? null : ch.id)}>
+                    <span className="rules3-ico"><Icon name={ch.icon} size={15} /></span>
+                    <b>{t(ch.title)}</b>
+                    <Icon name="chevronDown" size={14} />
+                  </button>
+                  {on && <div className="rules3-fold-body">{ch.items.map((it, i) => <p key={i} className="rules3-bullet">{t(it.text)}</p>)}</div>}
+                </div>
+              )
             })}
           </div>
-          <div className="rules2-goal">
-            <span className="rules-kicker">{t('Ziel')}</span>
-            <b>{t('Setze den gegnerischen König matt.')}</b>
-            <div className="rules-facts">
-              <span><Icon name="drop" size={13} />{t('+1 Mana pro Zug')}</span>
-              <span><Icon name="stack" size={13} />{t('4 Karten + 1 Ultimate')}</span>
-              <span><Icon name="timer" size={13} />{t('5 Min. pro Spieler')}</span>
-            </div>
+        </>}
+
+        {tab === 'cards' && <>
+          <div className="rules3-info">
+            <span><Icon name="handPoint" size={13} />{t('Tippe auf eine Karte für alle Details.')}</span>
+            <span><span className="rules-card-bonus"><Icon name="walk" size={11} /></span>{t('Danach noch ein Zug')}</span>
           </div>
-        </header>
+          <RulesVisual kind="cards" onCard={setDetail} />
+          <h3 className="rules3-section">{t('Ultimates')}</h3>
+          <section className="rules3-card" style={{ ['--tint' as string]: '#F2C14E' }}>
+            <p className="rules3-text">{t('Lädt sich mit Mana auf und ersetzt deinen Zug. Neue Ultimates gibt es in neuen Arenen.')}</p>
+            <RulesVisual kind="ults" onCard={setDetail} />
+          </section>
+        </>}
 
-        <div className="rules2-tabs" role="tablist">
-          {GROUPS.map(g => (
-            <button key={g.id} role="tab" aria-selected={tab === g.id} className={tab === g.id ? 'on' : ''} onClick={() => setTab(g.id)}>
-              <Icon name={g.icon} size={14} />{t(g.tab)}
-            </button>
-          ))}
-        </div>
+        {tab === 'battle' && <>
+          <div className="rules3-banner"><RulesVisual kind="trophies" onCard={setDetail} /></div>
+          <TileList tiles={BATTLE} />
+        </>}
 
-        <div className="rules2-page" key={tab}>
-          {group.visual && <div className="rules2-banner"><RulesVisual kind={group.visual} onCard={setDetail} /></div>}
-          {group.tiles && (
-            <div className="rules2-tiles">
-              {group.tiles.map(x => (
-                <div key={x.title} className="rules2-tile" style={{ ['--tint' as string]: x.tint }}>
-                  <span className="rules-ch-badge"><Icon name={x.icon} size={20} /></span>
-                  <div><b>{t(x.title)}</b><span>{t(x.text)}</span></div>
-                </div>
-              ))}
-            </div>
-          )}
-          {group.chapters.length > 0 && (
-            <div className="rules2-grid">
-              {group.chapters.map((ch, n) => (
-                <article key={ch.id} className={`rules2-ch${ch.wide ? ' wide' : ''}`} style={{ ['--tint' as string]: ch.tint }}>
-                  <div className="rules-ch-head">
-                    <span className="rules-ch-badge"><Icon name={ch.icon} size={20} /></span>
-                    <h4>{t(ch.title, ...(ch.targs ?? []))}</h4>
-                    <span className="rules-ch-n">{String(n + 1).padStart(2, '0')}</span>
-                  </div>
-                  {ch.visual && <RulesVisual kind={ch.visual} onCard={setDetail} />}
-                  {ch.items.map((it, i) => it.title ? (
-                    <div key={i} className="rules-line">
-                      <span className="rules-line-ico"><Icon name={it.icon ?? 'sparkle'} size={14} /></span>
-                      <div><b>{t(it.title)}</b><span>{t(it.text, ...(it.args ?? []))}</span></div>
-                    </div>
-                  ) : <p key={i} className="rules-note">{t(it.text, ...(it.args ?? []))}</p>)}
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
+        {tab === 'progress' && <>
+          <div className="rules3-banner"><RulesVisual kind="chests" onCard={setDetail} /></div>
+          <TileList tiles={PROGRESS} />
+        </>}
       </div>
       {detail && <CardDetail id={detail} onClose={() => setDetail(null)} />}
     </Sheet>
+  )
+}
+
+/** Small mate picture: queen and king trap the black king in the corner. */
+function MateBoard() {
+  const mate: Array<[number, number, 'w' | 'b', string]> = [[0, 3, 'b', 'k'], [1, 1, 'w', 'q'], [2, 3, 'w', 'k']]
+  return (
+    <div className="rules-board" aria-hidden="true">
+      {Array.from({ length: 16 }, (_, i) => {
+        const row = Math.floor(i / 4), col = i % 4
+        const p = mate.find(([r, c]) => r === row && c === col)
+        return <div key={i} className={(row + col) % 2 ? 'd' : 'l'}>{p && <img src={pieceImage(p[2], p[3])} alt="" className={p[3] === 'k' && p[2] === 'b' ? 'mated' : ''} />}</div>
+      })}
+    </div>
+  )
+}
+
+function ChapterHead({ icon, title }: { icon: string; title: string }) {
+  return <div className="rules3-head"><span className="rules3-ico"><Icon name={icon} size={15} /></span><h4>{title}</h4></div>
+}
+
+function ChapterCard({ ch, onCard }: { ch: Chapter; onCard: (id: string) => void }) {
+  const { t } = useI18n()
+  return (
+    <section className="rules3-card" style={{ ['--tint' as string]: ch.tint }}>
+      <ChapterHead icon={ch.icon} title={t(ch.title, ...(ch.targs ?? []))} />
+      {ch.visual && <div className="rules3-visual"><RulesVisual kind={ch.visual} onCard={onCard} /></div>}
+      {ch.steps
+        ? <ol className="rules3-steps">{ch.items.map((it, i) => <li key={i}><span>{i + 1}</span><p>{t(it.text, ...(it.args ?? []))}</p></li>)}</ol>
+        : ch.items.map((it, i) => (
+          <div key={i} className="rules3-line">
+            <b>{t(it.title ?? '')}</b>
+            <span>{t(it.text, ...(it.args ?? []))}</span>
+          </div>
+        ))}
+    </section>
+  )
+}
+
+function TileList({ tiles }: { tiles: Tile[] }) {
+  const { t } = useI18n()
+  return (
+    <div className="rules3-list">
+      {tiles.map(x => (
+        <div key={x.title} className="rules3-row" style={{ ['--tint' as string]: x.tint }}>
+          <span className="rules3-ico big"><Icon name={x.icon} size={18} /></span>
+          <div><b>{t(x.title)}</b><span>{t(x.text)}</span></div>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -193,8 +256,7 @@ function RulesVisual({ kind, onCard }: { kind: Visual; onCard: (id: string) => v
       )
     case 'cards':
       return (
-        <>
-          <div className="rules-roles">
+        <div className="rules-roles">
             {ROLE_ORDER.map(role => {
               const ids = CARD_IDS.filter(c => CARDS[c].role === role)
               if (!ids.length) return null
@@ -214,9 +276,7 @@ function RulesVisual({ kind, onCard }: { kind: Visual; onCard: (id: string) => v
                 </div>
               )
             })}
-          </div>
-          <span className="rules-hint"><Icon name="handPoint" size={12} />{t('Tippe auf eine Karte für alle Details.')}<span className="rules-card-bonus inline"><Icon name="walk" size={11} /></span>{t('Danach noch ein Zug')}</span>
-        </>
+        </div>
       )
   }
 }

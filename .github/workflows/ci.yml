@@ -156,6 +156,7 @@ jobs:
           node scenario.js
           node flow.mjs
           node friends.js
+          node bots.js
 
   dependencies:
     name: Dependencies

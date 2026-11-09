@@ -35,6 +35,8 @@ extension Notification.Name {
     static let openPendingChest = Notification.Name("RookRaidOpenPendingChest")
     /// Freundesliste öffnen (Push-Tipp, Einladungslink, Hinweis oben). Objekt: optional ein Freundescode
     static let showFriends = Notification.Name("RookRaidShowFriends")
+    /// Freundschaftsspiel steht bereit. Objekt: die Partie-ID (UUID)
+    static let startFriendMatch = Notification.Name("RookRaidStartFriendMatch")
 }
 
 struct GameSession: Identifiable {
@@ -152,6 +154,7 @@ struct RootView: View {
                     store.checkStreak()
                     Task { await FlameReminders.sync() }
                     friends.startPolling()
+            FriendMatchCenter.shared.start()
                     if session == nil, puzzleSession == nil {
                         Task { await OnlineAccount.shared.reload() }
                     }
@@ -250,7 +253,13 @@ struct RootView: View {
             }
 
             if !showSplash, session == nil, puzzleSession == nil, friends.news != nil {
-                FriendBanner { openFriends(nil) }
+                FriendBanner(onOpen: { openFriends(nil) }, onOpenChest: { id in
+                    tab = .play
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 150_000_000)
+                        NotificationCenter.default.post(name: .openPendingChest, object: id)
+                    }
+                })
                     .zIndex(9.5)
             }
 
@@ -262,6 +271,8 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsSheet() }
         .modifier(FriendsLinks(sheet: $friendsSheet, friends: friends, account: account, open: openFriends))
+        .modifier(FriendMatchLinks(center: FriendMatchCenter.shared, friendsSheet: $friendsSheet, tab: $tab,
+                                   quiet: showSplash || session != nil || puzzleSession != nil))
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in showSettings = true }
         .onReceive(NotificationCenter.default.publisher(for: .showPuzzles)) { _ in tab = .puzzles }
         .onReceive(NotificationCenter.default.publisher(for: .showTrophyRoad)) { _ in tab = .arena }
@@ -382,7 +393,9 @@ private struct FriendsLinks: ViewModifier {
             // Konto da (neu angelegt, angemeldet): Freunde laden, Push anmelden, wartende Einladung zeigen.
             .onChange(of: account.status) { _ in
                 Task { @MainActor in
+                    if !account.hasAccount { FriendMatchCenter.shared.reset() }
                     await friends.refresh()
+                    await FriendMatchCenter.shared.touch()
                     await PushRegistration.shared.syncIfAllowed()
                     if account.hasAccount, let code = friends.pendingInvite {
                         friends.pendingInvite = nil
@@ -554,8 +567,14 @@ struct HomeView: View {
             .onReceive(NotificationCenter.default.publisher(for: .startQuickBattle)) { _ in
                 afterSheet { quickBattle() }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .openPendingChest)) { _ in
-                afterSheet { chestToOpen = store.pendingChests.first }
+            .onReceive(NotificationCenter.default.publisher(for: .startFriendMatch)) { note in
+                guard let id = note.object as? UUID else { return }
+                afterSheet { Task { await startFriendMatch(id) } }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .openPendingChest)) { note in
+                // Mit ID (z. B. die Freundestruhe): genau diese Truhe, sonst die erste wartende
+                let wanted = (note.object as? UUID).flatMap { id in store.pendingChests.first { $0.id == id } }
+                afterSheet { chestToOpen = wanted ?? store.pendingChests.first }
             }
             .fullScreenCover(item: $chestToOpen) { c in ChestOpeningView(start: c) }
             .sheet(isPresented: $showLadder) {
@@ -767,11 +786,36 @@ struct HomeView: View {
         guard let level = found.botLevel, let id = found.matchId else { return }
         parkedGame = nil
         store.clearGame()
-        let play = OnlineBotPlay(matchId: id, opponent: found.opponent)
+        let play = OnlineBotPlay(matchId: id, opponent: found.opponent, deck: found.botDeck,
+                                 ultimate: found.botUltimate, rated: found.rated)
         session = GameSession(vm: GameViewModel(mode: .bot(level),
                                                 humanColor: found.youAreWhite ? .white : .black,
                                                 timeControl: OnlineConfig.timeControl,
                                                 onlineBotPlay: play))
+    }
+
+    /// Freundschaftsspiel: gegen einen Menschen wie eine Online-Partie, gegen einen Bot-Spieler wie der Bot-Ersatz
+    /// (der Bot rechnet auf dem Gerät, ohne Trophäen).
+    private func startFriendMatch(_ id: UUID) async {
+        guard session == nil, let client = Backend.client else { return }
+        guard let info = try? await OnlineMatches.load(id: id, client: client) else {
+            matchError = L("Keine Verbindung zum Server.")
+            return
+        }
+        if !info.isBot {
+            await startHumanMatch(id)
+            return
+        }
+        let mine = info.myColor
+        var card = info.opponent
+        card.bot = true
+        let found = MatchFound(kind: .bot, opponent: card,
+                               botLevel: info.botLevel ?? BotLevel.forTrophies(card.trophies),
+                               youAreWhite: mine == .white, matchId: id,
+                               botDeck: info.record.decks[mine.opponent.rawValue]?.compactMap(CardType.init(rawValue:)),
+                               botUltimate: info.record.ultimates[mine.opponent.rawValue].flatMap(Ultimate.init(rawValue:)),
+                               rated: info.rated)
+        startFoundMatch(found)
     }
 
     private func startHumanMatch(_ id: UUID, resumed: Bool = false) async {

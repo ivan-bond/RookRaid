@@ -26,9 +26,11 @@ import { ShopSheet } from './screens/Shop'
 import { FlameIgnition, FlameSheet, FreezeNotice } from './screens/Flame'
 import { appleClientId } from './supabase'
 import { isFirstVisit, markVisited } from './cookies'
-import { AppleErrorDialog, AppleLoginButton } from './screens/Login'
-import { FriendBanner, FriendProfileSheet, FriendsSheet } from './screens/Friends'
+import { AppleErrorDialog, AppleLoginButton, SignInButtons } from './screens/Login'
+import { FriendBanner, FriendProfileSheet, FriendsSheet, OpenInAppBar } from './screens/Friends'
 import * as Friends from './friends'
+import * as FriendMatch from './friendMatch'
+import { FriendMatchInviteBanner, FriendMatchWaiting, installFriendMatchStart } from './screens/FriendMatch'
 import { syncPush } from './push'
 
 const TABS: Array<[Tab, string, string]> = [
@@ -74,9 +76,11 @@ export function App() {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [])
   // Friends and push follow the account: load the list, register this browser for push (if allowed).
+  useEffect(() => { installFriendMatchStart() }, [])
   useEffect(() => {
-    if (account.status !== 'anonymous' && account.status !== 'apple') { void Friends.refreshFriends(); return }
+    if (account.status !== 'anonymous' && account.status !== 'secured') { void Friends.refreshFriends(); FriendMatch.reset(); return }
     void Friends.refreshFriends()
+    void FriendMatch.touch()
     void syncPush()
     const code = Friends.consumeInvite()
     if (code) openSheet('friends', code)
@@ -197,6 +201,9 @@ export function App() {
       )}
       {applePrompt && <AppleSecure onClose={() => setApplePrompt(false)} />}
       {!overlay && <FriendBanner />}
+      {!overlay && <FriendMatchInviteBanner />}
+      <FriendMatchWaiting />
+      <OpenInAppBar />
       <AppleErrorDialog />
     </div>
   )
@@ -226,8 +233,8 @@ function AppleSecure({ onClose }: { onClose: () => void }) {
       <div className="invite-box slide-up">
         <img src={rockyFace} alt="" className="rocky-face bob" />
         <div className="rocky-bubble">
-          <p>{t('Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.')} {t('Mit Apple kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden.')}</p>
-          <button className="chunky sm apple-btn" onClick={() => { onClose(); void Online.linkApple().catch(() => undefined) }}><Icon name="apple" size={16} />{t('Mit Apple sichern')}</button>
+          <p>{t('Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.')} {t('Mit Apple oder Google kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden.')}</p>
+          <SignInButtons highlighted={false} />
           <button className="ghost" onClick={onClose}>{t('Später')}</button>
         </div>
       </div>

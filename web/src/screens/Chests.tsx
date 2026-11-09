@@ -36,6 +36,7 @@ function reasonHeadline(c: S.Chest, t: (k: string, ...a: Array<string | number>)
     case 'road': return Number.isFinite(n) ? t('{0} Trophäen erreicht!', n) : t('Trophäenpfad!')
     case 'streak': return Number.isFinite(n) ? t('{0} Tage Flamme!', n) : t('Flamme gehalten!')
     case 'shop': return t('Frisch aus dem Laden!')
+    case 'friend': return t('Dein erster Freund!')
   }
 }
 

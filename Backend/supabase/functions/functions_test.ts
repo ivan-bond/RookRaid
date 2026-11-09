@@ -305,3 +305,23 @@ Deno.test("push-dispatch: nur angemeldet, jede Nachricht an jedes Gerät, abgeme
   assertEquals(delivered, ["t-ios:Ivan möchte mit dir befreundet sein.", "t-web:Ivan vuole essere tuo amico."]);
   assertEquals(rpc[1], { name: "drop_push_tokens", args: { p_tokens: ["t-ios"] } });
 });
+
+Deno.test("push-dispatch: Wartungsjob mit Geheimnis verschickt die Nachrichten der Bot-Spieler", async () => {
+  const rpc: string[] = [];
+  const claimed = [{ kind: "friend_accepted", actor_name: "Turmfalke", token: "t-web", platform: "web", environment: null, subscription: { endpoint: "https://x", keys: { p256dh: "a", auth: "b" } }, locale: "en" }];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: null }, error: { message: "bad" } }) },
+    rpc: async (name: string) => { rpc.push(name); return { data: name === "claim_bot_push_outbox" ? claimed : null, error: null }; },
+  } as unknown as SupabaseClient;
+  const delivered: string[] = [];
+  const deliver = async (t: PushTarget, m: { body: string }) => { delivered.push(`${t.token}:${m.body}`); return "ok" as const; };
+  const secret = "s".repeat(40);
+  const env = (k: string) => k === "CRON_SECRET" ? secret : undefined;
+  const cron = (value: string) => new Request("http://x/p", { method: "POST", headers: { "x-cron-secret": value } });
+  assertEquals((await pushDispatch(cron("wrong"), client, deliver, env)).status, 401);
+  assertEquals((await pushDispatch(cron(secret), client, deliver, () => undefined)).status, 401);
+  assertEquals(rpc.length, 0);
+  assertEquals(await bodyOf(await pushDispatch(cron(secret), client, deliver, env)), { sent: 1 });
+  assertEquals(rpc, ["claim_bot_push_outbox"]);
+  assertEquals(delivered, ["t-web:Turmfalke accepted your friend request."]);
+});

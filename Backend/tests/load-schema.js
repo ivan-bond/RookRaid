@@ -1,5 +1,5 @@
 // Lädt Stub, alle Migrationen und den Regel-Seed. pg_cron gibt es im Test-Postgres nicht;
-// die Zeile „create extension pg_cron“ wird übersprungen, cron_stub.sql liefert die beiden Aufrufe.
+// die Zeile „create extension pg_cron“ wird übersprungen, cron_stub.sql liefert die beiden Aufrufe. pg_net ebenso.
 const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
@@ -8,7 +8,8 @@ const root = path.join(__dirname, '..', 'supabase');
 
 function sqlOf(file) {
   return fs.readFileSync(file, 'utf8')
-    .replace(/create extension if not exists pg_cron with schema pg_catalog;\s*/gi, '-- pg_cron: see cron_stub.sql\n');
+    .replace(/create extension if not exists pg_cron with schema pg_catalog;\s*/gi, '-- pg_cron: see cron_stub.sql\n')
+    .replace(/create extension if not exists pg_net with schema extensions;\s*/gi, '-- pg_net: only on Supabase (dispatch_bot_push skips without it)\n');
 }
 
 (async () => {

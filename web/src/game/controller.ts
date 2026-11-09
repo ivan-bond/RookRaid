@@ -236,6 +236,12 @@ export class GameController {
   get isOnlineBot() { return !!this.online?.bot }
   /** A real person online. A stand-in bot is shown openly as the training opponent it is (its name, portrait, pieces). */
   get onlineOpponent(): Online.PlayerCard | null { return this.online && !this.online.bot ? this.online.opponent : null }
+  /** A bot player with a profile (openly marked "Bot") instead of the training opponent. */
+  get botPlayerCard(): Online.PlayerCard | null { return this.online?.bot && this.online.opponent.bot ? this.online.opponent : null }
+  /** How the opponent is shown: a person or a bot player (name, avatar, trophies). null = a bot character. */
+  get opponentCard(): Online.PlayerCard | null { return this.onlineOpponent ?? this.botPlayerCard }
+  /** Friendly match: no trophies, no win chest; counts only for the record between the two. */
+  get isFriendly() { return !!this.online && this.online.rated === false }
   get aiSide(): Side | null {
     if (this.mode.kind === 'hotseat' || this.mode.kind === 'online') return null
     return this.human === 'w' ? 'b' : 'w'
@@ -263,7 +269,7 @@ export class GameController {
     const p = S.getProfile()
     if (this.mode.kind === 'tutorial' && side === 'b') return botById('medium')
     // Stand-in for an online opponent: standard pieces – a bot's piece set would give it away (E1, like the app)
-    if (this.onlineOpponent && side !== this.human) return null
+    if (this.opponentCard && side !== this.human) return null
     if (this.isBotMode && side !== this.human && p.settings.botSkins) return this.bot
     if (side === this.human || this.mode.kind === 'hotseat') return S.activeSkin()
     return null
@@ -271,7 +277,7 @@ export class GameController {
   name(side: Side): string {
     const p = S.getProfile()
     if (this.mode.kind === 'tutorial') return side === 'w' ? S.shownName(p.name, t) : t('Mila')
-    if (this.onlineOpponent && side !== this.human) return this.onlineOpponent.name || t('Gegner')
+    if (this.opponentCard && side !== this.human) return this.opponentCard.name || t('Gegner')
     if (this.isBotMode) return side === this.human ? (S.shownName(p.name, t)) : t(this.bot!.name)
     if (this.online) return p.name
     return side === 'w' ? t('Weiß') : t('Schwarz')
@@ -874,9 +880,10 @@ export class GameController {
     if (this.mode.kind !== 'practice' && result) {
       delta = S.record({
         result, rated: this.mode.kind === 'bot' && !serverRated,
-        opponent: this.onlineOpponent ? this.onlineOpponent.name : bot ? botRecordName(bot) : 'Zu zweit',
+        opponent: this.opponentCard ? this.opponentCard.name : bot ? botRecordName(bot) : 'Zu zweit',
         reason: REASON[this.endReason ?? ''] ?? '', moves: this.actions.length, cardsPlayed: this.cardsPlayedByHuman, replayID,
-        countsForStats: this.mode.kind === 'ladder' || serverRated, opponentTrophies: bot ? botRating(bot) : undefined,
+        countsForStats: (this.mode.kind === 'ladder' || serverRated) && !this.isFriendly,
+        opponentTrophies: this.opponentCard ? this.opponentCard.trophies : bot ? botRating(bot) : undefined,
         matchId: this.online?.matchId,
       })
     }
@@ -892,7 +899,7 @@ export class GameController {
     let ladder: ReturnType<typeof S.recordLadderWin> | null = null
     if (this.mode.kind === 'ladder' && result === 'win' && bot) ladder = S.recordLadderWin(bot)
     let winChestsUsedUp = false
-    if ((this.mode.kind === 'bot' || serverRated) && result === 'win') winChestsUsedUp = !S.grantWinChest()
+    if ((this.mode.kind === 'bot' || serverRated) && !this.isFriendly && result === 'win') winChestsUsedUp = !S.grantWinChest()
     const lit = this.actions.length >= 10 ? S.registerActivity() : null
     if (this.isBotMode && this.mode.kind !== 'practice' && S.dailyChestReady()) S.claimDailyChest()
     const earned = S.getProfile().chests.filter(c => !chestsBefore.has(c.id))
@@ -903,13 +910,13 @@ export class GameController {
       else sound('notify')
     }
     const info: GameOverInfo = {
-      title, subtitle: this.endReason === 'draw' ? t('durch Remis') : reasonText,
+      title, subtitle: (this.isFriendly ? t('Freundschaftsspiel') + ' · ' : '') + (this.endReason === 'draw' ? t('durch Remis') : reasonText),
       result: this.isBotMode || this.online ? result : null, trophyDelta: delta,
-      rated: this.mode.kind === 'bot' || serverRated, streakLit: lit, ladderXP: ladder?.xp ?? null,
+      rated: (this.mode.kind === 'bot' || serverRated) && !this.isFriendly, streakLit: lit, ladderXP: ladder?.xp ?? null,
       ladderUnlocked: ladder?.unlocked ? t(ladder.unlocked.name) : null,
       skinUnlocked: this.online || !bot ? null : (!skinBefore && S.isSkinUnlocked(bot) ? bot : null),
       chests: earned, winChestsUsedUp, roadReady, hasWinner: !!winner,
-      opponent: this.onlineOpponent ? null : (this.isBotMode ? bot : null), disguise: this.onlineOpponent,
+      opponent: this.opponentCard ? null : (this.isBotMode ? bot : null), disguise: this.opponentCard,
       moveCount: this.entries.filter(e => e.side === this.human || !this.isBotMode).length, cardsPlayed: this.cardsPlayedByHuman,
       winnerColor: winner,
     }

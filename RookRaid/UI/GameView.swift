@@ -152,6 +152,17 @@ struct GameView: View {
     /// Nächste Partie direkt aus dem Ergebnisfenster: im Kampf ein neuer Gegner passend zu den Trophäen,
     /// in der Leiter nach einem Sieg der nächste Charakter. Übung und Zu-zweit haben nur Revanche.
     private func nextGame(after info: GameOverInfo) -> GameOverOverlay.NextGame? {
+        // Freundschaftsspiel: „Revanche“ fordert denselben Freund noch einmal heraus (keine gewertete Suche).
+        if vm.isFriendly {
+            guard FriendMatchCenter.shared.lastOpponent != nil else { return nil }
+            return .init(title: L("Revanche"), icon: "arrow.counterclockwise") {
+                dismiss()
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    await FriendMatchCenter.shared.rematch()
+                }
+            }
+        }
         switch vm.mode {
         case .online:
             return .init(title: L("Nächstes Spiel"), icon: "bolt.fill") {
@@ -381,7 +392,7 @@ struct PlayerBar: View {
                         .foregroundColor(.white)
                         .lineLimit(1)
                     if vm.onlineBotPlay != nil && color != vm.humanColor {
-                        TrainingTag()
+                        TrainingTag(botPlayer: vm.botPlayerCard != nil)
                     }
                     if vm.isThinking && vm.state.current == color {
                         ThinkingDots()
@@ -416,10 +427,10 @@ struct PlayerBar: View {
     @ViewBuilder
     private func portrait(active: Bool) -> some View {
         let ring = color == vm.perspective ? Theme.blue : Theme.red
-        if color == vm.humanColor && (vm.mode.isBot || vm.onlineOpponent != nil || vm.mode.isOnline) {
+        if color == vm.humanColor && (vm.mode.isBot || vm.opponentCard != nil || vm.mode.isOnline) {
             PlayerAvatar(size: 34, pieceColor: color)
                 .overlay(Circle().strokeBorder(ring, lineWidth: active ? 2.5 : 1))
-        } else if let card = vm.onlineOpponent {
+        } else if let card = vm.opponentCard {
             PlayerAvatar(size: 34, pieceColor: color,
                          frame: card.frame.flatMap(AvatarFrame.init(rawValue:)) ?? AvatarFrame.none,
                          avatar: Avatar(rawValue: card.avatar) ?? .knight)
@@ -655,11 +666,13 @@ struct FinisherRays: Shape {
 }
 
 /// Kennzeichen für den Bot-Ersatz online (wie .training-tag in web/src/screens.css).
+/// Kennzeichen für Gegner, die keine Menschen sind: der Trainingsgegner oder ein Bot-Spieler („Bot“).
 struct TrainingTag: View {
     var large = false
+    var botPlayer = false
 
     var body: some View {
-        Text(L("Trainingsgegner"))
+        Text(botPlayer ? L("Bot") : L("Trainingsgegner"))
             .font(.system(size: large ? 12 : 10, weight: .heavy, design: .rounded))
             .tracking(0.3)
             .foregroundColor(Color(hex: 0x0B1B33))
@@ -668,6 +681,20 @@ struct TrainingTag: View {
             .frame(height: large ? 22 : 17)
             .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0x8FE3A3), Color(hex: 0x4FBF6A)],
                                                       startPoint: .top, endPoint: .bottom)))
+            .fixedSize()
+    }
+}
+
+/// Freundschaftsspiel: ohne Trophäen (im Duell-Intro).
+struct FriendlyTag: View {
+    var body: some View {
+        Label(L("Freundschaftsspiel"), systemImage: "heart.fill")
+            .font(.system(size: 12, weight: .heavy, design: .rounded))
+            .foregroundColor(.white)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .frame(height: 22)
+            .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xF07AA8), Color(hex: 0xC2457A)], startPoint: .top, endPoint: .bottom)))
             .fixedSize()
     }
 }

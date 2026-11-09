@@ -13,4 +13,5 @@ Prüfen die Datenbank-Funktionen (Migration 1) und das Zusammenspiel mit dem Reg
    node scenario.js      # Konto, eindeutige Namen, Gegnersuche, Rechte, Uhr 5|0, Remis, Bot-Ersatz, Zeitablauf, Verbindungsabbruch, Arena-Grenze, Wartung
    node flow.mjs         # echte Partie bis zum Matt über Regel-Bündel + record_action
    node friends.js       # Freunde: Suche, Anfragen, Blockieren, Melden, Grenzen, Push-Postausgang, Konto löschen
+   node bots.js          # Bot-Spieler: Anlage, Online-Zeiten, gewertete Partien, Anfragen, Online-Status, Freundschaftsspiele
    ```

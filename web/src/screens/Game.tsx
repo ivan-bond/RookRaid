@@ -4,6 +4,7 @@ import { appLogo, avatarImage, pieceImage } from '../art'
 import { ARENA_PALETTE, CARDS, TIME_CONTROLS, ULTS, botById, type CardId, type UltId } from '../game/catalog'
 import { GameController, useController, type GameOverInfo } from '../game/controller'
 import * as S from '../game/store'
+import * as FM from '../friendMatch'
 import { useI18n } from '../i18n'
 import { closeOverlay, openChests, openOverlay, parkGame, run, setTab } from '../nav'
 import { roadTitle } from './Home'
@@ -50,7 +51,7 @@ export function GameScreen({ game }: { game: GameController }) {
   const rematch = () => setC(c.restart())
 
   const title = tutorial ? t('Erste Schlacht')
-    : c.onlineOpponent ? t('Gegen ') + c.name(c.human === 'w' ? 'b' : 'w')
+    : c.opponentCard ? t('Gegen ') + c.name(c.human === 'w' ? 'b' : 'w')
       : c.isBotMode ? (c.mode.kind === 'ladder' ? t('Leiter: ') : c.mode.kind === 'practice' ? t('Übung: ') : t('Gegen ')) + t(c.bot!.name)
         : t('Zu zweit')
 
@@ -163,6 +164,11 @@ export function GameScreen({ game }: { game: GameController }) {
 function nextAction(c: GameController, next: (m: S.GameMode) => void): { title: string; icon: string; run: () => void } | null {
   const info = c.gameOver
   if (!info) return null
+  // Friendly match: „Revanche“ challenges the same friend again (no ranked search).
+  if (c.isFriendly) {
+    if (!FM.getLastOpponent()) return null
+    return { title: 'Revanche', icon: 'arrowCounter', run: () => { closeOverlay(); window.setTimeout(() => void FM.rematch(), 350) } }
+  }
   if (c.online || c.mode.kind === 'bot') {
     if (c.online) return { title: 'Nächstes Spiel', icon: 'bolt', run: () => { closeOverlay(); window.setTimeout(() => run('quickBattle'), 350) } }
     return { title: 'Nächstes Spiel', icon: 'bolt', run: () => next({ kind: 'bot', bot: botById(S.getProfile().trophies >= 0 ? botIdFor() : 'easy').id }) }
@@ -196,8 +202,8 @@ function PlayerBar({ c, side, compact = false, onDetail }: { c: GameController; 
   let portrait
   if (isHuman) {
     portrait = <span className="pb-ava" style={{ boxShadow: `0 0 0 ${active ? 2.5 : 1}px ${ring}` }}><PlayerAvatar avatar={S.activeAvatar(p)} frame={S.activeFrame(p)} size={34} /></span>
-  } else if (c.onlineOpponent && side !== c.human) {
-    portrait = <span className="pb-ava" style={{ boxShadow: `0 0 0 ${active ? 2.5 : 1}px ${ring}` }}><PlayerAvatar avatar={c.onlineOpponent.avatar} frame={c.onlineOpponent.frame} size={34} /></span>
+  } else if (c.opponentCard && side !== c.human) {
+    portrait = <span className="pb-ava" style={{ boxShadow: `0 0 0 ${active ? 2.5 : 1}px ${ring}` }}><PlayerAvatar avatar={c.opponentCard.avatar} frame={c.opponentCard.frame} size={34} /></span>
   } else {
     const skin = c.skin(side)?.id
     portrait = (
@@ -215,7 +221,7 @@ function PlayerBar({ c, side, compact = false, onDetail }: { c: GameController; 
       <div className="pb-main">
         <div className="row" style={{ gap: 6 }}>
           <b className="pb-name clip1">{c.name(side)}</b>
-          {c.isOnlineBot && side !== c.human && <span className="training-tag">{t('Trainingsgegner')}</span>}
+          {c.isOnlineBot && side !== c.human && <span className="training-tag">{c.botPlayerCard ? t('Bot') : t('Trainingsgegner')}</span>}
           {c.thinking && c.state.cur === side && <span className="thinking"><i /><i /><i /></span>}
           <span className="lost">{lost.map((pc, i) => <img key={i} src={pieceImage(pc.c as Side, pc.t, c.skin(pc.c as Side)?.id)} alt="" />)}</span>
           {balance > 0 && <span className="bal">+{balance}</span>}
@@ -505,7 +511,7 @@ function VersusIntro({ c }: { c: GameController }) {
   const opp: Side = c.human === 'w' ? 'b' : 'w'
   const bot = c.bot
   const arena = arenaFor(p.trophies).n
-  const card = c.onlineOpponent
+  const card = c.opponentCard
   const oppDeck = c.state.decks[opp]?.hand ?? []
   const oppUlt = c.state.ults[opp]
   return (
@@ -514,7 +520,8 @@ function VersusIntro({ c }: { c: GameController }) {
         {card ? <PlayerAvatar avatar={card.avatar} frame={card.frame} size={96} /> : bot ? <BotPortrait id={bot.id} size={96} /> : null}
         <b className="vs-name">{card ? card.name : t(bot?.name ?? '')}</b>
         <span className="vs-sub">{card ? <><Icon name="trophy" size={12} color="var(--gold)" /> {card.trophies}</> : bot ? t(bot.title) : ''}</span>
-        {c.isOnlineBot && <span className="training-tag lg">{t('Trainingsgegner')}</span>}
+        {c.isOnlineBot && <span className="training-tag lg">{c.botPlayerCard ? t('Bot') : t('Trainingsgegner')}</span>}
+        {c.isFriendly && <span className="friendly-tag"><Icon name="heart" size={11} /> {t('Freundschaftsspiel')}</span>}
         <div className="vs-deck">
           {oppUlt && <CardThumb art={`art-ult-${oppUlt}`} width={34} border="var(--gold)" />}
           {oppDeck.map((card, i) => <CardThumb key={i} art={`art-card-${card}`} width={34} border={tierColor(card)} />)}

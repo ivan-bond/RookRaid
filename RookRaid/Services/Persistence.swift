@@ -296,6 +296,8 @@ struct Profile: Codable {
     var winChestDay: String? = nil
     var winChestsToday = 0
     var tutorialChestGiven = false
+    /// Goldtruhe für den ersten Freund vergeben (FriendsStore)
+    var firstFriendChestGiven = false
 
     // Puzzle-Serie (ohne Fehler und Hinweis) und Puzzle-Rausch
     var puzzleStreak = 0
@@ -395,6 +397,7 @@ struct Profile: Codable {
             arenaChestsGranted = try c.decodeIfPresent(Int.self, forKey: .arenaChestsGranted) ?? 1
             puzzleChestsGranted = try c.decodeIfPresent(Int.self, forKey: .puzzleChestsGranted) ?? 0
             tutorialChestGiven = try c.decodeIfPresent(Bool.self, forKey: .tutorialChestGiven) ?? false
+            firstFriendChestGiven = try c.decodeIfPresent(Bool.self, forKey: .firstFriendChestGiven) ?? false
         } else {
             // Profil aus v0.9.5 oder älter: Niemand verliert Karten. Freigeschaltet ist, was bisher
             // per Level offen war; vergangene Level-, Arena- und Puzzle-Truhen werden nicht nachgeliefert.

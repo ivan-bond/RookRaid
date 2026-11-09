@@ -9,11 +9,21 @@ enum AccountError: Error, Equatable {
     case offline
     /// Löschen eines Apple-Kontos: Die Bestätigung bei Apple wurde abgebrochen.
     case appleConfirmCancelled
+    /// Anmeldung im Browser (Google) abgebrochen – keine Meldung nötig
+    case cancelled
+    /// Dieses Apple-/Google-Konto gehört schon zu einem anderen Rook-Raid-Konto
+    case identityTaken
     case server(String)
 
     init(_ error: Error) {
         if let e = error as? AccountError { self = e; return }
+        if (error as NSError).domain == "com.apple.AuthenticationServices.WebAuthenticationSession", (error as NSError).code == 1 {
+            self = .cancelled; return
+        }
         let message = (error as? PostgrestError)?.message ?? error.localizedDescription
+        if message.contains("identity_already_exists") || message.contains("already linked") || message.contains("Identity is already") {
+            self = .identityTaken; return
+        }
         switch message {
         case "name_invalid": self = .nameInvalid
         case "name_taken": self = .nameTaken
@@ -29,6 +39,8 @@ enum AccountError: Error, Equatable {
         case .notAuthenticated: return L("Anmeldung fehlgeschlagen. Bitte versuche es noch einmal.")
         case .offline: return L("Keine Verbindung zum Server.")
         case .appleConfirmCancelled: return L("Bestätige das Löschen mit Apple. Dann meldet sich Rook Raid auch bei deiner Apple-ID ab.")
+        case .cancelled: return L("Abgebrochen.")
+        case .identityTaken: return L("Dieses Konto gehört schon zu einem anderen Rook-Raid-Spieler. Melde dich stattdessen damit an.")
         case .server: return L("Der Server hat nicht geantwortet. Bitte versuche es später noch einmal.")
         }
     }
@@ -52,6 +64,31 @@ final class SupabaseAccountService: AccountService {
 
     var isLinkedWithApple: Bool {
         client.auth.currentUser?.identities?.contains { $0.provider == "apple" } ?? false
+    }
+
+    /// Mit wem das Konto gesichert ist (Apple vor Google; nil = nur anonym)
+    var securedBy: SignInProvider? {
+        let ids = client.auth.currentUser?.identities ?? []
+        if ids.contains(where: { $0.provider == "apple" }) { return .apple }
+        if ids.contains(where: { $0.provider == "google" }) { return .google }
+        return nil
+    }
+
+    /// Rücksprung aus dem Google-Anmeldefenster (URL-Schema in Config/Info.plist; in Supabase als Redirect-URL erlaubt)
+    static let authCallback = URL(string: "rookraid://auth-callback")!
+
+    /// Sign in with Google auf einem Gerät ohne dieses Konto (Supabase-OAuth im Anmeldefenster von iOS).
+    func signInWithGoogle() async throws -> AccountSetup {
+        try await client.auth.signInWithOAuth(provider: .google, redirectTo: Self.authCallback)
+        return try await setup()
+    }
+
+    /// Anonymes Konto mit Google verknüpfen: ID, Trophäen, Freunde und Partien bleiben.
+    @MainActor
+    func linkGoogle() async throws {
+        let response = try await client.auth.getLinkIdentityURL(provider: .google, redirectTo: Self.authCallback)
+        let callback = try await WebAuthFlow.run(response.url, scheme: "rookraid")
+        try await client.auth.session(from: callback)
     }
 
     /// Nur die Anmeldung (ohne Konto). Danach darf die App `name_available` fragen.
@@ -189,9 +226,12 @@ final class OnlineAccount: ObservableObject {
         case guest
         /// Anonymes Konto: geht verloren, wenn die App gelöscht wird
         case anonymous
-        /// Mit Apple gesichert
-        case apple
+        /// Mit Apple oder Google gesichert (welcher Anbieter: `provider`)
+        case secured
     }
+
+    /// Bei `.secured`: Apple oder Google
+    @Published private(set) var provider: SignInProvider?
 
     @Published private(set) var status: Status = .unavailable
     @Published private(set) var progress: ServerProgress?
@@ -208,15 +248,16 @@ final class OnlineAccount: ObservableObject {
     }
 
     /// Ein Online-Konto ist eingerichtet (nicht nur eine anonyme Anmeldung ohne Profil).
-    var hasAccount: Bool { status == .anonymous || status == .apple }
+    var hasAccount: Bool { status == .anonymous || status == .secured }
 
     func refreshStatus() {
         guard let service else { status = .unavailable; return }
         switch service.state {
-        case .guest: status = .guest
+        case .guest: status = .guest; provider = nil
         case .signedIn:
+            provider = service.securedBy
             if DeviceIdentity.current().isGuest { status = .guest }
-            else { status = service.isLinkedWithApple ? .apple : .anonymous }
+            else { status = provider != nil ? .secured : .anonymous }
         }
     }
 
@@ -294,12 +335,15 @@ final class OnlineAccount: ObservableObject {
 
     /// Server-Partien in den Verlauf: Partien von anderen Geräten und solche, deren Ende die App nie gesehen hat
     /// (z. B. nach 45 s ohne Verbindung verloren).
+    /// Spielende vom Server → Text wie in der Partie (unübersetzt, angezeigt mit `L`)
+    static let serverReasons = ["mate": "durch Schachmatt", "stalemate": "durch Patt", "fifty": "durch die 50-Züge-Regel",
+                                "repetition": "durch dreifache Stellungswiederholung", "timeout": "durch Zeitüberschreitung",
+                                "resigned": "durch Aufgabe", "draw_agreed": "durch Einigung", "abandoned": "durch Verbindungsabbruch"]
+
     func mergeServerGames() async {
         guard let service, hasAccount,
               let (me, games) = try? await service.fetchServerGames(limit: GameRecord.limit), !games.isEmpty else { return }
-        let reasons = ["mate": "durch Schachmatt", "stalemate": "durch Patt", "fifty": "durch die 50-Züge-Regel",
-                       "repetition": "durch dreifache Stellungswiederholung", "timeout": "durch Zeitüberschreitung",
-                       "resigned": "durch Aufgabe", "draw_agreed": "durch Einigung", "abandoned": "durch Verbindungsabbruch"]
+        let reasons = Self.serverReasons
         let store = ProfileStore.shared
         var history = store.profile.history
         let known = Set(history.compactMap(\.matchId))
@@ -430,6 +474,34 @@ final class OnlineAccount: ObservableObject {
         defer { busy = false }
         do {
             try await service.linkApple(idToken: idToken, nonce: nonce)
+            refreshStatus()
+        } catch {
+            throw AccountError(error)
+        }
+    }
+
+    /// Sign in with Google auf einem Gerät ohne dieses Konto – wie `signInWithApple`.
+    @discardableResult
+    func signInWithGoogle() async throws -> AccountSetup {
+        guard let service else { throw AccountError.offline }
+        busy = true
+        defer { busy = false }
+        do {
+            let setup = try await service.signInWithGoogle()
+            finishSetup(setup)
+            return setup
+        } catch {
+            throw AccountError(error)
+        }
+    }
+
+    /// Anonymes Konto mit Google verknüpfen – wie `linkApple`.
+    func linkGoogle() async throws {
+        guard let service else { throw AccountError.offline }
+        busy = true
+        defer { busy = false }
+        do {
+            try await service.linkGoogle()
             refreshStatus()
         } catch {
             throw AccountError(error)

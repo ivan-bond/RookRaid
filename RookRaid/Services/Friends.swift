@@ -16,11 +16,31 @@ struct FriendPlayer: Decodable, Identifiable, Equatable {
     let trophies: Int
     let relation: Relation
     let since: Date?
+    /// Bot-Spieler (offen gekennzeichnet)
+    let isBot: Bool
+    /// Nur bei Freunden: gerade in der App (oder laut Online-Zeiten des Bot-Spielers)
+    let online: Bool
 
     var id: UUID { userId }
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id", name = "display_name", avatar, frame, title, level, trophies, relation, since
+        case isBot = "is_bot", online
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        name = try c.decode(String.self, forKey: .name)
+        avatar = try c.decode(String.self, forKey: .avatar)
+        frame = try c.decodeIfPresent(String.self, forKey: .frame)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        level = try c.decode(Int.self, forKey: .level)
+        trophies = try c.decode(Int.self, forKey: .trophies)
+        relation = try c.decode(Relation.self, forKey: .relation)
+        since = try c.decodeIfPresent(Date.self, forKey: .since)
+        isBot = try c.decodeIfPresent(Bool.self, forKey: .isBot) ?? false
+        online = try c.decodeIfPresent(Bool.self, forKey: .online) ?? false
     }
 }
 
@@ -43,11 +63,14 @@ struct FriendProfile: Decodable, Equatable {
     let vsWins: Int
     let vsLosses: Int
     let vsDraws: Int
+    let isBot: Bool?
+    let online: Bool?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id", name = "display_name", avatar, frame, title, level, relation, trophies
         case bestTrophies = "best_trophies", wins = "online_wins", losses = "online_losses", draws = "online_draws"
         case rank, friends, since, vsWins = "vs_wins", vsLosses = "vs_losses", vsDraws = "vs_draws"
+        case isBot = "is_bot", online
     }
 }
 
@@ -81,6 +104,10 @@ enum FriendError {
         if text.contains("friend_limit") { return L("Ihr könnt höchstens 200 Freunde haben.") }
         if text.contains("no_account") { return L("Zuerst brauchst du ein Online-Konto.") }
         if text.contains("not_found") { return L("Niemand gefunden. Prüfe den Namen oder den Code.") }
+        if text.contains("not_friends") { return L("Nur Freunde kannst du herausfordern.") }
+        if text.contains("invite_gone") { return L("Die Herausforderung ist nicht mehr offen.") }
+        if text.contains("deck_incomplete") { return L("Dein Deck braucht 4 verschiedene Karten.") }
+        if text.contains("rules_outdated") { return L("Bitte aktualisiere Rook Raid, um online zu spielen.") }
         return AccountError(error).message
     }
 }
@@ -98,9 +125,11 @@ enum FriendCode {
         return URL(string: "https://\(domain)/f/\(code)")
     }
 
-    /// Code aus einem geöffneten Link (Universal Link https://<Domain>/f/CODE).
+    /// Code aus einem geöffneten Link: Universal Link https://<Domain>/f/CODE oder – vom „In der App öffnen“-Knopf
+    /// der Webseite, falls der Messenger den Link im eigenen Browser öffnet – rookraid://f/CODE.
     static func from(url: URL) -> String? {
-        let parts = url.pathComponents.filter { $0 != "/" }
+        var parts = url.pathComponents.filter { $0 != "/" }
+        if url.scheme?.lowercased() == "rookraid", let host = url.host { parts.insert(host, at: 0) }
         guard parts.count == 2, parts[0] == "f" else { return nil }
         let code = parts[1].uppercased()
         return isValid(code) ? code : nil
@@ -113,9 +142,28 @@ final class FriendsStore: ObservableObject {
     static let shared = FriendsStore()
 
     struct News: Equatable {
-        enum Kind { case request, accepted }
+        enum Kind { case request, accepted, reward }
         let kind: Kind
         let name: String
+        /// kind .reward: die Freundestruhe für den ersten Freund
+        var chestId: UUID? = nil
+    }
+
+    /// Ein beendetes Spiel gegen einen Freund (friend_matches), aus meiner Sicht.
+    struct FriendMatch: Decodable, Identifiable {
+        enum Outcome: String, Decodable { case win, loss, draw }
+        let matchId: UUID
+        let endedAt: Date
+        let result: Outcome
+        let reason: String?
+        let rated: Bool
+        let trophyDelta: Int?
+        let timeControl: String?
+        var id: UUID { matchId }
+
+        enum CodingKeys: String, CodingKey {
+            case matchId = "match_id", endedAt = "ended_at", result, reason, rated, trophyDelta = "trophy_delta", timeControl = "time_control"
+        }
     }
 
     @Published private(set) var players: [FriendPlayer] = []
@@ -125,6 +173,8 @@ final class FriendsStore: ObservableObject {
     @Published var news: News?
     /// Code aus einem Einladungslink: wartet, bis es ein Konto gibt.
     @Published var pendingInvite: String?
+    /// Eigener Online-Status für Freunde sichtbar (nil = noch nicht geladen)
+    @Published private(set) var showOnline: Bool?
 
     private var client: SupabaseClient? { Backend.client }
     private var refreshing: Task<Void, Never>?
@@ -138,7 +188,7 @@ final class FriendsStore: ObservableObject {
 
     func refresh() async {
         guard active, let client else {
-            players = []; code = nil; loaded = false; news = nil
+            players = []; code = nil; loaded = false; news = nil; showOnline = nil
             return
         }
         if let refreshing { await refreshing.value; return }
@@ -149,6 +199,11 @@ final class FriendsStore: ObservableObject {
                     let mine: String = try await client.rpc("my_friend_code").execute().value
                     code = mine
                 }
+                if showOnline == nil, let uid = client.auth.currentUser?.id {
+                    struct Row: Decodable { let show_online: Bool? }
+                    let rows: [Row] = (try? await client.from("profiles").select("show_online").eq("id", value: uid).execute().value) ?? []
+                    showOnline = rows.first?.show_online ?? true
+                }
                 if loaded {
                     let before = Dictionary(uniqueKeysWithValues: players.map { ($0.userId, $0.relation) })
                     if let fresh = list.first(where: { $0.relation == .incoming && before[$0.userId] != .incoming }) {
@@ -156,6 +211,10 @@ final class FriendsStore: ObservableObject {
                     } else if let accepted = list.first(where: { $0.relation == .friend && before[$0.userId] == .outgoing }) {
                         news = News(kind: .accepted, name: accepted.name)
                     }
+                }
+                // Erster Freund: eine Goldtruhe (einmal pro Spieler)
+                if let chest = ProfileStore.shared.grantFirstFriendChestIfDue(hasFriend: list.contains { $0.relation == .friend }) {
+                    news = News(kind: .reward, name: "", chestId: chest.id)
                 }
                 players = list
                 loaded = true
@@ -234,6 +293,19 @@ final class FriendsStore: ObservableObject {
 
     func unblock(_ user: UUID) async throws { try await call("unblock_player", user) }
 
+    /// Online-Status für Freunde zeigen oder verbergen.
+    func setShowOnline(_ show: Bool) async throws {
+        guard let client else { throw AccountError.offline }
+        let before = showOnline
+        showOnline = show
+        do {
+            try await client.rpc("set_show_online", params: ["p_show": show]).execute()
+        } catch {
+            showOnline = before
+            throw error
+        }
+    }
+
     func blocked() async throws -> [BlockedPlayer] {
         guard let client else { throw AccountError.offline }
         return try await client.rpc("blocked_players").execute().value
@@ -248,6 +320,13 @@ final class FriendsStore: ObservableObject {
     func profile(_ user: UUID) async throws -> FriendProfile {
         guard let client else { throw AccountError.offline }
         return try await client.rpc("friend_profile", params: ["p_user": user]).execute().value
+    }
+
+    /// Die letzten Spiele gegen einen Freund (neueste zuerst).
+    func matches(with user: UUID) async throws -> [FriendMatch] {
+        guard let client else { throw AccountError.offline }
+        struct Params: Encodable { let p_user: UUID; let p_limit: Int }
+        return try await client.rpc("friend_matches", params: Params(p_user: user, p_limit: 20)).execute().value
     }
 
     private func call(_ fn: String, _ user: UUID) async throws {

@@ -71,7 +71,7 @@ export function Matchmaking() {
   const range = 100 + Math.round(300 * progress)
   const opp = found?.opponent
   // No player free: the stand-in is openly a training opponent (its name and portrait, its rating).
-  const trainer = found?.bot ? BOTS.find(b => b.id === found.botId) ?? botForTrophies(p.trophies) : null
+  const trainer = found?.bot && !found.opponent.bot ? BOTS.find(b => b.id === found.botId) ?? botForTrophies(p.trophies) : null
 
   return (
     <div className={`full mm${found ? ' found' : ''}`}>
@@ -107,7 +107,10 @@ export function Matchmaking() {
             {trainer
               ? <Fighter name={t(trainer.name)} trophies={botRating(trainer)} pop><BotPortrait id={trainer.id} size={74} /></Fighter>
               : opp
-              ? <Fighter name={opp.name} trophies={opp.trophies} pop><PlayerAvatar avatar={opp.avatar} frame={opp.frame ?? 'none'} size={74} /></Fighter>
+              ? <Fighter name={opp.name} trophies={opp.trophies} pop>
+                  <PlayerAvatar avatar={opp.avatar} frame={opp.frame ?? 'none'} size={74} />
+                  {opp.bot && <span className="training-tag mm-bot-tag">{t('Bot')}</span>}
+                </Fighter>
               : <Fighter name="???" trophies={null}><Roulette size={74} /></Fighter>}
           </div>
 

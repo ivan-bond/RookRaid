@@ -12,9 +12,10 @@ import { useI18n } from '../i18n'
 import { openOverlay } from '../nav'
 import { Icon } from '../ui/Icon'
 import { CardView, ManaDrop, PlayerAvatar, Rays, Stars, UltimateCard } from '../ui/kit'
+import { Welcome, type ChessLevel, type Hello } from './Welcome'
 
-/** `signal` counts taps anywhere on the screen (Rocky reacts to them). */
-type SceneProps = { onDone: () => void; done: boolean; signal: number }
+/** `signal` counts taps anywhere on the screen (Rocky reacts to them). `level`: the answer from the welcome (first start). */
+type SceneProps = { onDone: () => void; done: boolean; signal: number; hello: Hello | null }
 /** `waits`: no task, but „Weiter“ only appears once the scene says so (Rocky has finished talking). */
 type Step = { kicker: string; title: string; text: string; task?: string; praise?: string; waits?: boolean; Scene: (p: SceneProps) => ReactNode }
 
@@ -31,7 +32,15 @@ const STEPS: Step[] = [
     Scene: BattleScene },
 ]
 
+/** First start: the welcome (who are you?) comes first, then the five intro screens. „Tutorial wiederholen“ skips it. */
 export function Intro() {
+  const [welcome, setWelcome] = useState(() => !S.getProfile().tutorialSeen)
+  const [hello, setHello] = useState<Hello | null>(null)
+  if (welcome) return <Welcome onDone={h => { setHello(h); setWelcome(false) }} />
+  return <IntroSteps hello={hello} />
+}
+
+function IntroSteps({ hello }: { hello: Hello | null }) {
   const { t } = useI18n()
   const [i, setI] = useState(0)
   const [done, setDone] = useState(!STEPS[0].task && !STEPS[0].waits)
@@ -64,7 +73,7 @@ export function Intro() {
         <div className="intro-dots">{STEPS.map((_, k) => <i key={k} className={k < i ? 'past' : k === i ? 'now' : ''} />)}</div>
         <button className="intro-skip" onClick={battle}>{t('Überspringen')}</button>
       </div>
-      <div className="intro-stage" key={i}><Scene onDone={finish} done={done} signal={signal} /></div>
+      <div className="intro-stage" key={i}><Scene onDone={finish} done={done} signal={signal} hello={hello} /></div>
       <div className="intro-card" key={'c' + i}>
         <span className="intro-kicker">{t(step.kicker)} · {i + 1}/{STEPS.length}</span>
         <b className="intro-title">{t(step.title)}</b>
@@ -141,13 +150,28 @@ const LINES = [
   'Du sammelst Mana, spielst Karten und lässt Meteore regnen. Die Bauern hassen diesen Trick!',
 ]
 /** Rocky talks line by line (typewriter). The player taps for the next line; „Weiter“ comes after the last. */
-function RockyScene({ onDone, signal }: SceneProps) {
+/** After the welcome Rocky greets the player by name and answers the chess question (WelcomeView.swift: same lines). */
+const LEVEL_LINES: Record<ChessLevel, string> = {
+  new: 'Neu im Schach? Kein Problem – in der ersten Schlacht zeige ich dir jeden Zug.',
+  rules: 'Du kennst die Regeln? Super – dann zeige ich dir nur die Superkräfte.',
+  pro: 'Ein Profi! Dann pass gut auf – hier wird dich einiges überraschen.',
+}
+function rockyLines(hello: Hello | null, t: (k: string, ...a: Array<string | number>) => string): string[] {
+  const lines = LINES.map(l => t(l))
+  const name = S.getProfile().name
+  if (hello?.named && !S.isDefaultName(name)) lines[0] = t('Hi {0}, ich bin Rocky! Ein Turm. Ich kann nur geradeaus – um die Ecke denken überlasse ich den Springern.', name)
+  if (hello?.level) lines.splice(1, 0, t(LEVEL_LINES[hello.level]))
+  return lines
+}
+
+function RockyScene({ onDone, signal, hello }: SceneProps) {
   const { t } = useI18n()
   const [line, setLine] = useState(0)
   const [chars, setChars] = useState(0)
-  const text = t(LINES[line])
+  const [lines] = useState(() => rockyLines(hello, t))
+  const text = lines[line]
   const typed = chars >= text.length
-  const lastLine = line === LINES.length - 1
+  const lastLine = line === lines.length - 1
   const nextLine = () => { setLine(l => l + 1); setChars(0); sound('select') }
   useEffect(() => {
     if (!typed) { const id = window.setTimeout(() => setChars(c => c + 2), 28); return () => window.clearTimeout(id) }
@@ -166,12 +190,12 @@ function RockyScene({ onDone, signal }: SceneProps) {
     <div className="scene">
       <RockyBubble text={text} typed={chars} hop={line} big
         footer={<span className="intro-lines">
-          {LINES.map((_, k) => <i key={k} className={k <= line ? 'on' : ''} />)}
+          {lines.map((_, k) => <i key={k} className={k <= line ? 'on' : ''} />)}
           {typed && !lastLine && <span className="intro-more"><Icon name="chevronRight" size={14} /></span>}
         </span>} />
       <div className="intro-powers">
-        {line >= 1 && <span className="intro-power"><img src={pieceImage('w', 'k')} alt="" /><span>{t('Schach')}</span></span>}
-        {line >= 2 && <>
+        {line >= lines.length - 2 && <span className="intro-power"><img src={pieceImage('w', 'k')} alt="" /><span>{t('Schach')}</span></span>}
+        {lastLine && <>
           <b className="intro-plus">+</b>
           {powers.map(([icon, label, color], k) => (
             <span key={label} className="intro-power" style={{ animationDelay: `${200 + k * 160}ms` }}>

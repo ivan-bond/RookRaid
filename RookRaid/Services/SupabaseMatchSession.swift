@@ -54,8 +54,9 @@ enum OnlineMatches {
             let clockBlackMs: Int
             let clockStartedAt: String
             let lastActionAt: String?
+            let rated: Bool?
             enum CodingKeys: String, CodingKey {
-                case white, black, setup, status, turn
+                case white, black, setup, status, turn, rated
                 case whiteCard = "white_card", blackCard = "black_card"
                 case isBot = "is_bot", botLevel = "bot_level"
                 case rulesVersion = "rules_version", timeControl = "time_control"
@@ -65,7 +66,7 @@ enum OnlineMatches {
         }
         struct ActionRow: Decodable { let code: String }
         let row: Row = try await client.from("matches")
-            .select("white,black,white_card,black_card,is_bot,bot_level,rules_version,time_control,setup,status,turn,clock_white_ms,clock_black_ms,clock_started_at,last_action_at")
+            .select("white,black,white_card,black_card,is_bot,bot_level,rules_version,time_control,setup,status,turn,clock_white_ms,clock_black_ms,clock_started_at,last_action_at,rated")
             .eq("id", value: id).single().execute().value
         let actions: [ActionRow] = try await client.from("match_actions").select("code")
             .eq("match_id", value: id).order("ply").execute().value
@@ -89,7 +90,8 @@ enum OnlineMatches {
                                 opponent: youAreWhite ? row.blackCard : row.whiteCard,
                                 timeControl: TimeControl(rawValue: row.timeControl) ?? .blitz5,
                                 record: record, clockWhite: white, clockBlack: black,
-                                showIntro: actions.isEmpty && beforeStart)
+                                showIntro: actions.isEmpty && beforeStart,
+                                rated: row.rated ?? true)
     }
 
     static func finishState(id: UUID, client: SupabaseClient, myColor: PlayerColor) async -> FinishState? {
