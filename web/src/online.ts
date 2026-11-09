@@ -777,6 +777,18 @@ export async function finishBot(matchId: string, actions: string[], outcome: 'fi
   noteFinishedOnlineGame()
   return data as { trophy_delta_white?: number; trophy_delta_black?: number } | null
 }
+/** Live updates of one match, like SupabaseMatchSession.connect in the app: `onChange` runs when an action arrives or
+ *  the match row changes (clocks, draw offer, end), and once the channel is connected (to catch up on anything missed).
+ *  Returns the function that closes the channel. */
+export function watchMatch(matchId: string, onChange: () => void): () => void {
+  if (!supabase) return () => {}
+  const db = supabase
+  const ch = db.channel(`match-${matchId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_actions', filter: `match_id=eq.${matchId}` }, () => onChange())
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` }, () => onChange())
+    .subscribe(status => { if (status === 'SUBSCRIBED') onChange() })
+  return () => { void db.removeChannel(ch) }
+}
 export async function matchStatus(matchId: string) {
   const { data, error } = await client().from('matches')
     .select('status,result,winner_color,draw_offer_by,trophy_delta_white,trophy_delta_black,clock_white_ms,clock_black_ms').eq('id', matchId).single()

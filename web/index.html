@@ -4,33 +4,105 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0A1424" />
-    <meta name="description" content="Rook Raid – chess with cards. Every move charges mana, mana pays for cards, and at 8 mana you unleash your ultimate." />
+    <!-- Search and sharing. scripts/prerender.mjs swaps title, description, canonical, og/twitter and the JSON-LD per public page. -->
+    <title>Rook Raid – Chess with Cards, Mana &amp; Ultimates | Play Free in Your Browser</title>
+    <meta name="description" content="Rook Raid is chess with cards: every turn charges mana, 15 spell cards change the board and ultimates turn the game. Play free online in your browser or on iPhone – no ads." />
+    <link rel="canonical" href="https://rookraid.com/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="application-name" content="Rook Raid" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Rook Raid" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://rookraid.com/" />
+    <meta property="og:title" content="Rook Raid – Chess with Cards, Mana &amp; Ultimates" />
+    <meta property="og:description" content="Chess with cards: every turn charges mana, spell cards change the board and ultimates turn the game. Play free in your browser or on iPhone." />
+    <meta property="og:image" content="https://rookraid.com/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Rook Raid – chess with cards, mana and ultimates" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Rook Raid – Chess with Cards, Mana &amp; Ultimates" />
+    <meta name="twitter:description" content="Chess with cards: every turn charges mana, spell cards change the board and ultimates turn the game. Play free in your browser or on iPhone." />
+    <meta name="twitter:image" content="https://rookraid.com/og-image.jpg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rook Raid" />
-    <link rel="icon" href="/icon-192.png" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet" />
-    <title>Rook Raid</title>
+    <!-- Font without blocking the first paint (display=swap; system font until it arrives). -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&amp;display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&amp;display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&amp;display=swap" /></noscript>
+    <script type="application/ld+json" id="ld-json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://rookraid.com/#website",
+            "url": "https://rookraid.com/",
+            "name": "Rook Raid",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://rookraid.com/#org" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://rookraid.com/#org",
+            "name": "Rook Raid",
+            "url": "https://rookraid.com/",
+            "logo": "https://rookraid.com/icon-512.png",
+            "email": "rookraidchess@gmail.com",
+            "founder": { "@type": "Person", "name": "Ivan Bondarenko" }
+          },
+          {
+            "@type": ["VideoGame", "WebApplication"],
+            "@id": "https://rookraid.com/#game",
+            "name": "Rook Raid",
+            "alternateName": "Rook Raid – Chess with Cards",
+            "url": "https://rookraid.com/",
+            "description": "Chess with cards: every turn charges mana, 15 spell cards change the board and five ultimates turn the game. Ranked 5-minute online battles, bots, puzzles and friends.",
+            "image": "https://rookraid.com/og-image.jpg",
+            "genre": ["Strategy", "Board game", "Card game", "Chess"],
+            "gamePlatform": ["Web browser", "iPhone"],
+            "playMode": ["SinglePlayer", "MultiPlayer"],
+            "applicationCategory": "GameApplication",
+            "operatingSystem": "Any (web browser), iOS 16 or later",
+            "inLanguage": ["en", "de", "es", "fr", "it", "ru", "zh"],
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+            "author": { "@id": "https://rookraid.com/#org" },
+            "publisher": { "@id": "https://rookraid.com/#org" }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
-    <div id="root">
-      <!-- Shown until the app starts (and to crawlers without JavaScript, e.g. Google's OAuth branding check). React replaces it. -->
+    <div id="root"><!--prerender-start-->
+      <!-- Shown until the app starts, and to crawlers without JavaScript. React replaces it. -->
       <main style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;background:#0A1424;color:#F4F7FC;font-family:Nunito,system-ui,sans-serif;text-align:center">
         <img src="/icon-192.png" alt="Rook Raid logo" width="96" height="96" style="border-radius:22px" />
-        <h1 style="margin:0;font-size:40px;font-weight:900">Rook Raid</h1>
-        <p style="margin:0;max-width:440px;font-size:17px;color:#B8C4DA">Rook Raid – chess with cards. Every move charges mana, mana pays for cards, and at 8 mana you unleash your ultimate. Play in the browser or on iPhone.</p>
+        <h1 style="margin:0;font-size:40px;font-weight:900">Rook Raid – Chess with Cards</h1>
+        <p style="margin:0;max-width:520px;font-size:17px;color:#B8C4DA">A chess game where every turn charges mana. Spend it on 15 spell cards that shield, freeze or promote your pieces, or save up for an ultimate that turns the game. Free in your browser and on iPhone, with no ads.</p>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:15px;color:#B8C4DA">
+          <li>Ranked 5-minute online battles, trophies and six arenas</li>
+          <li>A bot ladder, daily puzzles and chests to open</li>
+          <li>Friendly matches with friends on iPhone and the web</li>
+        </ul>
         <nav style="display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;font-size:14px">
-          <a href="/privacy" style="color:#8FB6FF">Privacy Policy · Datenschutz</a>
-          <a href="/terms" style="color:#8FB6FF">Terms of Use · Nutzungsbedingungen</a>
-          <a href="/imprint" style="color:#8FB6FF">Legal Notice · Impressum</a>
-          <a href="/support" style="color:#8FB6FF">Support · Hilfe &amp; Kontakt</a>
+          <a href="/how-to-play/" style="color:#FFD45C;font-weight:800">How to play</a>
+          <a href="/privacy/" style="color:#8FB6FF">Privacy Policy</a>
+          <a href="/terms/" style="color:#8FB6FF">Terms of Use</a>
+          <a href="/imprint/" style="color:#8FB6FF">Legal Notice</a>
+          <a href="/support/" style="color:#8FB6FF">Support</a>
         </nav>
         <noscript><p style="margin:0;color:#B8C4DA">Rook Raid needs JavaScript to play.</p></noscript>
       </main>
-    </div>
+    <!--prerender-end--></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

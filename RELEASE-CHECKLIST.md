@@ -28,6 +28,10 @@ Status as of 2026-11-09. Based on the code and project files; the Supabase dashb
   name → five intro screens → battle against Mila. "Tutorial wiederholen" skips the welcome.
 - [x] Live privacy policy and support URLs for App Store Connect: `https://rookraid.com/privacy`, `https://rookraid.com/support`.
 - [x] The web privacy policy names Hostinger as the host.
+- [ ] SEO: after uploading, add `rookraid.com` in Google Search Console (Domain property) and Bing Webmaster Tools, and
+  submit `https://rookraid.com/sitemap.xml`. Check the share preview with https://www.opengraph.xyz/url/https%3A%2F%2Frookraid.com.
+- [ ] After the App Store release: put the numeric app id into `web/.env.local` as `VITE_APP_STORE_ID` and rebuild
+  (Smart App Banner in iPhone Safari).
 
 ### 3. Supabase settings
 - [ ] Authentication → URL configuration: set the site URL to the real web domain and add it to the redirect URLs.

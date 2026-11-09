@@ -1,10 +1,11 @@
 {
   "name": "rookraid-web",
   "private": true,
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && vite build --ssr src/prerender.tsx --outDir dist-ssr && node scripts/prerender.mjs",
     "preview": "vite preview",
     "upload-zip": "node scripts/upload-zip.mjs"
   },

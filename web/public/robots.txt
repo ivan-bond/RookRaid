@@ -1,0 +1,7 @@
+# Rook Raid – https://rookraid.com
+User-agent: *
+Allow: /
+# Personal invite links (/f/<code>) open the app; they are not pages for search results.
+Disallow: /f/
+
+Sitemap: https://rookraid.com/sitemap.xml

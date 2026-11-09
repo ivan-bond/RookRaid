@@ -1,7 +1,7 @@
 import { build } from 'esbuild'
 import fs from 'node:fs'
 import path from 'node:path'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
@@ -29,30 +29,23 @@ function rulesEsm(): Plugin {
   }
 }
 
-/** Public legal pages as real files (/privacy/index.html …) so every static host serves them, for App Store Connect. */
-function legalPages(): Plugin {
-  const pages: Record<string, string> = {
-    privacy: 'Privacy Policy · Datenschutz', imprint: 'Legal Notice · Impressum', terms: 'Terms of Use · Nutzungsbedingungen', support: 'Support · Hilfe & Kontakt',
-  }
+/** Smart App Banner on iPhone Safari once the app is in the App Store: set VITE_APP_STORE_ID (numeric id) in .env.local. */
+function appStoreBanner(id: string | undefined): Plugin {
   return {
-    name: 'rookraid-legal-pages',
-    apply: 'build',
-    writeBundle(options) {
-      const dir = options.dir ?? path.resolve(__dirname, 'dist')
-      const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8')
-      for (const [slug, title] of Object.entries(pages)) {
-        fs.mkdirSync(path.join(dir, slug), { recursive: true })
-        fs.writeFileSync(path.join(dir, slug, 'index.html'), html.replace(/<title>.*?<\/title>/, `<title>${title} · Rook Raid</title>`))
-      }
+    name: 'rookraid-app-store-banner',
+    transformIndexHtml(html) {
+      return id ? html.replace('</head>', `    <meta name="apple-itunes-app" content="app-id=${id}" />\n  </head>`) : html
     },
   }
 }
 
-export default defineConfig({
-  worker: { format: 'es', plugins: () => [rulesEsm()] },
-  plugins: [
+// The second build (`vite build --ssr src/prerender.tsx`) only renders the public pages to HTML in Node
+// (scripts/prerender.mjs), so it skips the service worker and the HTML plugins.
+export default defineConfig(({ isSsrBuild, mode }) => ({
+  worker: { format: 'es' as const, plugins: () => [rulesEsm()] },
+  plugins: isSsrBuild ? [rulesEsm(), react()] : [
     rulesEsm(),
-    legalPages(),
+    appStoreBanner(loadEnv(mode, __dirname, 'VITE_').VITE_APP_STORE_ID),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -73,7 +66,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,jpg,webp,ico,wav}'],
-        navigateFallbackDenylist: [/^\/(privacy|imprint|terms|support)/, /^\/\.well-known\//],
+        navigateFallbackDenylist: [/^\/(privacy|imprint|terms|support|how-to-play)/, /^\/(robots\.txt|sitemap\.xml)$/, /^\/\.well-known\//],
         // Push notifications (friend requests): handlers live in public/push-sw.js.
         importScripts: ['push-sw.js'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
@@ -81,7 +74,7 @@ export default defineConfig({
     }),
   ],
   server: { fs: { allow: ['..'] } },
-  build: {
+  build: isSsrBuild ? {} : {
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -91,4 +84,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

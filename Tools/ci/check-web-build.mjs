@@ -1,5 +1,5 @@
 // Checks the built browser version (web/dist):
-// - the legal pages App Store Connect links to exist as real files,
+// - the public pages (legal pages for App Store Connect, How to play) exist as prerendered HTML, plus robots.txt and the sitemap,
 // - no secret got into the bundle. The anon (public) key may be there; a service-role key,
 //   a Supabase secret key or a private key may never be.
 import fs from 'fs';
@@ -15,10 +15,16 @@ if (!fs.existsSync(path.join(dist, 'index.html'))) {
   process.exit(1);
 }
 
-for (const page of ['privacy', 'imprint', 'terms', 'support']) {
+// Public pages are prerendered (scripts/prerender.mjs): real content, their own title and canonical.
+for (const page of ['privacy', 'imprint', 'terms', 'support', 'how-to-play']) {
   const file = path.join(dist, page, 'index.html');
   if (!fs.existsSync(file)) { fail(`/${page} is not built (web/dist/${page}/index.html)`); continue; }
-  if (fs.statSync(file).size < 1000) fail(`/${page} looks empty`);
+  const html = fs.readFileSync(file, 'utf8');
+  if (!/<h1[\s>]/.test(html)) fail(`/${page} has no prerendered <h1>`);
+  if (!html.includes(`<link rel="canonical" href="https://rookraid.com/${page}/" />`)) fail(`/${page} has no own canonical URL`);
+}
+for (const f of ['robots.txt', 'sitemap.xml', 'og-image.jpg']) {
+  if (!fs.existsSync(path.join(dist, f))) fail(`web/dist/${f} is missing`);
 }
 
 function walk(d, out = []) {
@@ -48,4 +54,4 @@ for (const file of walk(dist)) {
 }
 
 if (fails) process.exit(1);
-console.log('Legal pages built, no secrets in the browser bundle.');
+console.log('Public pages prerendered, robots.txt and sitemap present, no secrets in the browser bundle.');
