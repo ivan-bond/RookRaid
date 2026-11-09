@@ -10,7 +10,7 @@ export type LegalPage = 'privacy' | 'imprint' | 'terms' | 'support'
 export const LEGAL_PATHS: Record<LegalPage, string> = { privacy: '/privacy', imprint: '/imprint', terms: '/terms', support: '/support' }
 export const LEGAL_TITLES: Record<LegalPage, string> = { privacy: 'Datenschutz', imprint: 'Impressum', terms: 'Nutzungsbedingungen', support: 'Hilfe & Kontakt' }
 
-export const PUBLISHER = { name: 'Ivan Bondarenko', street: 'Frommannstr. 16', city: '04317 Leipzig', email: 'ivan-bondarenko@web.de' }
+export const PUBLISHER = { name: 'Ivan Bondarenko', street: 'Frommannstr. 16', city: '04317 Leipzig', email: 'rookraidchess@gmail.com' }
 
 export function legalPageFromPath(path: string): LegalPage | null {
   const clean = path.replace(/\/+$/, '').toLowerCase()
@@ -55,7 +55,7 @@ export function LegalContent({ page }: { page: LegalPage }) {
       <P>{t('Gegner können Menschen oder computergesteuert sein. Ein computergesteuerter Gegner muss im Spiel nicht als solcher gekennzeichnet sein.')}</P>
       <P>{t('Online gilt eine Bedenkzeit von 5 Minuten ohne Zeitgutschrift pro Zug. Trophäen, Uhr und Ergebnis einer Online-Partie bestimmt der Server.')}</P>
       <P>{t('Der Spielername hat 2 bis 16 Zeichen und darf nur einmal vergeben sein. Du bist für den Namen verantwortlich, den du wählst.')}</P>
-      <P>{t('Du kannst anonym spielen und das Konto später mit Apple sichern. In den Einstellungen kannst du es löschen. Der Spielstand auf dem Gerät bleibt dabei erhalten, bis du ihn dort zurücksetzt.')}</P>
+      <P>{t('Du kannst anonym spielen und das Konto später mit Apple oder Google sichern. In den Einstellungen kannst du es löschen. Der Spielstand auf dem Gerät bleibt dabei erhalten, bis du ihn dort zurücksetzt.')}</P>
       <P>{t('Züge, Trophäen oder die Verbindung zu manipulieren ist nicht erlaubt. Betroffene Online-Werte dürfen korrigiert und das Konto geschlossen werden.')}</P>
       <P>{t('Für Vorsatz, grobe Fahrlässigkeit und Schäden an Leben, Körper oder Gesundheit ist die Haftung unbeschränkt. Bei leichter Fahrlässigkeit wird nur für die Verletzung wesentlicher Pflichten und nur für den vorhersehbaren Schaden gehaftet. Die Haftung nach dem Produkthaftungsgesetz bleibt unberührt.')}</P>
       <P>{t('Es gilt das Recht der Bundesrepublik Deutschland. Zwingende Verbraucherschutzregeln deines Wohnsitzstaates bleiben unberührt.')}</P>
@@ -69,7 +69,7 @@ export function LegalContent({ page }: { page: LegalPage }) {
       </Card>
       <Card title={t('Häufige Fragen')}>
         <div className="faq"><b>{t('Wie lösche ich mein Online-Konto?')}</b><P>{t('In der App unter Profil → Einstellungen → Konto → Konto löschen. Spielername, Trophäen, Online-Bilanz und die Sicherung werden vom Server entfernt.')}</P></div>
-        <div className="faq"><b>{t('Wie hole ich meinen Spielstand auf ein neues Gerät?')}</b><P>{t('Sichere dein Konto mit Apple. Auf dem neuen Gerät meldest du dich mit Apple an und lädst den gesicherten Spielstand.')}</P></div>
+        <div className="faq"><b>{t('Wie hole ich meinen Spielstand auf ein neues Gerät?')}</b><P>{t('Sichere dein Konto mit Apple oder Google. Auf dem neuen Gerät meldest du dich genauso an und lädst den gesicherten Spielstand.')}</P></div>
         <div className="faq"><b>{t('Kostet Rook Raid etwas?')}</b><P>{t('Nein. Rook Raid ist kostenlos, ohne Werbung und ohne Käufe für echtes Geld.')}</P></div>
         <div className="faq"><b>{t('Wo finde ich die Regeln?')}</b><P>{t('Im Spiel unter Profil → Einstellungen → Regeln & Karten erklärt, oder im Menü einer laufenden Partie.')}</P></div>
         <div className="faq"><b>{t('Ich habe einen Fehler gefunden.')}</b><P>{t('Schreib uns bitte, was passiert ist, auf welchem Gerät und mit welcher Version. Ein Bildschirmfoto hilft sehr.')}</P></div>
@@ -82,21 +82,22 @@ export function LegalContent({ page }: { page: LegalPage }) {
       <Card title={t('Welche Daten')}>
         <P>{t('Spielst du nur auf diesem Gerät, bleiben Profil, Fortschritt, Verlauf und die laufende Partie auf dem iPhone. Sie werden nicht an uns gesendet.')}</P>
         <P>{t('Sobald du online spielst, kommen auf dem Server dazu:')}</P>
-        <B>{t('eine zufällige Konto-ID; bis du das Konto mit Apple sicherst, ist es als anonym gekennzeichnet')}</B>
+        <B>{t('eine zufällige Konto-ID; bis du das Konto mit Apple oder Google sicherst, ist es als anonym gekennzeichnet')}</B>
         <B>{t('eine Gast-ID, die die App einmal auf diesem Gerät erzeugt')}</B>
         <B>{t('Spielername, Avatar, Rahmen, Titel und Figurenset')}</B>
         <B>{t('Trophäen, Bestwert und die Online-Bilanz (Siege, Niederlagen, Remis)')}</B>
         <B>{t('eine Sicherung des Spielstands, unter anderem Karten, XP, Splitter, Truhen, Puzzles und Flammen')}</B>
         <B>{t('Partien mit Decks, Ultimates, Zügen, Uhr, Ergebnis und der Spielerkarte, die der Gegner sieht')}</B>
-        <B>{t('beim Sichern mit Apple die E-Mail-Adresse, die Apple übermittelt, oder eine Weiterleitungsadresse, falls du sie teilst. Die App zeigt sie nicht an und verschickt keine Werbung.')}</B>
+        <B>{t('beim Sichern mit Apple oder Google die E-Mail-Adresse, die der Anbieter übermittelt (bei Apple auf Wunsch eine Weiterleitungsadresse). Google übermittelt außerdem deinen Namen und die Adresse deines Profilbilds; sie werden beim Konto gespeichert, aber nicht angezeigt. Die App verschickt keine Werbung.')}</B>
         <B>{t('ein Freundescode, über den dich andere finden können')}</B>
         <B>{t('Freundschaften und Freundschaftsanfragen, Spieler, die du blockierst, und Meldungen, die du abschickst oder die über dich eingehen')}</B>
         <B>{t('wenn du Mitteilungen erlaubst: eine Push-Adresse deines Geräts oder Browsers und deine Spielsprache, damit die Mitteilung in deiner Sprache ankommt')}</B>
+        <B>{t('wann du zuletzt in der App warst und ob Freunde deinen Online-Status sehen dürfen, außerdem Einladungen zu Freundschaftsspielen')}</B>
         <P>{t('Technische Protokolle des Serverbetriebs können Konto-ID und Zeitpunkt eines Fehlers enthalten.')}</P>
       </Card>
       <Card title={t('Browser-Fassung')}>
         <P>{t('In der Browser-Fassung liegt der Spielstand im lokalen Speicher deines Browsers (Local Storage). Er wird nicht an uns gesendet, solange du nicht online spielst. Es gibt keine Cookies für Werbung oder Analyse.')}</P>
-        <P>{t('Cookies: Die Seite setzt zwei technisch notwendige Cookies. „rr_visited“ merkt sich, dass du Rook Raid schon einmal geöffnet hast (dann startet nicht wieder die erste Schlacht), „rr_auth“ merkt sich, ob du als Gast, anonym oder mit Apple angemeldet bist. Beide bleiben ein Jahr, enthalten keine Kennungen und dienen nicht der Werbung oder Analyse. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG.')}</P>
+        <P>{t('Cookies: Die Seite setzt zwei technisch notwendige Cookies. „rr_visited“ merkt sich, dass du Rook Raid schon einmal geöffnet hast (dann startet nicht wieder die erste Schlacht), „rr_auth“ merkt sich, ob du als Gast, anonym oder mit Apple oder Google angemeldet bist. Beide bleiben ein Jahr, enthalten keine Kennungen und dienen nicht der Werbung oder Analyse. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG.')}</P>
         <P>{t('Die Seite liegt bei Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Zypern, als Auftragsverarbeiter. Beim Aufruf der Seite verarbeitet Hostinger technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.')}</P>
       </Card>
       <Card title={t('Zwecke')}>
@@ -107,16 +108,19 @@ export function LegalContent({ page }: { page: LegalPage }) {
       </Card>
       <Card title={t('Empfänger')}>
         <P>{t('Auftragsverarbeiter ist Supabase, Inc. Das Projekt steht in Frankfurt in der EU. Datenbank und Anmeldung dieses Projekts werden dort betrieben. Protokolle, Sicherungen und der Ablauf der Spielfunktionen können nach dem Auftragsverarbeitungsvertrag von Supabase auch außerhalb dieser Region verarbeitet werden.')}</P>
-        <P>{t('Die Anmeldung mit Apple läuft über Apple. Es gilt die Datenschutzerklärung von Apple.')}</P>
+        <P>{t('Die Anmeldung mit Apple läuft über Apple, die Anmeldung mit Google über Google. Es gelten die Datenschutzerklärungen von Apple und Google.')}</P>
         <P>{t('Mitteilungen stellt auf dem iPhone Apple zu (Apple Push Notification Service), im Browser der Push-Dienst des Browser-Herstellers, etwa Apple, Google oder Mozilla. Dabei werden die Push-Adresse und der Text der Mitteilung mit dem Namen des anderen Spielers übermittelt.')}</P>
         <P>{t('Eine öffentliche Bestenliste gibt es nicht. Andere Spieler sehen deinen Namen und deine Spielerkarte in einer gemeinsamen Partie.')}</P>
         <P>{t('Wer deinen genauen Spielernamen oder Freundescode eingibt, findet dich und sieht Name, Avatar, Rahmen, Titel, Level und Trophäen. Freunde und Spieler mit einer offenen Anfrage sehen außerdem Bestwert, Online-Bilanz, weltweiten Rang, die Zahl deiner Freunde und eure Partien gegeneinander. Wen du blockierst, findet dich nicht mehr.')}</P>
+        <P>{t('Freunde sehen, ob du gerade online bist (in den letzten 2 Minuten in Rook Raid), solange du den Online-Status in der Freundesliste nicht ausschaltest. Freundschaftsspiele bringen keine Trophäen, zählen aber für eure Partien gegeneinander.')}</P>
+        <P>{t('Manche Gegner und Spieler sind Bot-Spieler. Sie sind mit „Bot“ gekennzeichnet, hinter ihnen steht kein Mensch, und deine Anfragen und Partien mit ihnen bleiben auf unserem Server.')}</P>
       </Card>
       <Card title={t('Speicherdauer')}>
         <P>{t('Konto, Trophäen, Bilanz und Sicherung bleiben, bis du das Konto unter Einstellungen löschst. Dabei werden das Konto, der Name im Profil, die Trophäen, die Bilanz und die Sicherung entfernt.')}</P>
         <P>{t('Abgeschlossene Partien bleiben gespeichert, damit das Ergebnis für den Gegner erhalten bleibt. Dein Konto ist danach nicht mehr damit verknüpft. In der Partie bleiben die Züge und die Spielerkarte mit dem Namen, den du dort gezeigt hast.')}</P>
         <P>{t('Eine anonyme Anmeldung, mit der kein Konto eingerichtet wird, wird innerhalb etwa einer Stunde gelöscht.')}</P>
         <P>{t('Freundschaften, Anfragen, Blockierungen und Push-Adressen werden mit dem Konto gelöscht. Offene und abgelehnte Anfragen verschwinden nach 30 Tagen, nicht zugestellte Mitteilungen nach 2 Tagen, Meldungen spätestens nach einem Jahr. Beim Abmelden entfernt das Gerät seine Push-Adresse.')}</P>
+        <P>{t('Der Zeitpunkt deines letzten Besuchs wird bei jedem Besuch überschrieben und mit dem Konto gelöscht. Einladungen zu Freundschaftsspielen werden nach einem Tag gelöscht.')}</P>
         <P>{t('Der Spielstand auf dem iPhone bleibt beim Löschen des Kontos erhalten. Fortschritt zurücksetzen in den Einstellungen löscht ihn auf diesem Gerät.')}</P>
       </Card>
       <Card title={t('Deine Rechte')}>
@@ -133,7 +137,7 @@ export function LegalBody({ page }: { page: LegalPage }) {
   return (
     <div className="legal">
       <LegalContent page={page} />
-      <span className="legal-date">{t('Stand: 7. November 2026')}</span>
+      <span className="legal-date">{t('Stand: 9. November 2026')}</span>
     </div>
   )
 }

@@ -10,6 +10,7 @@ import { useI18n } from '../i18n'
 import { closeSheet, openOverlay, openSheet, setTab } from '../nav'
 import { Icon } from '../ui/Icon'
 import { Dialog, PlayerAvatar, Progress, Sheet, ShardIcon, useToast } from '../ui/kit'
+import { GoogleG, securedText } from './Login'
 import { CHEST_TITLES, SHOP_FRAMES, SHOP_FRAME_PRICE, rankFor } from '../game/catalog'
 import { haptic, sound } from '../game/feedback'
 import { BotPortrait } from './Game'
@@ -52,7 +53,7 @@ export function ProfileScreen() {
                   <span className="capsule chip gold"><Icon name="trophy" size={10} />{p.trophies} · {t('Rekord {0}', p.bestTrophies)}</span>
                   <span className="capsule chip"><Icon name="flame" size={10} color="#FF7A2F" />{S.currentStreak(p)} · {t('Rekord {0}', p.bestStreak)}</span>
                   <span className="capsule chip">{t('Arena {0}', S.arena(p).n)}</span>
-                  {acc.status === 'apple' && <span className="capsule chip"><Icon name="apple" size={10} />{t('Mit Apple gesichert')}</span>}
+                  {acc.status === 'secured' && <span className="capsule chip">{acc.provider === 'google' ? <GoogleG size={10} /> : <Icon name="apple" size={10} />}{securedText(acc.provider, t)}</span>}
                 </span>
               </div>
               <Icon name="pencilCircle" size={22} color="var(--blue-light)" />

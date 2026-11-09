@@ -1,17 +1,18 @@
 // FriendsViews.swift: the friends card on the profile, the friends list (invite, search, requests,
 // friends ranking) and a friend's profile summary.
 import { useEffect, useState } from 'react'
-import { rockyFace } from '../art'
+import { logoMark, rockyFace } from '../art'
 import { arenaFor } from '../game/catalog'
 import { haptic, sound } from '../game/feedback'
 import * as S from '../game/store'
 import * as F from '../friends'
+import * as FM from '../friendMatch'
 import { useI18n } from '../i18n'
-import { closeSheet, getNav, openSheet } from '../nav'
+import { closeSheet, getNav, openChests, openSheet } from '../nav'
 import * as Online from '../online'
 import { enablePush, pushPermission } from '../push'
 import { Icon } from '../ui/Icon'
-import { Dialog, PlayerAvatar, Sheet, useToast } from '../ui/kit'
+import { ChestView, Dialog, PlayerAvatar, Sheet, useToast } from '../ui/kit'
 
 type T = (key: string, ...args: Array<string | number>) => string
 
@@ -67,21 +68,39 @@ export function FriendsCard() {
 
 // MARK: Friends sheet
 
-function PlayerRow({ p, onOpen, children, rank, me }: { p: { name: string; avatar: string; frame: string | null; trophies: number; title?: string | null }; onOpen?: () => void; children?: React.ReactNode; rank?: number; me?: boolean }) {
+function PlayerRow({ p, onOpen, children, rank, me }: { p: { name: string; avatar: string; frame: string | null; trophies: number; title?: string | null; isBot?: boolean; online?: boolean }; onOpen?: () => void; children?: React.ReactNode; rank?: number; me?: boolean }) {
   const { t } = useI18n()
   const Tag = onOpen ? 'button' : 'div'
   return (
     <div className={`li fr-row${me ? ' me' : ''}`}>
       {rank !== undefined && <b className={`fr-rank num${rank <= 3 ? ` r${rank}` : ''}`}>{rank}</b>}
       <Tag className="fr-who" onClick={onOpen}>
-        <PlayerAvatar avatar={p.avatar} frame={p.frame} size={38} />
+        <span className="ava-wrap"><PlayerAvatar avatar={p.avatar} frame={p.frame} size={38} />{p.online && <span className="online-dot" aria-label={t('Online')} />}</span>
         <span className="col" style={{ minWidth: 0 }}>
-          <b className="clip1">{p.name}{me ? ` · ${t('Du')}` : ''}</b>
+          <span className="row" style={{ gap: 6, minWidth: 0 }}>
+            <b className="clip1">{p.name}{me ? ` · ${t('Du')}` : ''}</b>
+            {p.isBot && <span className="training-tag">{t('Bot')}</span>}
+          </span>
           <span className="muted row" style={{ gap: 4, fontSize: 12 }}><Icon name="trophy" size={10} color="var(--gold)" />{p.trophies}{p.title ? ` · ${t(p.title)}` : ''}</span>
         </span>
       </Tag>
       {children}
     </div>
+  )
+}
+
+/** Challenge a friend right from the list (same as the button in the profile). Online friends get a highlighted button. */
+function ChallengeButton({ f, onError }: { f: F.Player; onError: (msg: string) => void }) {
+  const { t } = useI18n()
+  const [busy, setBusy] = useState(false)
+  return (
+    <button className={`icon-btn fr-fight${f.online ? ' on' : ''}`} disabled={busy} aria-label={t('{0} herausfordern', f.name)} title={t('{0} herausfordern', f.name)}
+      onClick={async e => {
+        e.stopPropagation(); setBusy(true)
+        try { await FM.invite(f) } catch (err) { onError(t(F.friendError(err))) } finally { setBusy(false) }
+      }}>
+      <Icon name="bolt" size={16} />
+    </button>
   )
 }
 
@@ -117,6 +136,7 @@ export function FriendsSheet() {
   const [error, setError] = useState<string | null>(null)
   const [perm, setPerm] = useState(pushPermission())
   const [blocked, setBlocked] = useState<Awaited<ReturnType<typeof F.blockedPlayers>> | null>(null)
+  const fm = FM.useFriendMatch()
 
   const search = async (q = query) => {
     if (q.trim().length < 2) return
@@ -154,6 +174,17 @@ export function FriendsSheet() {
 
   return (
     <Sheet title={t('Freunde')} onClose={closeSheet} tall>
+      {fm.incoming.length > 0 && <>
+        <div className="list-h" style={{ marginTop: 0 }}>{t('Herausforderungen')}</div>
+        <div className="list" style={{ marginBottom: 12 }}>
+          {fm.incoming.map(inv => (
+            <PlayerRow key={inv.id} p={{ name: inv.name, avatar: inv.avatar, frame: inv.frame, trophies: 0, title: null }}>
+              <button className="chunky xs gold fr-act" onClick={async () => { try { await FM.accept(inv) } catch (e) { showToast(t(F.friendError(e))) } }}>{t('Annehmen')}</button>
+              <button className="icon-btn" aria-label={t('Ablehnen')} onClick={() => FM.decline(inv)}><Icon name="xmark" size={16} /></button>
+            </PlayerRow>
+          ))}
+        </div>
+      </>}
       <div className="fr-invite">
         <span className="kicker" style={{ color: 'var(--gold-top)' }}>{t('Dein Freundescode').toUpperCase()}</span>
         <b className="fr-code mono">{fr.code ?? '······'}</b>
@@ -204,8 +235,13 @@ export function FriendsSheet() {
 
       <div className="list-h">{t('Freundes-Rangliste')}</div>
       {friends.length === 0
-        ? <div className="fr-empty"><Icon name="person2" size={30} color="var(--blue-light)" /><span>{t('Noch keine Freunde. Teile deinen Link oder suche nach einem Namen.')}</span></div>
-        : <div className="list">{ranking.map((r, i) => <PlayerRow key={r.userId} p={r} rank={i + 1} me={r.me} onOpen={r.me ? undefined : () => open(r.userId)} />)}</div>}
+        ? <div className="fr-empty"><Icon name="person2" size={30} color="var(--blue-light)" /><span>{t('Noch keine Freunde. Teile deinen Link oder suche nach einem Namen.')}</span>
+            {!p.firstFriendChestGiven && <span className="fr-reward-hint"><ChestView rarity={2} size={30} />{t('Für deinen ersten Freund gibt es eine Goldtruhe!')}</span>}</div>
+        : <div className="list">{ranking.map((r, i) => (
+            <PlayerRow key={r.userId} p={r} rank={i + 1} me={r.me} onOpen={r.me ? undefined : () => open(r.userId)}>
+              {!r.me && <ChallengeButton f={r as F.Player} onError={showToast} />}
+            </PlayerRow>
+          ))}</div>}
 
       {outgoing.length > 0 && <>
         <div className="list-h">{t('Gesendete Anfragen')}</div>
@@ -217,6 +253,16 @@ export function FriendsSheet() {
           ))}
         </div>
       </>}
+
+      {fr.showOnline !== null && (
+        <label className="fr-toggle">
+          <span className="col grow" style={{ minWidth: 0 }}>
+            <b style={{ fontSize: 15 }}>{t('Online-Status zeigen')}</b>
+            <span className="muted" style={{ fontSize: 12 }}>{t('Freunde sehen, wenn du gerade in Rook Raid bist, und können dich herausfordern.')}</span>
+          </span>
+          <input type="checkbox" role="switch" checked={fr.showOnline} onChange={async e => { try { await F.setShowOnline(e.target.checked) } catch (err) { showToast(t(F.friendError(err))) } }} />
+        </label>
+      )}
 
       <button className="ghost fr-blocked" onClick={async () => { try { setBlocked(await F.blockedPlayers()) } catch (e) { showToast(t(F.friendError(e))) } }}>{t('Blockierte Spieler')}</button>
       {blocked && (
@@ -238,6 +284,7 @@ export function FriendProfileSheet() {
   const [error, setError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<'remove' | 'block' | 'report' | null>(null)
   const [toast, showToast] = useToast()
+  const [challenging, setChallenging] = useState(false)
   const load = () => F.profile(id).then(setFp).catch(e => setError(t(F.friendError(e))))
   useEffect(() => { void load() }, [id])
   const back = () => openSheet('friends')
@@ -252,15 +299,27 @@ export function FriendProfileSheet() {
       {!fp && !error && <div className="fr-empty"><span className="muted">…</span></div>}
       {fp && arena && <>
         <div className="fp-hero">
-          <PlayerAvatar avatar={fp.avatar} frame={fp.frame} size={96} />
-          <b className="r" style={{ fontSize: 24 }}>{fp.name}</b>
+          <span className="ava-wrap"><PlayerAvatar avatar={fp.avatar} frame={fp.frame} size={96} />{fp.online && <span className="online-dot lg" aria-label={t('Online')} />}</span>
+          <span className="row" style={{ gap: 8 }}>
+            <b className="r" style={{ fontSize: 24 }}>{fp.name}</b>
+            {fp.isBot && <span className="training-tag lg" style={{ marginTop: 0 }}>{t('Bot')}</span>}
+          </span>
           {fp.title && <span className="kicker" style={{ color: 'var(--blue-light)' }}>{t(fp.title).toUpperCase()}</span>}
           <span className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
             <span className="capsule chip">{t('Level {0}', fp.level)}</span>
             <span className="capsule chip">{t('Arena {0}', arena.n)}</span>
             {fp.relation === 'friend' && fp.since && <span className="capsule chip gold"><Icon name="heart" size={10} />{t('Freunde seit {0}', fmtDate(fp.since, lang))}</span>}
           </span>
+          {fp.relation === 'friend' && <span className={`fp-online${fp.online ? ' on' : ''}`}>{fp.online ? t('Online') : t('Offline')}</span>}
+          {fp.isBot && <span className="fp-note">{t('Das ist ein Bot-Spieler, kein Mensch.')}</span>}
         </div>
+        {fp.relation === 'friend' && <>
+          <button className="chunky gold fp-challenge" disabled={challenging} onClick={async () => {
+            setChallenging(true)
+            try { await FM.invite(fp) } catch (e) { showToast(t(F.friendError(e))) } finally { setChallenging(false) }
+          }}><Icon name="bolt" size={16} />{t('Freundschaftsspiel')}</button>
+          <span className="fp-note">{t('5 | 0 · ohne Trophäen · zählt für eure Bilanz')}</span>
+        </>}
         <div className="fp-grid">
           <div><Icon name="trophy" size={18} color="var(--gold)" /><b className="num">{fp.trophies}</b><span>{t('Rekord {0}', fp.bestTrophies)}</span></div>
           <div><Icon name="crown" size={18} color="var(--gold-top)" /><b className="num">#{fp.rank}</b><span>{t('Weltweit')}</span></div>
@@ -274,6 +333,7 @@ export function FriendProfileSheet() {
             <span className="muted">{fp.vsDraws ? t('{0} Remis', fp.vsDraws) : fp.vsWins + fp.vsLosses ? '' : t('Noch keine Partie gegeneinander.')}</span>
           </div>
         )}
+        {fp.relation === 'friend' && <FriendHistory userId={fp.userId} />}
         {fp.relation === 'incoming' && (
           <div className="row" style={{ gap: 8 }}>
             <button className="chunky gold sm" onClick={() => act(() => F.respond(fp.userId, true), () => { sound('reward_big'); void load() })}>{t('Annehmen')}</button>
@@ -302,7 +362,58 @@ export function FriendProfileSheet() {
   )
 }
 
+// MARK: Games against a friend
+
+function FriendHistory({ userId }: { userId: string }) {
+  const { t, lang } = useI18n()
+  const [games, setGames] = useState<F.FriendMatch[] | null>(null)
+  const [all, setAll] = useState(false)
+  useEffect(() => { F.friendMatches(userId).then(setGames).catch(() => setGames([])) }, [userId])
+  if (!games || games.length === 0) return null
+  const shown = all ? games : games.slice(0, 5)
+  const label = { win: 'Sieg', loss: 'Niederlage', draw: 'Remis' } as const
+  return (
+    <div className="fp-history">
+      <span className="section-h">{t('Letzte Partien')}</span>
+      <div className="list">
+        {shown.map(g => (
+          <div key={g.matchId} className="li fh-row">
+            <span className={`fh-res ${g.result}`}>{t(label[g.result])}</span>
+            <span className="col grow" style={{ minWidth: 0 }}>
+              <span className="clip1" style={{ fontSize: 14 }}>{g.reason ? t(Online.SERVER_REASON[g.reason] ?? g.reason) : ''}</span>
+              <span className="muted" style={{ fontSize: 12 }}>{fmtDate(g.endedAt, lang)}</span>
+            </span>
+            {g.rated
+              ? <span className={`capsule chip num${(g.trophyDelta ?? 0) >= 0 ? ' gold' : ''}`}><Icon name="trophy" size={10} />{(g.trophyDelta ?? 0) > 0 ? '+' : ''}{g.trophyDelta ?? 0}</span>
+              : <span className="friendly-tag"><Icon name="heart" size={11} /> {t('Freundschaftsspiel')}</span>}
+          </div>
+        ))}
+      </div>
+      {games.length > 5 && !all && <button className="ghost" onClick={() => setAll(true)}>{t('Alle {0} Partien zeigen', games.length)}</button>}
+    </div>
+  )
+}
+
 // MARK: In-app notice
+
+/** Opened from a friend link in an iPhone browser. Messengers (Telegram, Messenger, Instagram …) open links in their own
+ *  browser, where iOS never hands them to the app – one tap here opens the invite in Rook Raid (rookraid://f/CODE). */
+export function OpenInAppBar() {
+  const { t } = useI18n()
+  const [code, setCode] = useState<string | null>(() => (F.isIOSBrowser() ? F.launchCode() : null))
+  if (!code) return null
+  return (
+    <div className="friend-banner open-app-bar slide-down" role="status">
+      <img className="oab-logo" src={logoMark} alt="" />
+      <span className="col grow" style={{ minWidth: 0 }}>
+        <b>{t('Rook Raid installiert?')}</b>
+        <span>{t('Öffne die Einladung direkt in der App.')}</span>
+      </span>
+      <a className="chunky xs gold" style={{ width: 'auto' }} href={F.appLink(code)} onClick={() => window.setTimeout(() => setCode(null), 800)}>{t('Öffnen')}</a>
+      <button className="oab-x" aria-label={t('Schließen')} onClick={() => setCode(null)}><Icon name="xmark" size={16} /></button>
+    </div>
+  )
+}
 
 /** A new request (or an accepted one) while the browser is open – the in-app twin of the push notification. */
 export function FriendBanner() {
@@ -316,6 +427,19 @@ export function FriendBanner() {
     return () => window.clearTimeout(id)
   }, [news])
   if (!news) return null
+  if (news.kind === 'reward') {
+    const chest = S.pendingChests().find(c => c.id === news.chestId)
+    return (
+      <div className="friend-banner slide-down" role="status">
+        <ChestView rarity={2} size={34} />
+        <span className="col grow" style={{ minWidth: 0 }}>
+          <b>{t('Freundestruhe!')}</b>
+          <span className="clip1">{t('Für deinen ersten Freund gibt es eine Goldtruhe.')}</span>
+        </span>
+        {chest && <button className="chunky xs gold" style={{ width: 'auto' }} onClick={() => { F.clearNews(); closeSheet(); openChests(chest, new Set([chest.id])) }}>{t('Öffnen')}</button>}
+      </div>
+    )
+  }
   return (
     <div className="friend-banner slide-down" role="status">
       <span className="fb-ico"><Icon name={news.kind === 'request' ? 'person2' : 'heart'} size={18} /></span>

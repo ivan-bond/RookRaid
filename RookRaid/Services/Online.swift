@@ -42,7 +42,7 @@ enum OnlineConfig {
     static var supabaseAnonKey: String? {
         (Bundle.main.object(forInfoDictionaryKey: "RRSupabaseAnonKey") as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
-    /// Domain der Browser-Fassung für Einladungslinks (RR_WEB_DOMAIN, z. B. play.rookraid.app). Leer = nur der Code.
+    /// Domain der Browser-Fassung für Einladungslinks (RR_WEB_DOMAIN, z. B. rookraid.com). Leer = nur der Code.
     static var webDomain: String? {
         (Bundle.main.object(forInfoDictionaryKey: "RRWebDomain") as? String)
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -121,6 +121,8 @@ struct PlayerCard: Codable, Equatable {
     var trophies: Int
     var level: Int
     var pieceSet: String?
+    /// Bot-Spieler (vom Server, offen gekennzeichnet). Fehlt bei Menschen und beim Trainingsgegner.
+    var bot: Bool? = nil
 }
 
 extension ProfileStore {
@@ -189,6 +191,7 @@ struct ProgressSnapshot: Codable, Equatable {
     var winChestDay: String? = nil
     var winChestsToday: Int? = nil
     var tutorialChestGiven: Bool? = nil
+    var firstFriendChestGiven: Bool? = nil
     var seenCards: [String]? = nil
 
     // Schema 4
@@ -282,6 +285,7 @@ extension ProfileStore {
                                 pityCounter: p.pityCounter, chestsOpened: p.chestsOpened,
                                 legendaryChests: p.legendaryChests, winChestDay: p.winChestDay,
                                 winChestsToday: p.winChestsToday, tutorialChestGiven: p.tutorialChestGiven,
+                                firstFriendChestGiven: p.firstFriendChestGiven,
                                 seenCards: p.seenCards,
                                 lastStreakDay: p.lastStreakDay, activeDays: p.activeDays, frozenDays: p.frozenDays,
                                 streakMilestones: p.streakMilestones, dailyBonusDay: p.dailyBonusDay,
@@ -339,6 +343,7 @@ extension ProfileStore {
         if let v = s.winChestDay { p.winChestDay = v }
         if let v = s.winChestsToday { p.winChestsToday = v }
         if let v = s.tutorialChestGiven { p.tutorialChestGiven = v }
+        if s.firstFriendChestGiven == true { p.firstFriendChestGiven = true }
         if let v = s.seenCards { p.seenCards = v }
         // Schema 4 (ältere Sicherungen lassen die Felder weg: dann bleibt der Stand dieses Geräts)
         if let v = s.lastStreakDay { p.lastStreakDay = v }
@@ -401,6 +406,13 @@ struct MatchFound: Equatable {
     var youAreWhite: Bool
     /// Online: ID der Partie in `matches` (nil = rein lokale Partie)
     var matchId: UUID? = nil
+    /// Bot-Spieler: sein Deck und Ultimate (der Trainingsgegner spielt das Deck seiner Stufe)
+    var botDeck: [CardType]? = nil
+    var botUltimate: Ultimate? = nil
+    /// false = Freundschaftsspiel (keine Trophäen)
+    var rated: Bool = true
+    /// Ein Bot-Spieler mit Profil (statt des Trainingsgegners)
+    var isBotPlayer: Bool { kind == .bot && opponent.bot == true }
     /// Bot-Partien zählen nicht für Bestenlisten.
     var countsForLeaderboard: Bool { kind == .human }
 }
@@ -525,6 +537,8 @@ struct OnlineMatchInfo: Equatable {
     var clockBlack: Double
     /// Noch im Duell-Intro: die Server-Uhr hat noch nicht begonnen.
     var showIntro: Bool
+    /// false = Freundschaftsspiel (keine Trophäen)
+    var rated: Bool = true
 }
 
 /// Was während einer Online-Partie vom Server kommt (Realtime auf `match_actions` und `matches`).
@@ -580,6 +594,13 @@ enum BotMatchOutcome: String {
 struct OnlineBotPlay: Equatable {
     var matchId: UUID
     var opponent: PlayerCard
+    /// Bot-Spieler: sein Deck und Ultimate aus der Partie (nil = Deck der Bot-Stufe)
+    var deck: [CardType]? = nil
+    var ultimate: Ultimate? = nil
+    /// false = Freundschaftsspiel (keine Trophäen, keine Siegtruhe)
+    var rated: Bool = true
+    /// Bot-Spieler mit Profil statt Trainingsgegner
+    var isBotPlayer: Bool { opponent.bot == true }
 }
 
 /// Ergebnis einer Bot-Ersatz-Partie an den Server melden (Edge Function `finish-bot-match`).

@@ -113,8 +113,14 @@ final class SupabaseMatchService: MatchService {
             let isBot: Bool
             let botLevel: String?
             let humanWhite: Bool
+            /// Bot-Spieler (Migration bot_players): seine Karte, sein Deck. nil = Trainingsgegner.
+            let botPlayer: UUID?
+            let botCard: PlayerCard?
+            let botDeck: [String]?
+            let botUltimate: String?
             enum CodingKeys: String, CodingKey {
                 case matchId = "match_id", isBot = "is_bot", botLevel = "bot_level", humanWhite = "human_white"
+                case botPlayer = "bot_player", botCard = "bot_card", botDeck = "bot_deck", botUltimate = "bot_ultimate"
             }
         }
         let params = Start(p_rules_version: request.rulesVersion, p_time_control: request.timeControl,
@@ -127,6 +133,13 @@ final class SupabaseMatchService: MatchService {
             return try await humanMatch(reply.matchId)
         }
         let resolved = reply.botLevel.flatMap(BotLevel.init(rawValue:)) ?? level
+        if reply.botPlayer != nil, var card = reply.botCard {
+            card.bot = true
+            return MatchFound(kind: .bot, opponent: card, botLevel: resolved, youAreWhite: reply.humanWhite,
+                              matchId: reply.matchId,
+                              botDeck: reply.botDeck?.compactMap(CardType.init(rawValue:)),
+                              botUltimate: reply.botUltimate.flatMap(Ultimate.init(rawValue:)))
+        }
         return MatchFound(kind: .bot, opponent: botCard, botLevel: resolved,
                           youAreWhite: reply.humanWhite, matchId: reply.matchId)
     }

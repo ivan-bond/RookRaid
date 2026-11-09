@@ -231,14 +231,14 @@ export const CHEST: Array<{ name: string; short: string; shout: string; body: st
   { name: 'Magische Truhe', short: 'Magisch', shout: 'MAGISCH!', body: '#8B4FE0', light: '#C9A2FF', dark: '#4B2391', glow: '#C28BFF', up: 0.08, xp: 40, shards: 40, card: 0.12, board: 0.1 },
   { name: 'Legendäre Truhe', short: 'Legendär', shout: 'LEGENDÄR!!', body: '#F2603A', light: '#FFD27A', dark: '#9C2A12', glow: '#FFB347', up: 0, xp: 80, shards: 100, card: 0.4, board: 0.4 },
 ]
-export type ChestSource = 'tutorial' | 'win' | 'daily' | 'ladder' | 'puzzle' | 'level' | 'arena' | 'welcome' | 'road' | 'streak' | 'shop'
+export type ChestSource = 'tutorial' | 'win' | 'daily' | 'ladder' | 'puzzle' | 'level' | 'arena' | 'welcome' | 'road' | 'streak' | 'shop' | 'friend'
 export const CHEST_SOURCE: Record<ChestSource, { title: string; icon: string }> = {
   tutorial: { title: 'Erste Truhe', icon: 'sparkles' }, win: { title: 'Siegtruhe', icon: 'trophy' },
   daily: { title: 'Tagestruhe', icon: 'calendar' }, ladder: { title: 'Leiter-Truhe', icon: 'stairs' },
   puzzle: { title: 'Rätseltruhe', icon: 'puzzle' }, level: { title: 'Level-Truhe', icon: 'arrowUpCircle' },
   arena: { title: 'Arena-Truhe', icon: 'flag' }, welcome: { title: 'Willkommensgeschenk', icon: 'gift' },
   road: { title: 'Trophäenpfad', icon: 'trophy' }, streak: { title: 'Flammentruhe', icon: 'flame' },
-  shop: { title: 'Laden-Truhe', icon: 'bag' },
+  shop: { title: 'Laden-Truhe', icon: 'bag' }, friend: { title: 'Freundestruhe', icon: 'person2' },
 }
 export const CHARGE_TAPS = 3
 export const WIN_CHESTS_PER_DAY = 3

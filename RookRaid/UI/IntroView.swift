@@ -11,6 +11,9 @@ struct IntroView: View {
     @State private var done = false
     /// Zählt Tipps irgendwo auf dem Bildschirm (Rocky reagiert darauf).
     @State private var signal = 0
+    /// Erster Start: erst die Begrüßung (wer bist du?), dann die fünf Bildschirme. „Tutorial wiederholen“ überspringt sie.
+    @State private var welcome = !ProfileStore.shared.profile.tutorialSeen
+    @State private var hello: WelcomeHello?
 
     private struct Step {
         let kicker, title, text: String
@@ -39,8 +42,23 @@ struct IntroView: View {
     private var isLast: Bool { step == Self.steps.count - 1 }
 
     var body: some View {
+        if welcome {
+            WelcomeView { h in
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    hello = h
+                    welcome = false
+                }
+            }
+            .transition(.opacity)
+        } else {
+            stepsView
+                .transition(.opacity)
+        }
+    }
+
+    private var stepsView: some View {
         let s = Self.steps[step]
-        ZStack {
+        return ZStack {
             LinearGradient(colors: [Color(hex: 0x141C33), Theme.backgroundDeep], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
             RadialGradient(colors: [Theme.blue.opacity(0.28), .clear], center: UnitPoint(x: 0.5, y: 0.3), startRadius: 0, endRadius: 360)
@@ -91,7 +109,7 @@ struct IntroView: View {
     @ViewBuilder private var scene: some View {
         let onDone = { complete() }
         switch step {
-        case 0: IntroRockyScene(onDone: onDone, signal: signal)
+        case 0: IntroRockyScene(onDone: onDone, signal: signal, hello: hello)
         case 1: IntroManaScene()
         case 2: IntroCardsScene(done: done, onDone: onDone)
         case 3: IntroMeteorScene(done: done, onDone: onDone)
@@ -388,26 +406,53 @@ private struct IntroRockyScene: View {
     let onDone: () -> Void
     /// Tipps irgendwo auf dem Bildschirm
     let signal: Int
+    /// Antworten aus der Begrüßung: Rocky spricht den Spieler mit Namen an und geht auf die Schach-Frage ein.
+    let hello: WelcomeHello?
     @State private var line = 0
     @State private var chars = 0
-    private let lines = [
+    @State private var lines: [String]
+
+    init(onDone: @escaping () -> Void, signal: Int, hello: WelcomeHello? = nil) {
+        self.onDone = onDone
+        self.signal = signal
+        self.hello = hello
+        _lines = State(initialValue: Self.makeLines(hello))
+    }
+    private static let baseLines = [
         "Hi, ich bin Rocky! Ein Turm. Ich kann nur geradeaus – um die Ecke denken überlasse ich den Springern.",
         "Normales Schach? Das ist mir zu langweilig. Hier gibt's Superkräfte! Der König hat sich beschwert – aber auf den hört eh keiner.",
         "Du sammelst Mana, spielst Karten und lässt Meteore regnen. Die Bauern hassen diesen Trick!",
     ]
 
-    private var text: String { L(lines[line]) }
+    /// Wie `rockyLines` in Intro.tsx
+    private static let levelLines: [ChessLevel: String] = [
+        .new: "Neu im Schach? Kein Problem – in der ersten Schlacht zeige ich dir jeden Zug.",
+        .rules: "Du kennst die Regeln? Super – dann zeige ich dir nur die Superkräfte.",
+        .pro: "Ein Profi! Dann pass gut auf – hier wird dich einiges überraschen.",
+    ]
+
+    private static func makeLines(_ hello: WelcomeHello?) -> [String] {
+        var lines = baseLines.map { L($0) }
+        let name = ProfileStore.shared.profile.name
+        if hello?.named == true, !WelcomeView.isDefaultName(name) {
+            lines[0] = L("Hi {0}, ich bin Rocky! Ein Turm. Ich kann nur geradeaus – um die Ecke denken überlasse ich den Springern.", name)
+        }
+        if let level = hello?.level, let extra = levelLines[level] { lines.insert(L(extra), at: 1) }
+        return lines
+    }
+
+    private var text: String { line < lines.count ? lines[line] : "" }
     private var isLast: Bool { line == lines.count - 1 }
 
     var body: some View {
         VStack(spacing: 18) {
             RockyTalk(text: text, big: true, bounce: line, typed: chars, lines: lines.count, line: line, more: chars >= text.count && !isLast)
             HStack(spacing: 8) {
-                if line >= 1 {
+                if line >= lines.count - 2 {
                     power(PieceImage(type: .king, color: .white).frame(width: 26, height: 26), L("Schach"))
                         .transition(.scale(scale: 0.4).combined(with: .opacity))
                 }
-                if line >= 2 {
+                if isLast {
                     Text("+").font(.system(size: 22, weight: .black, design: .rounded)).foregroundColor(Theme.gold)
                     power(Image(systemName: "drop.fill").font(.system(size: 22, weight: .bold)).foregroundColor(Theme.manaLight), L("Mana"))
                     power(Image(systemName: "square.stack.fill").font(.system(size: 22, weight: .bold)).foregroundColor(Color(hex: 0xC084FC)), L("Karten"))

@@ -8,46 +8,54 @@ import { appleClientId, appleIdToken, sessionClient, supabase } from './supabase
 import { setAuthCookie } from './cookies'
 import { dropPush } from './push'
 
-export type PlayerCard = { name: string; avatar: string; frame: string | null; title: string | null; trophies: number; level: number; pieceSet: string | null }
+/** bot: a bot player from the server (openly marked). Missing for people and for the training opponent. */
+export type PlayerCard = { name: string; avatar: string; frame: string | null; title: string | null; trophies: number; level: number; pieceSet: string | null; bot?: boolean }
 export type OnlineStart = {
   matchId: string; bot: boolean; botId: string | null; youWhite: boolean; opponent: PlayerCard
   decks: { white: string[]; black: string[] }; ultimates: { white: string; black: string }
   clockWhiteMs: number; clockBlackMs: number; startedAt: number
+  /** false = friendly match (no trophies) */
+  rated: boolean
 }
 type ServerProgress = {
   trophies: number; best_trophies: number; snapshot: Record<string, unknown> | null; snapshot_rev?: number
   online_wins?: number; online_losses?: number; online_draws?: number
 }
 
-export type AccountStatus = 'unavailable' | 'guest' | 'anonymous' | 'apple'
+/** secured = signed in with Apple or Google (can sign in again on any device); anonymous = only this browser */
+export type AccountStatus = 'unavailable' | 'guest' | 'anonymous' | 'secured'
+export type SignInProvider = 'apple' | 'google'
 export type AccountState = {
   status: AccountStatus; userId: string | null; name: string | null; serverTrophies: number | null
   busy: boolean; pendingRestore: ServerProgress | null; record: { wins: number; losses: number; draws: number } | null
-  /** Signed in with Apple, but the account still needs a (unique) player name. */
+  /** status 'secured': with whom (Apple or Google) */
+  provider: SignInProvider | null
+  /** Signed in with Apple/Google, but the account still needs a (unique) player name. */
   needsName: boolean
-  /** Message after a failed Apple sign-in (from the redirect). */
-  appleError: string | null
+  /** Message after a failed Apple/Google sign-in (from the redirect). */
+  signInError: string | null
   /** The server's own error text, shown small under the message. */
-  appleErrorDetail?: string | null
+  signInErrorDetail?: string | null
+  signInErrorProvider?: SignInProvider
 }
 
 let account: AccountState = {
   status: supabase ? 'guest' : 'unavailable', userId: null, name: null, serverTrophies: null, busy: false, pendingRestore: null, record: null,
-  needsName: false, appleError: null,
+  needsName: false, signInError: null, provider: null,
 }
 const listeners = new Set<() => void>()
 function publish(patch: Partial<AccountState>) {
   account = { ...account, ...patch }
-  if (account.status !== 'unavailable') setAuthCookie(account.status === 'apple' ? 'apple' : account.status === 'anonymous' ? 'anonymous' : 'guest')
+  if (account.status !== 'unavailable') setAuthCookie(account.status === 'secured' ? 'secured' : account.status === 'anonymous' ? 'anonymous' : 'guest')
   listeners.forEach(fn => fn())
 }
-export const clearAppleError = () => publish({ appleError: null, appleErrorDetail: null })
+export const clearSignInError = () => publish({ signInError: null, signInErrorDetail: null })
 export const getAccount = () => account
 export function useAccount(): AccountState {
   return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn) }, () => account)
 }
 export const isConfigured = () => !!supabase
-export const hasAccount = () => account.status === 'anonymous' || account.status === 'apple'
+export const hasAccount = () => account.status === 'anonymous' || account.status === 'secured'
 
 function client() {
   if (!supabase) throw new Error('offline')
@@ -100,7 +108,7 @@ export function snapshot() {
     roadClaimed: p.roadClaimed, ladderWins: p.ladderWins, streakFreezes: p.streakFreezes, selectedAvatar: p.selectedAvatar,
     selectedFrame: p.selectedFrame, selectedTitle: p.selectedTitle, selectedSkin: p.selectedSkin, tutorialSeen: p.tutorialSeen,
     deckTourDone: p.deckTourDone, pityCounter: p.pityCounter, chestsOpened: p.chestsOpened, legendaryChests: p.legendaryChests,
-    winChestDay: p.winChestDay, winChestsToday: p.winChestsToday, tutorialChestGiven: p.tutorialChestGiven, seenCards: p.seenCards,
+    winChestDay: p.winChestDay, winChestsToday: p.winChestsToday, tutorialChestGiven: p.tutorialChestGiven, firstFriendChestGiven: p.firstFriendChestGiven, seenCards: p.seenCards,
     // Schema 4: the flame, shop, puzzle streaks, achievement counters and board – the whole save goes along (app and browser)
     lastStreakDay: p.lastStreakDay, activeDays: p.activeDays, frozenDays: p.frozenDays, streakMilestones: p.streakMilestones,
     dailyBonusDay: p.dailyBonusDay, dailyChestDay: p.dailyChestDay, puzzleStreak: p.puzzleStreak, bestPuzzleStreak: p.bestPuzzleStreak,
@@ -187,6 +195,7 @@ export function restoreFrom(progress: ServerProgress) {
     if (s.deckTourDone === true) p.deckTourDone = true
     if (typeof s.winChestDay === 'string') p.winChestDay = s.winChestDay
     if (typeof s.tutorialChestGiven === 'boolean') p.tutorialChestGiven = s.tutorialChestGiven
+    if (s.firstFriendChestGiven === true) p.firstFriendChestGiven = true
     // Schema 4 (older saves leave these out: then this browser's values stay)
     for (const k of ['lastStreakDay', 'dailyBonusDay', 'dailyChestDay', 'shopDay'] as const) if (typeof s[k] === 'string') p[k] = s[k] as string
     for (const k of ['activeDays', 'frozenDays', 'shopBought', 'shopFrames'] as const) { const v = arr(k); if (v) p[k] = v }
@@ -219,22 +228,22 @@ export async function refreshAccount() {
   if (!supabase) { publish({ status: 'unavailable' }); return }
   const { data } = await supabase.auth.getSession()
   const user = data.session?.user
-  if (!user) { publish({ status: 'guest', userId: null, name: null, serverTrophies: null, record: null }); return }
-  const apple = user.identities?.some(i => i.provider === 'apple') ?? false
+  if (!user) { publish({ status: 'guest', provider: null, userId: null, name: null, serverTrophies: null, record: null }); return }
+  const provider = securedBy(user.identities)
   const [{ data: profile }, { data: progress }] = await Promise.all([
     supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
     supabase.from('progress').select('*').eq('user_id', user.id).maybeSingle(),
   ])
   if (!profile) {
     // Signed in (Apple redirect or an unfinished anonymous probe) but no account yet.
-    if (apple) await finishAppleSetup()
-    else publish({ status: 'guest', userId: user.id, name: null, serverTrophies: null })
+    if (provider) await finishSignInSetup()
+    else publish({ status: 'guest', provider: null, userId: user.id, name: null, serverTrophies: null })
     return
   }
   const row = profile as { display_name: string }
   const pr = progress as (ServerProgress & { online_wins?: number; online_losses?: number; online_draws?: number }) | null
   publish({
-    status: apple ? 'apple' : 'anonymous', userId: user.id, name: row.display_name, serverTrophies: pr?.trophies ?? null, needsName: false,
+    status: provider ? 'secured' : 'anonymous', provider, userId: user.id, name: row.display_name, serverTrophies: pr?.trophies ?? null, needsName: false,
     record: { wins: pr?.online_wins ?? 0, losses: pr?.online_losses ?? 0, draws: pr?.online_draws ?? 0 },
   })
   if (row.display_name && S.getProfile().name !== row.display_name) S.update(p => { p.name = row.display_name })
@@ -258,7 +267,7 @@ async function adoptServer(pr: ServerProgress, userId: string) {
 }
 
 /** Server games (every device, also games the app never saw end – e.g. lost after 45 s offline) go into the history. */
-const SERVER_REASON: Record<string, string> = {
+export const SERVER_REASON: Record<string, string> = {
   mate: 'durch Schachmatt', stalemate: 'durch Patt', fifty: 'durch die 50-Züge-Regel', repetition: 'durch dreifache Stellungswiederholung',
   timeout: 'durch Zeitüberschreitung', resigned: 'durch Aufgabe', draw_agreed: 'durch Einigung', abandoned: 'durch Verbindungsabbruch',
 }
@@ -360,16 +369,35 @@ export async function signInWithApple() {
       const { token, nonce } = await appleIdToken()
       const { error } = await db.auth.signInWithIdToken({ provider: 'apple', token, nonce })
       if (error) throw error
-      await finishAppleSetup()
+      await finishSignInSetup()
     } finally { publish({ busy: false }) }
     return
   }
   const { data, error } = await db.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: redirectTo(), scopes: 'name email', skipBrowserRedirect: true } })
   if (error) throw error
-  await goToApple(data.url)
+  await goToProvider(data.url, 'apple')
 }
 /** "Secure with Apple" for an anonymous account is the same single step (no separate linking any more). */
 export const linkApple = signInWithApple
+
+/**
+ * Sign in with Google – the same single step as Apple (Supabase's redirect to Google and back):
+ * an existing account is loaded, otherwise a new one is created from this browser's progress.
+ */
+export async function signInWithGoogle() {
+  const db = client()
+  await rememberGuestSession()
+  const { data, error } = await db.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectTo(), skipBrowserRedirect: true } })
+  if (error) throw error
+  await goToProvider(data.url, 'google')
+}
+
+/** Apple or Google among the sign-ins of this user (null = only anonymous). */
+function securedBy(identities: Array<{ provider: string }> | undefined | null): SignInProvider | null {
+  if (identities?.some(i => i.provider === 'apple')) return 'apple'
+  if (identities?.some(i => i.provider === 'google')) return 'google'
+  return null
+}
 
 async function rememberGuestSession() {
   sessionStorage.removeItem(GUEST_SESSION)
@@ -394,29 +422,30 @@ async function discardGuestAccount() {
   } catch { /* the cleanup job removes it later */ }
 }
 
-/** Check the sign-in address first: a project without Apple's web key answers with an error instead of a redirect. */
-async function goToApple(url: string | null | undefined) {
-  if (!url) throw new Error('apple_not_configured')
+/** Check the sign-in address first: a project without the provider set up answers with an error instead of a redirect. */
+async function goToProvider(url: string | null | undefined, provider: SignInProvider) {
+  const missing = `${provider}_not_configured`
+  if (!url) throw new Error(missing)
   try {
     const res = await fetch(url, { redirect: 'manual' })
-    if (res.type !== 'opaqueredirect' && res.status >= 400) throw new Error('apple_not_configured')
+    if (res.type !== 'opaqueredirect' && res.status >= 400) throw new Error(missing)
   } catch (e) {
-    if (e instanceof Error && e.message === 'apple_not_configured') throw e
+    if (e instanceof Error && e.message === missing) throw e
     // Network or CORS trouble with the check itself: try the redirect anyway.
   }
-  sessionStorage.setItem(INTENT, 'signin')
+  sessionStorage.setItem(INTENT, provider)
   S.flushSave()
   location.assign(url)
 }
 
-/** After Apple: load the existing account, or create one from this browser's progress. Runs once at a time
+/** After Apple/Google: load the existing account, or create one from this browser's progress. Runs once at a time
  *  (the sign-in event and the return from Apple's page both arrive here). */
 let setupRun: Promise<void> | null = null
-function finishAppleSetup(): Promise<void> {
-  setupRun ??= runAppleSetup().finally(() => { setupRun = null })
+function finishSignInSetup(): Promise<void> {
+  setupRun ??= runSignInSetup().finally(() => { setupRun = null })
   return setupRun
 }
-async function runAppleSetup() {
+async function runSignInSetup() {
   lastBackup = ''
   const db = client()
   const { data: u } = await db.auth.getUser()
@@ -430,7 +459,7 @@ async function runAppleSetup() {
   if (error) {
     const text = error.message ?? ''
     if (text.includes('name_invalid') || text.includes('name_taken')) {
-      publish({ status: 'apple', userId: uid, needsName: true })
+      publish({ status: 'secured', provider: securedBy(u.user?.identities), userId: uid, needsName: true })
       return
     }
     throw error
@@ -447,24 +476,27 @@ async function runAppleSetup() {
   await refreshAccount()
 }
 
-/** Called once on start: handles the return from Apple's sign-in page. */
-export async function handleAppleReturn() {
+const FAILED: Record<SignInProvider, string> = { apple: 'Anmeldung mit Apple fehlgeschlagen.', google: 'Anmeldung mit Google fehlgeschlagen.' }
+
+/** Called once on start: handles the return from Apple's or Google's sign-in page. */
+export async function handleSignInReturn() {
   const params = new URLSearchParams(location.search + location.hash.replace(/^#/, '&'))
   const intent = sessionStorage.getItem(INTENT)
   sessionStorage.removeItem(INTENT)
+  const provider: SignInProvider = intent === 'google' ? 'google' : 'apple'
   const err = params.get('error_description') ?? params.get('error')
   if (err && intent) {
-    console.warn('Apple sign-in failed:', err)
+    console.warn('Sign-in failed:', err)
     sessionStorage.removeItem(GUEST_SESSION)
-    publish({ appleError: 'Anmeldung mit Apple fehlgeschlagen.', appleErrorDetail: err })
+    publish({ signInError: FAILED[provider], signInErrorDetail: err, signInErrorProvider: provider })
   }
   if (params.has('code') || params.has('access_token') || err) history.replaceState(null, '', location.pathname)
   if (intent && !err) {
     const { data } = await client().auth.getSession()
-    if (data.session?.user.identities?.some(i => i.provider === 'apple')) {
+    if (securedBy(data.session?.user.identities)) {
       publish({ busy: true })
-      try { await finishAppleSetup() } catch (e) {
-        publish({ appleError: 'Anmeldung mit Apple fehlgeschlagen.', appleErrorDetail: e instanceof Error ? e.message : String(e) })
+      try { await finishSignInSetup() } catch (e) {
+        publish({ signInError: FAILED[provider], signInErrorDetail: e instanceof Error ? e.message : String(e), signInErrorProvider: provider })
         await refreshAccount()
       } finally { publish({ busy: false }) }
     } else await refreshAccount()
@@ -615,7 +647,7 @@ async function searchMatch(onPhase?: (seconds: number) => void): Promise<OnlineS
     const row = Array.isArray(data) ? data[0] : data
     if (!row?.match_id) throw new Error('server')
     const start = await loadMatch(row.match_id)
-    return { ...start, botId: level.id }
+    return { ...start, botId: start.botId ?? level.id }
   } finally { searching = false }
 }
 
@@ -632,21 +664,22 @@ export async function cancelSearch() {
 
 type MatchRow = {
   white: string | null; black: string | null; white_card: PlayerCard; black_card: PlayerCard; is_bot: boolean
+  bot_level: string | null; rated: boolean | null
   setup: { decks: { white: string[]; black: string[] }; ultimates: { white: string; black: string } }
   clock_white_ms: number; clock_black_ms: number; clock_started_at: string
 }
 export async function loadMatch(id: string): Promise<OnlineStart> {
   const db = client()
   const { data, error } = await db.from('matches')
-    .select('white,black,white_card,black_card,is_bot,setup,clock_white_ms,clock_black_ms,clock_started_at').eq('id', id).single()
+    .select('white,black,white_card,black_card,is_bot,bot_level,rated,setup,clock_white_ms,clock_black_ms,clock_started_at').eq('id', id).single()
   if (error) throw error
   const row = data as MatchRow
   const uid = (await db.auth.getUser()).data.user?.id
   const youWhite = row.white === uid
   return {
-    matchId: id, bot: row.is_bot, botId: null, youWhite, opponent: youWhite ? row.black_card : row.white_card,
+    matchId: id, bot: row.is_bot, botId: row.is_bot ? row.bot_level : null, youWhite, opponent: youWhite ? row.black_card : row.white_card,
     decks: row.setup.decks, ultimates: row.setup.ultimates, clockWhiteMs: row.clock_white_ms, clockBlackMs: row.clock_black_ms,
-    startedAt: Date.parse(row.clock_started_at),
+    startedAt: Date.parse(row.clock_started_at), rated: row.rated ?? true,
   }
 }
 
@@ -762,6 +795,7 @@ export function serverMessage(error: unknown): string {
   if (text.includes('bad_time_control')) return 'Online gilt nur 5 | 0.'
   if (text.includes('no_account')) return 'Zuerst brauchst du ein Online-Konto.'
   if (text.includes('apple_not_configured')) return 'Anmeldung mit Apple ist in dieser Browser-Fassung noch nicht eingerichtet.'
+  if (text.includes('google_not_configured')) return 'Anmeldung mit Google ist in dieser Browser-Fassung noch nicht eingerichtet.'
   if (text.includes('popup_closed') || text.includes('cancelled')) return 'Abgebrochen.'
   if (text === 'offline') return 'Kein Server konfiguriert. Üben geht weiter.'
   return 'Keine Verbindung zum Server.'
@@ -769,5 +803,5 @@ export function serverMessage(error: unknown): string {
 
 if (supabase) {
   supabase.auth.onAuthStateChange(event => { if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') void refreshAccount() })
-  void handleAppleReturn().then(() => refreshAccount())
+  void handleSignInReturn().then(() => refreshAccount())
 }

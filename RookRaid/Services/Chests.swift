@@ -77,7 +77,7 @@ enum ChestRarity: Int, Codable, CaseIterable, Comparable, Identifiable {
 }
 
 enum ChestSource: String, Codable {
-    case tutorial, win, daily, ladder, puzzle, level, arena, welcome, road, streak, shop
+    case tutorial, win, daily, ladder, puzzle, level, arena, welcome, road, streak, shop, friend
 
     var title: String {
         switch self {
@@ -92,6 +92,7 @@ enum ChestSource: String, Codable {
         case .road: return L("Trophäenpfad")
         case .streak: return L("Flammentruhe")
         case .shop: return L("Laden-Truhe")
+        case .friend: return L("Freundestruhe")
         }
     }
 
@@ -108,6 +109,7 @@ enum ChestSource: String, Codable {
         case .road: return "trophy.fill"
         case .streak: return "flame.fill"
         case .shop: return "bag.fill"
+        case .friend: return "person.2.fill"
         }
     }
 }
@@ -143,6 +145,7 @@ extension Chest {
             if let n = labelNumber { return L("{0} Tage Flamme!", n) }
             return L("Flamme gehalten!")
         case .shop: return L("Frisch aus dem Laden!")
+        case .friend: return L("Dein erster Freund!")
         }
     }
 }
@@ -333,6 +336,15 @@ extension ProfileStore {
             grantChest(.puzzle, .silver)
         }
         return true
+    }
+
+    /// Erster Freund: eine Goldtruhe, einmal pro Spieler (das Merkmal geht mit der Sicherung mit; wie friends.ts im Web).
+    func grantFirstFriendChestIfDue(hasFriend: Bool) -> Chest? {
+        guard hasFriend, !profile.firstFriendChestGiven else { return nil }
+        profile.firstFriendChestGiven = true
+        let chest = Chest(rarity: .gold, source: .friend)
+        profile.chests.append(chest)
+        return chest
     }
 
     /// Erste Truhe nach der Einstiegspartie: wertet sicher auf und enthält Verstärkung.

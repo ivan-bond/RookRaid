@@ -17,7 +17,7 @@ struct VersusIntro: View {
     var body: some View {
         let level = vm.botLevel ?? .easy
         let opp = vm.humanColor.opponent
-        let disguise = vm.onlineOpponent
+        let disguise = vm.opponentCard
         GeometryReader { geo in
             ZStack {
                 Color.black.opacity(0.88).ignoresSafeArea()
@@ -33,7 +33,8 @@ struct VersusIntro: View {
                                      ?? (vm.mode.isLadder ? level.title : (vm.mode.isPractice ? L("Übungspartie") : level.name)))
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundColor(Theme.redLight)
-                                if vm.onlineBotPlay != nil { TrainingTag(large: true) }
+                                if vm.onlineBotPlay != nil { TrainingTag(large: true, botPlayer: vm.botPlayerCard != nil) }
+                                if vm.isFriendly { FriendlyTag() }
                                 deckIcons(vm.state.decks[opp]?.hand ?? [], ultimate: vm.state.ultimates[opp])
                             }
                             if let disguise, let avatar = Avatar(rawValue: disguise.avatar) {

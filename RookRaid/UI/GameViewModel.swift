@@ -353,14 +353,14 @@ final class GameViewModel: ObservableObject {
             // Kampf: derselbe Charakter wie in der Leiter – mit seinem Deck. Die Ultimate muss in der Arena schon verfügbar sein.
             // Bot-Ersatz online: das Deck, das der Server in der Partie stehen hat (nicht um die Arena-Sperre gekürzt).
             let botUltimate: Ultimate
-            if onlineBotPlay != nil {
-                botUltimate = level.ultimate
+            if let play = onlineBotPlay {
+                botUltimate = play.ultimate ?? level.ultimate
             } else {
                 let pool = Ultimate.allCases.filter { store.profile.settings.testModeActive || $0.arena <= store.arena.number }
                 botUltimate = pool.contains(level.ultimate) ? level.ultimate : (pool.randomElement() ?? .meteor)
             }
             return GameState.initial(ultimates: [humanColor: mine, humanColor.opponent: botUltimate],
-                                     decks: [humanColor: myDeck, humanColor.opponent: level.deck])
+                                     decks: [humanColor: myDeck, humanColor.opponent: onlineBotPlay?.deck ?? level.deck])
         }
         return GameState.initial(ultimates: [.white: mine, .black: mine], decks: [.white: myDeck, .black: myDeck])
     }
@@ -385,13 +385,20 @@ final class GameViewModel: ObservableObject {
 
     var botLevel: BotLevel? { mode.botLevel }
 
+    /// Bot-Spieler mit Profil (offen als Bot gekennzeichnet) – nicht der Trainingsgegner.
+    var botPlayerCard: PlayerCard? { onlineBotPlay.flatMap { $0.isBotPlayer ? $0.opponent : nil } }
+    /// So wird der Gegner gezeigt: Mensch oder Bot-Spieler (Name, Avatar, Trophäen). nil = Bot-Charakter.
+    var opponentCard: PlayerCard? { onlineOpponent ?? botPlayerCard }
+    /// Freundschaftsspiel: keine Trophäen, keine Siegtruhe, zählt nur für die Bilanz gegeneinander.
+    var isFriendly: Bool { onlineBotPlay.map { !$0.rated } ?? onlineSession.map { !$0.info.rated } ?? false }
+
     /// Figurenset für eine Farbe: Der Bot spielt mit seinem eigenen Set, du mit den Standardfiguren.
     /// In der ersten Schlacht trägt Mila ihr Sternenzauber-Set.
     func skin(for color: PlayerColor) -> BotLevel? {
         // Deine Figuren: das Set, das du im Profil gewählt hast (zu zweit gilt es für beide Seiten nicht)
         if mode.isBot && color == humanColor { return store.activeSkin }
-        // Mensch online: Standardfiguren
-        if mode.isOnline, color != humanColor { return nil }
+        // Mensch online und Bot-Spieler: Standardfiguren
+        if mode.isOnline || botPlayerCard != nil, color != humanColor { return nil }
         guard color == aiColor, store.profile.settings.botSkins else { return nil }
         if mode == .tutorial { return .medium }
         return botLevel
@@ -399,7 +406,7 @@ final class GameViewModel: ObservableObject {
 
     func name(for color: PlayerColor) -> String {
         if mode == .tutorial { return color == humanColor ? store.profile.name : L("Mila") }
-        if let card = onlineOpponent, color != humanColor { return card.name }
+        if let card = opponentCard, color != humanColor { return card.name }
         if let level = botLevel {
             return color == humanColor ? store.profile.name : level.displayName
         }
@@ -1289,11 +1296,11 @@ final class GameViewModel: ObservableObject {
         } else {
             delta = store.record(
                 result: result ?? .draw, rated: mode.isRated && !serverRated,
-                opponent: onlineOpponent?.name ?? botLevel?.botName ?? "Zu zweit",
+                opponent: opponentCard?.name ?? botLevel?.botName ?? "Zu zweit",
                 reason: serverDrawAgreed ? "durch Einigung" : status.reasonKey, moves: moves.count,
                 cardsPlayed: cardsPlayedByHuman, replayID: replayID,
-                countsForStats: mode.isLadder || serverRated,
-                opponentTrophies: botLevel?.rating, matchId: onlineMatchId)
+                countsForStats: (mode.isLadder || serverRated) && !isFriendly,
+                opponentTrophies: opponentCard?.trophies ?? botLevel?.rating, matchId: onlineMatchId)
         }
         // Zähler für Erfolge: Siegesserie und Matt-Siege (Kampf und Leiter)
         if mode.isBot && !mode.isPractice && mode != .tutorial, let result {
@@ -1315,7 +1322,7 @@ final class GameViewModel: ObservableObject {
         }
         // Truhen: die ersten drei Kampf-Siege des Tages, neue Arena
         var winChestsUsedUp = false
-        if (mode.isRated || botOnline) && !serverAborted {
+        if (mode.isRated || botOnline) && !serverAborted && !isFriendly {
             if result == .win { winChestsUsedUp = !store.grantWinChest() }
         }
         // Tägliche Flamme: jede abgeschlossene Partie mit mindestens 10 Aktionen zählt.
@@ -1338,15 +1345,16 @@ final class GameViewModel: ObservableObject {
             }
         }
 
-        let subtitle = serverAborted ? L("ohne Wertung") : (serverDrawAgreed ? L("durch Remis") : status.reason)
+        let reason = serverAborted ? L("ohne Wertung") : (serverDrawAgreed ? L("durch Remis") : status.reason)
+        let subtitle = isFriendly && !serverAborted ? L("Freundschaftsspiel") + " · " + reason : reason
         var info = GameOverInfo(title: title, subtitle: subtitle, result: (mode.isBot || humanOnline) ? result : nil,
-                                trophyDelta: pendingServerDelta ?? delta, rated: (mode.isRated || botOnline) && !serverAborted, streakLit: lit,
+                                trophyDelta: pendingServerDelta ?? delta, rated: (mode.isRated || botOnline) && !serverAborted && !isFriendly, streakLit: lit,
                                 ladderXP: ladderReward?.xp, ladderUnlocked: ladderReward?.unlocked?.displayName,
                                 skinUnlocked: botOnline || humanOnline || mode == .tutorial ? nil : botLevel.flatMap { !skinBefore && store.isSkinUnlocked($0) ? $0 : nil },
                                 chests: earned, winChestsUsedUp: winChestsUsedUp, roadReady: roadReady,
                                 hasWinner: winner != nil && !serverAborted,
-                                opponent: humanOnline ? nil : (mode.isBot && mode != .tutorial ? botLevel : nil),
-                                disguise: onlineOpponent,
+                                opponent: humanOnline || botPlayerCard != nil ? nil : (mode.isBot && mode != .tutorial ? botLevel : nil),
+                                disguise: opponentCard,
                                 moveCount: moves.filter { $0.color == humanColor || !mode.isBot }.count,
                                 cardsPlayed: cardsPlayedByHuman,
                                 winnerColor: winner)
@@ -1397,7 +1405,7 @@ final class GameViewModel: ObservableObject {
             if delta != 0, !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == 0 {
                 store.profile.history[0].trophyDelta = delta
             }
-            OnlineAccount.shared.noteOnlineResult(result)
+            if play.rated { OnlineAccount.shared.noteOnlineResult(result) }
             OnlineAccount.shared.backupQuietly()
             Task { await OnlineAccount.shared.reload() }
             return delta
@@ -1677,7 +1685,7 @@ final class GameViewModel: ObservableObject {
             info.trophyDelta = delta
             gameOver = info
         }
-        OnlineAccount.shared.noteOnlineResult(result)
+        if !isFriendly { OnlineAccount.shared.noteOnlineResult(result) }
         OnlineAccount.shared.backupQuietly()
         Task { await OnlineAccount.shared.reload() }
     }

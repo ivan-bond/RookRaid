@@ -151,12 +151,12 @@ struct RockyAppleSecureOverlay: View {
                     Text(L("Sichere dein Konto"))
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .foregroundColor(.white)
-                    Text(L("Drei Online-Partien geschafft! Sichere dein Konto mit Apple, dann bleibt dein Fortschritt auch, wenn du die App löschst oder das iPhone wechselst."))
+                    Text(L("Drei Online-Partien geschafft! Sichere dein Konto mit Apple oder Google, dann bleibt dein Fortschritt auch, wenn du die App löschst oder das iPhone wechselst."))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                    AppleSecureButton(linking: true) { errorText = $0 }
+                    SignInButtons(linking: true) { errorText = $0 }
                     if let errorText {
                         Text(errorText)
                             .font(.system(size: 12, weight: .semibold))
@@ -185,7 +185,7 @@ struct RockyAppleSecureOverlay: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { bounce += 1 }
         }
         .onChange(of: account.status) { status in
-            if status == .apple { onClose() }
+            if status == .secured { onClose() }
         }
     }
 }

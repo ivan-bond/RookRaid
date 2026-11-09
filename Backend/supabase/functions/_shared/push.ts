@@ -9,7 +9,7 @@
 //   VAPID_SUBJECT      Kontakt für die Push-Dienste, z. B. mailto:support@deine-domain
 import { b64url, fromB64url, importP8, signES256 } from "./jwt.ts";
 
-export type PushKind = "friend_request" | "friend_accepted";
+export type PushKind = "friend_request" | "friend_accepted" | "match_invite";
 export interface PushTarget {
   token: string;
   platform: "ios" | "web";
@@ -41,6 +41,15 @@ const TEXTS: Record<PushKind, Record<string, [string, string]>> = {
     it: ["Nuovo amico!", "{0} ha accettato la tua richiesta di amicizia."],
     ru: ["Новый друг!", "{0} принял(а) твою заявку в друзья."],
     zh: ["新好友！", "{0} 接受了你的好友请求。"],
+  },
+  match_invite: {
+    de: ["Freundschaftsspiel", "{0} fordert dich zu einem Freundschaftsspiel heraus."],
+    en: ["Friendly match", "{0} challenges you to a friendly match."],
+    fr: ["Match amical", "{0} te défie dans un match amical."],
+    es: ["Partida amistosa", "{0} te reta a una partida amistosa."],
+    it: ["Partita amichevole", "{0} ti sfida a una partita amichevole."],
+    ru: ["Дружеская партия", "{0} вызывает тебя на дружескую партию."],
+    zh: ["友谊赛", "{0} 邀请你进行一场友谊赛。"],
   },
 };
 
@@ -173,7 +182,7 @@ export function pushSender(env: (k: string) => string | undefined = (k) => Deno.
       if (!pub || !priv || !target.subscription) return "skipped";
       vapidKey ??= importVapid(pub, priv);
       const { url, init } = await webPushRequest(target.subscription, msg,
-        { publicKey: pub, key: await vapidKey, subject: env("VAPID_SUBJECT") || "mailto:support@rookraid.app" });
+        { publicKey: pub, key: await vapidKey, subject: env("VAPID_SUBJECT") || "mailto:rookraidchess@gmail.com" });
       const res = await http(url, init);
       await res.body?.cancel();
       if (res.ok) return "ok";

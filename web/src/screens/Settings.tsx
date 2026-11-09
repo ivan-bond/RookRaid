@@ -2,11 +2,12 @@
 import { useState } from 'react'
 import * as S from '../game/store'
 import { useI18n, LANGS, deviceLang } from '../i18n'
-import { closeSheet, getNav, openOverlay, openSheet, run } from '../nav'
+import { closeSheet, getNav, openOverlay, openSheet, run, useNav } from '../nav'
 import * as Online from '../online'
 import { appleClientId } from '../supabase'
 import { Icon } from '../ui/Icon'
 import { Dialog, Sheet, Switch } from '../ui/kit'
+import { GoogleG, securedText } from './Login'
 import { LegalBody, LEGAL_TITLES, type LegalPage } from './Legal'
 import { unlockAudio } from '../game/feedback'
 
@@ -58,14 +59,14 @@ export function SettingsSheet() {
         <Row icon="book" color="#8B5CF6" title={t('Regeln & Karten erklärt')} onClick={() => openSheet('rules')} />
         <Row icon="crown" color="#F2C14E" title={t('Erste Schlacht erneut spielen')} onClick={() => later(() => run('startTutorial'))} />
         <Row icon="graduation" color="#B0720F" title={t('Kartenschule')} onClick={() => later(() => openOverlay({ kind: 'lab', key: 'c-shield' }))} />
-        <Row icon="envelope" color="#2F6FE4" title={t('Hilfe & Kontakt')} onClick={() => openSheet('legal-support')} />
+        <Row icon="envelope" color="#2F6FE4" title={t('Hilfe & Kontakt')} onClick={() => openSheet('legal-support', 'settings')} />
       </div>
 
       <div className="list-h">{t('Rechtliches')}</div>
       <div className="list">
-        <Row icon="shield" color="#2F6FE4" title={t('Datenschutz')} onClick={() => openSheet('legal-privacy')} />
-        <Row icon="doc" color="#7E8AA3" title={t('Impressum')} onClick={() => openSheet('legal-imprint')} />
-        <Row icon="bookOpen" color="#7E8AA3" title={t('Nutzungsbedingungen')} onClick={() => openSheet('legal-terms')} />
+        <Row icon="shield" color="#2F6FE4" title={t('Datenschutz')} onClick={() => openSheet('legal-privacy', 'settings')} />
+        <Row icon="doc" color="#7E8AA3" title={t('Impressum')} onClick={() => openSheet('legal-imprint', 'settings')} />
+        <Row icon="bookOpen" color="#7E8AA3" title={t('Nutzungsbedingungen')} onClick={() => openSheet('legal-terms', 'settings')} />
       </div>
 
       <div className="list-h">{t('Daten')}</div>
@@ -92,26 +93,28 @@ function AccountSection() {
   const act = async (fn: () => Promise<void>) => {
     try { await fn() } catch (e) { setError(t(Online.serverMessage(e))) }
   }
-  const status = acc.status === 'apple' ? t('Mit Apple gesichert') : acc.status === 'anonymous' ? t('Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.') : t('Noch kein Online-Konto. Dein Fortschritt liegt nur auf diesem iPhone.')
+  const status = acc.status === 'secured' ? securedText(acc.provider, t) : acc.status === 'anonymous' ? t('Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.') : t('Noch kein Online-Konto. Dein Fortschritt liegt nur auf diesem iPhone.')
   return (
     <>
       <div className="list-h">{t('Online-Konto')}</div>
       <div className="list">
         <div className="li">
-          <span className="ico" style={{ background: acc.status === 'apple' ? '#000' : '#2F6FE4' }}><Icon name={acc.status === 'apple' ? 'apple' : 'person'} size={16} /></span>
+          <span className="ico" style={{ background: acc.status === 'secured' ? (acc.provider === 'google' ? '#fff' : '#000') : '#2F6FE4' }}>{acc.status === 'secured' && acc.provider === 'google' ? <GoogleG size={16} /> : <Icon name={acc.status === 'secured' ? 'apple' : 'person'} size={16} />}</span>
           <span className="t">{acc.name ?? t('Gast')}<br /><span className="muted" style={{ fontSize: 12, fontWeight: 500 }}>{status.replace('iPhone', t('Gerät'))}</span></span>
           {acc.serverTrophies !== null && <span className="v row" style={{ gap: 3 }}><Icon name="trophy" size={12} color="var(--gold)" />{acc.serverTrophies}</span>}
         </div>
         {acc.record && <div className="li"><span className="t muted" style={{ fontSize: 13 }}>{t('{0} S · {1} N · {2} R', acc.record.wins, acc.record.losses, acc.record.draws)}</span></div>}
         {!Online.hasAccount() && <Row icon="plusCircle" color="#6FBF73" title={t('Online-Konto erstellen')} onClick={() => openSheet('onlineName', 'create')} />}
         {acc.status === 'anonymous' && <button className="li apple-row" disabled={acc.busy} onClick={() => act(Online.linkApple)}><Icon name="apple" size={18} /><span className="t">{t('Mit Apple sichern')}</span></button>}
+        {acc.status === 'anonymous' && <button className="li google-row" disabled={acc.busy} onClick={() => act(Online.signInWithGoogle)}><GoogleG size={18} /><span className="t">{t('Mit Google sichern')}</span></button>}
         {acc.status === 'guest' && <button className="li apple-row" disabled={acc.busy} onClick={() => act(Online.signInWithApple)}><Icon name="apple" size={18} /><span className="t">{t('Schon ein Konto?')} {t('Mit Apple anmelden')}</span></button>}
+        {acc.status === 'guest' && <button className="li google-row" disabled={acc.busy} onClick={() => act(Online.signInWithGoogle)}><GoogleG size={18} /><span className="t">{t('Schon ein Konto?')} {t('Mit Google anmelden')}</span></button>}
         {Online.hasAccount() && <Row icon="arrowRight" color="#7E8AA3" title={t('Abmelden')} onClick={() => setConfirm('signout')} />}
         {Online.hasAccount() && <button className="li" onClick={() => setConfirm('delete')}><span className="ico" style={{ background: '#E0413A' }}><Icon name="trash" size={16} /></span><span className="t" style={{ color: 'var(--red-light)' }}>{t('Konto löschen')}</span></button>}
       </div>
-      {acc.status !== 'apple' && <p className="list-f">{t('Mit Apple kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden.')}</p>}
+      {acc.status !== 'secured' && <p className="list-f">{t('Mit Apple oder Google kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden.')}</p>}
       {error && <Dialog title={t('Keine Verbindung')} message={error} onClose={() => setError(null)} actions={[{ label: t('Fertig'), bold: true }]} />}
-      {confirm === 'signout' && <Dialog title={t('Abmelden?')} message={t('Mit Apple kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden.')} onClose={() => setConfirm(null)}
+      {confirm === 'signout' && <Dialog title={t('Abmelden?')} message={acc.provider === 'google' ? t('Mit Google kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden.') : t('Mit Apple kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden.')} onClose={() => setConfirm(null)}
         actions={[{ label: t('Abmelden'), destructive: true, onClick: () => act(Online.signOut) }, { label: t('Abbrechen'), bold: true }]} />}
       {confirm === 'delete' && <Dialog title={t('Online-Konto löschen?')} message={t('Spielername, Online-Trophäen, Online-Bilanz und die Sicherung deines Fortschritts werden vom Server gelöscht. Dein Spielstand auf diesem iPhone bleibt erhalten.').replace('iPhone', t('Gerät'))}
         onClose={() => setConfirm(null)} actions={[{ label: t('Konto löschen'), destructive: true, onClick: () => setConfirm('delete2') }, { label: t('Abbrechen'), bold: true }]} />}
@@ -177,10 +180,12 @@ export function LanguageSheet() {
   )
 }
 
+/** Back to the settings only when it was opened from there (the side-rail links just close it). */
 export function LegalSheet({ page }: { page: LegalPage }) {
   const { t } = useI18n()
+  const { sheetArg } = useNav()
   return (
-    <Sheet title={t(LEGAL_TITLES[page])} onClose={() => openSheet('settings')} tall>
+    <Sheet title={t(LEGAL_TITLES[page])} onClose={() => (sheetArg === 'settings' ? openSheet('settings') : closeSheet())} tall>
       <LegalBody page={page} />
       <p className="list-f" style={{ textAlign: 'center' }}><a href={`/${page}`} target="_blank" rel="noreferrer">{location.host}/{page}</a></p>
     </Sheet>

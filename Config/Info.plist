@@ -17,6 +17,17 @@
 	<string>$(RR_SUPABASE_URL)</string>
 	<key>RRSupabaseAnonKey</key>
 	<string>$(RR_SUPABASE_ANON_KEY)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.ivan.rookraid</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>rookraid</string>
+			</array>
+		</dict>
+	</array>
 	<key>RRWebDomain</key>
 	<string>$(RR_WEB_DOMAIN)</string>
 </dict>

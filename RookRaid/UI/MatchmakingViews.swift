@@ -102,18 +102,25 @@ struct MatchmakingSheet: View {
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
             }
+            // Alles muss auf den Bildschirm passen (sonst schneidet SwiftUI oben und unten ab): Auf kleineren
+            // iPhones fällt der Tipp-Streifen weg und das Radar wird kleiner.
+            GeometryReader { geo in
+            let roomy = geo.size.height >= 780
+            let radar = min(270, max(140, geo.size.height - (roomy ? 600 : 510)))
             VStack(spacing: 14) {
                 topBar(arena: arena, colors: colors)
                 Spacer(minLength: 4)
                 title
                 MatchmakingRadar(found: found != nil, accent: colors[0])
-                    .frame(width: 270, height: 270)
+                    .frame(width: radar, height: radar)
                 duelRow
                 Spacer(minLength: 4)
                 if found == nil {
                     searchInfo
-                    TipTicker(cards: store.activeDeck)
-                        .padding(.horizontal, 20)
+                    if roomy {
+                        TipTicker(cards: store.activeDeck)
+                            .padding(.horizontal, 20)
+                    }
                 }
                 Button(action: onCancel) {
                     Text(L("Abbrechen"))
@@ -123,6 +130,8 @@ struct MatchmakingSheet: View {
                 .padding(.bottom, 24)
                 .opacity(found == nil ? 1 : 0)
                 .disabled(found != nil)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
             }
             .opacity(appeared ? 1 : 0)
             .scaleEffect(appeared ? 1 : 0.96)
@@ -174,7 +183,7 @@ struct MatchmakingSheet: View {
     @ViewBuilder
     private var title: some View {
         if let found {
-            let trainer = found.kind == .bot ? found.botLevel : nil
+            let trainer = found.kind == .bot && !found.isBotPlayer ? found.botLevel : nil
             VStack(spacing: 4) {
                 Text(trainer == nil ? L("Gegner gefunden!") : L("Trainingsgegner"))
                     .font(.system(size: 32, weight: .black, design: .rounded))
@@ -226,13 +235,13 @@ struct MatchmakingSheet: View {
                     .offset(y: 26)
             }
             .frame(width: 54)
-            if let found, found.kind == .bot, let level = found.botLevel {
+            if let found, found.kind == .bot, !found.isBotPlayer, let level = found.botLevel {
                 fighter(name: level.displayName, trophies: level.rating) {
                     BotAvatar(level: level, size: 74)
                 }
                 .transition(.scale(scale: 0.4).combined(with: .opacity))
             } else if let found {
-                fighter(name: found.opponent.name, trophies: found.opponent.trophies) {
+                fighter(name: found.opponent.name, trophies: found.opponent.trophies, botPlayer: found.isBotPlayer) {
                     PlayerAvatar(size: 74,
                                  frame: found.opponent.frame.flatMap(AvatarFrame.init(rawValue:)) ?? AvatarFrame.none,
                                  avatar: Avatar(rawValue: found.opponent.avatar) ?? .knight)
@@ -247,10 +256,12 @@ struct MatchmakingSheet: View {
         .animation(.spring(response: 0.45, dampingFraction: 0.6), value: found != nil)
     }
 
-    private func fighter<Portrait: View>(name: String, trophies: Int?, @ViewBuilder portrait: () -> Portrait) -> some View {
+    private func fighter<Portrait: View>(name: String, trophies: Int?, botPlayer: Bool = false,
+                                         @ViewBuilder portrait: () -> Portrait) -> some View {
         VStack(spacing: 6) {
             portrait()
                 .shadow(color: Theme.gold.opacity(0.45), radius: 10)
+                .overlay(alignment: .bottom) { if botPlayer { TrainingTag(botPlayer: true).offset(y: 6) } }
             Text(name)
                 .font(.system(size: 14, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)

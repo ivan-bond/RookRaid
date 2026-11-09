@@ -303,8 +303,9 @@ export function ChestView({ rarity, size = 60, lid = 0, glow = 0, style, classNa
 
 // MARK: Sheet, dialog, toast
 
-export function Sheet({ title, onClose, children, wide = false, tall = false, left, doneLabel }: {
-  title?: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; tall?: boolean; left?: ReactNode; doneLabel?: string
+/** `sub`: a row that stays pinned under the title (e.g. tabs). */
+export function Sheet({ title, onClose, children, wide = false, tall = false, left, doneLabel, sub }: {
+  title?: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; tall?: boolean; left?: ReactNode; doneLabel?: string; sub?: ReactNode
 }) {
   const { t } = useI18n()
   useEffect(() => {
@@ -319,6 +320,7 @@ export function Sheet({ title, onClose, children, wide = false, tall = false, le
           <div className="left">{left}</div>
           <h2>{title}</h2>
           <button className="done" onClick={onClose}>{doneLabel ?? t('Fertig')}</button>
+          {sub && <div className="sheet-sub">{sub}</div>}
         </div>
         {children}
       </div>

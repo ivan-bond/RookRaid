@@ -130,6 +130,7 @@ struct FriendsCard: View {
 
 struct FriendsSheet: View {
     @ObservedObject private var friends = FriendsStore.shared
+    @ObservedObject private var matches = FriendMatchCenter.shared
     @ObservedObject private var account = OnlineAccount.shared
     @ObservedObject private var store = ProfileStore.shared
     @Environment(\.dismiss) private var dismiss
@@ -203,6 +204,31 @@ struct FriendsSheet: View {
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
+                if !matches.incoming.isEmpty {
+                    SectionHeader(title: L("Herausforderungen"))
+                    panel {
+                        ForEach(matches.incoming) { inv in
+                            HStack(spacing: 10) {
+                                PlayerAvatar(size: 38, frame: frameOf(inv.frame), avatar: avatarOf(inv.avatar))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(inv.name).font(.system(size: 15, weight: .bold)).foregroundColor(Theme.textPrimary).lineLimit(1)
+                                    Text(L("Freundschaftsspiel")).font(.system(size: 12)).foregroundColor(Theme.textMuted)
+                                }
+                                Spacer(minLength: 0)
+                                Button(L("Annehmen")) { act { try await matches.accept(inv); return nil } }
+                                    .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: Color(hex: 0xB8892B), height: 34, textColor: Theme.navy))
+                                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                    .frame(width: 104)
+                                Button { matches.decline(inv) } label: {
+                                    Image(systemName: "xmark").font(.system(size: 14, weight: .bold)).foregroundColor(Theme.textSecondary).frame(width: 34, height: 34)
+                                }
+                                .accessibilityLabel(L("Ablehnen"))
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 9)
+                        }
+                    }
+                    .padding(.bottom, 8)
+                }
                 inviteCard
                 SectionHeader(title: L("Spieler suchen")).padding(.top, 10)
                 HStack(spacing: 8) {
@@ -276,6 +302,15 @@ struct FriendsSheet: View {
                         Image(systemName: "person.2.fill").font(.system(size: 28)).foregroundColor(Theme.blueLight)
                         Text(L("Noch keine Freunde. Teile deinen Link oder suche nach einem Namen."))
                             .font(.system(size: 14)).foregroundColor(Theme.textSecondary).multilineTextAlignment(.center)
+                        if !store.profile.firstFriendChestGiven {
+                            HStack(spacing: 8) {
+                                ChestView(rarity: .gold, size: 30)
+                                Text(L("Für deinen ersten Freund gibt es eine Goldtruhe!"))
+                                    .font(.system(size: 13, weight: .heavy, design: .rounded)).foregroundColor(Theme.gold)
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.gold.opacity(0.08)))
+                        }
                     }
                     .frame(maxWidth: .infinity).padding(22)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
@@ -293,6 +328,20 @@ struct FriendsSheet: View {
                             }
                         }
                     }
+                }
+
+                if let show = friends.showOnline {
+                    Toggle(isOn: Binding(get: { show }, set: { v in act { try await friends.setShowOnline(v); return nil } })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("Online-Status zeigen")).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.textPrimary)
+                            Text(L("Freunde sehen, wenn du gerade in Rook Raid bist, und können dich herausfordern."))
+                                .font(.system(size: 12)).foregroundColor(Theme.textMuted)
+                        }
+                    }
+                    .tint(Theme.gold)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
+                    .padding(.top, 18)
                 }
 
                 Button(L("Blockierte Spieler")) {
@@ -361,11 +410,14 @@ struct FriendsSheet: View {
         let frame: AvatarFrame
         let trophies: Int
         let title: String?
+        var isBot = false
+        var online = false
     }
 
     private var rankEntries: [RankEntry] {
         var entries = friends.friends.map {
-            RankEntry(id: $0.userId, name: $0.name, avatar: avatarOf($0.avatar), frame: frameOf($0.frame), trophies: $0.trophies, title: $0.title)
+            RankEntry(id: $0.userId, name: $0.name, avatar: avatarOf($0.avatar), frame: frameOf($0.frame), trophies: $0.trophies, title: $0.title,
+                      isBot: $0.isBot, online: $0.online)
         }
         let myTitle: String? = store.activeTitle
         entries.append(RankEntry(id: nil, name: store.profile.name, avatar: store.activeAvatar, frame: store.activeFrame,
@@ -376,6 +428,7 @@ struct FriendsSheet: View {
     @ViewBuilder
     private var ranking: some View {
         ForEach(Array(rankEntries.enumerated()), id: \.offset) { i, e in
+          HStack(spacing: 0) {
             Button { if let id = e.id { showProfile = id } } label: {
                 HStack(spacing: 10) {
                     Text("\(i + 1)")
@@ -383,19 +436,43 @@ struct FriendsSheet: View {
                         .foregroundColor(i == 0 ? Theme.gold : i == 1 ? Color(hex: 0xD6DCE8) : i == 2 ? Color(hex: 0xE39B6A) : Theme.textMuted)
                         .frame(width: 22)
                     PlayerAvatar(size: 38, frame: e.frame, avatar: e.avatar)
+                        .overlay(alignment: .bottomTrailing) { if e.online { OnlineDot() } }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(e.id == nil ? "\(e.name) · \(L("Du"))" : e.name)
-                            .font(.system(size: 15, weight: .bold)).foregroundColor(Theme.textPrimary).lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(e.id == nil ? "\(e.name) · \(L("Du"))" : e.name)
+                                .font(.system(size: 15, weight: .bold)).foregroundColor(Theme.textPrimary).lineLimit(1)
+                            if e.isBot { TrainingTag(botPlayer: true) }
+                        }
                         trophyLine(e.trophies, e.title)
                     }
                     Spacer()
-                    if e.id != nil { Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.textMuted) }
                 }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(e.id == nil ? Theme.blue.opacity(0.12) : Color.clear)
+                .padding(.leading, 12).padding(.trailing, e.id == nil ? 12 : 4).padding(.vertical, 9)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(e.id == nil)
+            if let id = e.id {
+                // Direkt aus der Liste herausfordern (wie der Knopf im Profil); online = hervorgehoben
+                Button {
+                    Task {
+                        do { try await FriendMatchCenter.shared.invite(id, name: e.name, avatar: e.avatar.rawValue, frame: e.frame == AvatarFrame.none ? nil : e.frame.rawValue) }
+                        catch { flash(FriendError.message(error)) }
+                    }
+                } label: {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(e.online ? Theme.navy : Theme.gold)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(e.online ? Theme.gold : Theme.gold.opacity(0.12)))
+                        .shadow(color: e.online ? Theme.gold.opacity(0.5) : .clear, radius: 6)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 10)
+                .accessibilityLabel(L("{0} herausfordern", e.name))
+            }
+          }
+          .background(e.id == nil ? Theme.blue.opacity(0.12) : Color.clear)
         }
     }
 
@@ -425,8 +502,12 @@ struct FriendsSheet: View {
             Button { if open || p.relation == .friend { showProfile = p.userId } } label: {
                 HStack(spacing: 10) {
                     PlayerAvatar(size: 38, frame: frameOf(p.frame), avatar: avatarOf(p.avatar))
+                        .overlay(alignment: .bottomTrailing) { if p.online { OnlineDot() } }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(p.name).font(.system(size: 15, weight: .bold)).foregroundColor(Theme.textPrimary).lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(p.name).font(.system(size: 15, weight: .bold)).foregroundColor(Theme.textPrimary).lineLimit(1)
+                            if p.isBot { TrainingTag(botPlayer: true) }
+                        }
                         trophyLine(p.trophies, p.title)
                     }
                     Spacer(minLength: 0)
@@ -520,6 +601,7 @@ struct FriendProfileView: View {
     @State private var confirmBlock = false
     @State private var showReport = false
     @State private var toast: String?
+    @State private var challenging = false
 
     var body: some View {
         ZStack {
@@ -553,7 +635,11 @@ struct FriendProfileView: View {
         let games = p.wins + p.losses + p.draws
         VStack(spacing: 6) {
             PlayerAvatar(size: 96, frame: frameOf(p.frame), avatar: avatarOf(p.avatar))
-            Text(p.name).font(.system(size: 24, weight: .black, design: .rounded)).foregroundColor(Theme.textPrimary)
+                .overlay(alignment: .bottomTrailing) { if p.online == true { OnlineDot(size: 18) } }
+            HStack(spacing: 8) {
+                Text(p.name).font(.system(size: 24, weight: .black, design: .rounded)).foregroundColor(Theme.textPrimary)
+                if p.isBot == true { TrainingTag(large: true, botPlayer: true) }
+            }
             if let title = p.title {
                 Text(L(title).uppercased()).font(.system(size: 11, weight: .black, design: .rounded)).kerning(1.3).foregroundColor(Theme.blueLight)
             }
@@ -562,8 +648,35 @@ struct FriendProfileView: View {
                 chip(L("Arena {0}", arena.number))
                 if p.relation == .friend, p.since != nil { chip(L("Freunde seit {0}", shortDate(p.since)), gold: true) }
             }
+            if p.relation == .friend {
+                Text(p.online == true ? L("Online") : L("Offline"))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(p.online == true ? Color(hex: 0x6FDC8C) : Theme.textMuted)
+            }
+            if p.isBot == true {
+                Text(L("Das ist ein Bot-Spieler, kein Mensch."))
+                    .font(.system(size: 12)).foregroundColor(Theme.textMuted).multilineTextAlignment(.center)
+            }
         }
         .padding(.bottom, 6)
+
+        if p.relation == .friend {
+            Button {
+                challenging = true
+                Task {
+                    do { try await FriendMatchCenter.shared.invite(p.userId, name: p.name, avatar: p.avatar, frame: p.frame) }
+                    catch { flash(FriendError.message(error)) }
+                    challenging = false
+                }
+            } label: {
+                Label(L("Freundschaftsspiel"), systemImage: "bolt.heart.fill")
+            }
+            .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: Color(hex: 0xB8892B), height: 48, textColor: Theme.navy))
+            .font(.system(size: 17, weight: .heavy, design: .rounded))
+            .disabled(challenging)
+            Text(L("5 | 0 · ohne Trophäen · zählt für eure Bilanz"))
+                .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.textMuted)
+        }
 
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
             stat("trophy.fill", Theme.gold, "\(p.trophies)", L("Rekord {0}", p.bestTrophies))
@@ -582,6 +695,8 @@ struct FriendProfileView: View {
             .frame(maxWidth: .infinity).padding(14)
             .background(RoundedRectangle(cornerRadius: 14).fill(Theme.panelRaised))
         }
+
+        if p.relation == .friend { FriendHistory(userId: p.userId) }
 
         if p.relation == .incoming {
             HStack(spacing: 8) {
@@ -677,9 +792,51 @@ struct FriendProfileView: View {
 struct FriendBanner: View {
     @ObservedObject private var friends = FriendsStore.shared
     var onOpen: () -> Void
+    /// Freundestruhe öffnen
+    var onOpenChest: (UUID) -> Void = { _ in }
 
     var body: some View {
         if let news = friends.news {
+            Group {
+                if news.kind == .reward { rewardBanner(news) } else { requestBanner(news) }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color(hex: 0x1B2A4C)))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder((news.kind == .reward ? Theme.gold : Theme.blueLight).opacity(0.4), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.5), radius: 16, y: 6)
+            .padding(.horizontal, 12)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.top, 6)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .onAppear { Haptics.shared.play(news.kind == .reward ? .victory : .select) }
+            .task(id: news) {
+                try? await Task.sleep(nanoseconds: (news.kind == .reward ? 8 : 6) * 1_000_000_000)
+                withAnimation(.easeOut(duration: 0.25)) { if friends.news == news { friends.news = nil } }
+            }
+        }
+    }
+
+    private func rewardBanner(_ news: FriendsStore.News) -> some View {
+        HStack(spacing: 10) {
+            ChestView(rarity: .gold, size: 34)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L("Freundestruhe!"))
+                    .font(.system(size: 14, weight: .black, design: .rounded)).foregroundColor(Theme.textPrimary)
+                Text(L("Für deinen ersten Freund gibt es eine Goldtruhe."))
+                    .font(.system(size: 12)).foregroundColor(Theme.textSecondary).lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            if let id = news.chestId {
+                Button(L("Öffnen")) { friends.news = nil; onOpenChest(id) }
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .foregroundColor(Theme.navy)
+                    .padding(.horizontal, 12).frame(height: 32)
+                    .background(Capsule().fill(Theme.gold))
+            }
+        }
+    }
+
+    private func requestBanner(_ news: FriendsStore.News) -> some View {
             HStack(spacing: 10) {
                 Image(systemName: news.kind == .request ? "person.2.fill" : "heart.fill")
                     .font(.system(size: 15, weight: .bold)).foregroundColor(.white)
@@ -698,19 +855,80 @@ struct FriendBanner: View {
                     .padding(.horizontal, 12).frame(height: 32)
                     .background(Capsule().fill(Theme.gold))
             }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color(hex: 0x1B2A4C)))
-            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.blueLight.opacity(0.4), lineWidth: 1.5))
-            .shadow(color: .black.opacity(0.5), radius: 16, y: 6)
-            .padding(.horizontal, 12)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .padding(.top, 6)
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .onAppear { Haptics.shared.play(.select) }
-            .task(id: news) {
-                try? await Task.sleep(nanoseconds: 6_000_000_000)
-                withAnimation(.easeOut(duration: 0.25)) { if friends.news == news { friends.news = nil } }
+    }
+}
+
+// MARK: - Partien gegeneinander
+
+/// Die letzten Spiele gegen einen Freund im Profil (wie FriendHistory in Friends.tsx). Erst 5, auf Wunsch alle.
+struct FriendHistory: View {
+    let userId: UUID
+    @State private var games: [FriendsStore.FriendMatch]?
+    @State private var showAll = false
+
+    var body: some View {
+        Group {
+            if let games, !games.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader(title: L("Letzte Partien"))
+                    VStack(spacing: 0) {
+                        ForEach(Array((showAll ? games : Array(games.prefix(5))).enumerated()), id: \.element.id) { i, g in
+                            if i > 0 { Divider().background(Theme.panelHighlight) }
+                            row(g)
+                        }
+                    }
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
+                    if games.count > 5, !showAll {
+                        Button(L("Alle {0} Partien zeigen", games.count)) { withAnimation { showAll = true } }
+                            .font(.system(size: 14, weight: .bold)).foregroundColor(Theme.blueLight)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
             }
         }
+        .task(id: userId) { games = (try? await FriendsStore.shared.matches(with: userId)) ?? [] }
+    }
+
+    private func row(_ g: FriendsStore.FriendMatch) -> some View {
+        let (label, color): (String, Color) = {
+            switch g.result {
+            case .win: return (L("Sieg"), Color(hex: 0x8FE39A))
+            case .loss: return (L("Niederlage"), Theme.redLight)
+            case .draw: return (L("Remis"), Theme.textSecondary)
+            }
+        }()
+        return HStack(spacing: 10) {
+            Text(label)
+                .font(.system(size: 12, weight: .black, design: .rounded)).foregroundColor(color)
+                .frame(minWidth: 84).padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.18)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(g.reason.map { L(OnlineAccount.serverReasons[$0] ?? $0) } ?? "")
+                    .font(.system(size: 14)).foregroundColor(Theme.textPrimary).lineLimit(1)
+                Text(g.endedAt.formatted(date: .abbreviated, time: .omitted))
+                    .font(.system(size: 12)).foregroundColor(Theme.textMuted)
+            }
+            Spacer(minLength: 4)
+            if g.rated {
+                let d = g.trophyDelta ?? 0
+                Label("\(d > 0 ? "+" : "")\(d)", systemImage: "trophy.fill")
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundColor(d >= 0 ? Theme.gold : Theme.textSecondary)
+            } else {
+                FriendlyTag()
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+    }
+}
+
+/// Grüner Punkt am Avatar: gerade online.
+struct OnlineDot: View {
+    var size: CGFloat = 12
+    var body: some View {
+        Circle().fill(Color(hex: 0x4CD964))
+            .frame(width: size, height: size)
+            .overlay(Circle().strokeBorder(Theme.panelRaised, lineWidth: size * 0.2))
+            .accessibilityLabel(L("Online"))
     }
 }

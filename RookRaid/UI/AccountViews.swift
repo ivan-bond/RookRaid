@@ -56,8 +56,8 @@ struct AccountSection: View {
                     divider
                     button(L("Spielername ändern"), "pencil", Theme.blueLight) { nameSheet = .rename }
                     divider
-                    appleRow
-                    if account.status == .apple {
+                    secureRow
+                    if account.status == .secured {
                         divider
                         button(L("Abmelden"), "rectangle.portrait.and.arrow.right", Theme.textSecondary) { confirmSignOut = true }
                     }
@@ -71,7 +71,7 @@ struct AccountSection: View {
                         Text(L("Schon ein Konto?"))
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(Theme.textSecondary)
-                        AppleSecureButton(linking: false) { errorText = $0 }
+                        SignInButtons(linking: false) { errorText = $0 }
                     }
                     .padding(12)
                 }
@@ -110,7 +110,8 @@ struct AccountSection: View {
             Button(L("Abmelden")) { Task { await account.signOut() } }
             Button(L("Abbrechen"), role: .cancel) {}
         } message: {
-            Text(L("Mit Apple kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden."))
+            Text(account.provider == .google ? L("Mit Google kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden.")
+                                             : L("Mit Apple kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden."))
         }
     }
 
@@ -144,17 +145,25 @@ struct AccountSection: View {
         .padding(12)
     }
 
-    private var appleRow: some View {
+    /// Gesichert: mit wem. Sonst die Knöpfe für Apple und Google.
+    private var secureRow: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                Image(systemName: "apple.logo").foregroundColor(.white).frame(width: 22)
-                Text(account.status == .apple ? L("Mit Apple gesichert") : L("Mit Apple sichern"))
+                if account.provider == .google {
+                    Image("GoogleG").resizable().frame(width: 18, height: 18).frame(width: 22)
+                } else {
+                    Image(systemName: "apple.logo").foregroundColor(.white).frame(width: 22)
+                }
+                Text(account.status == .secured ? (account.provider ?? .apple).securedText : L("Konto sichern"))
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(account.status == .apple ? Theme.green : .white)
+                    .foregroundColor(account.status == .secured ? Theme.green : .white)
                 Spacer()
             }
-            if account.status != .apple {
-                AppleSecureButton(linking: true) { errorText = $0 }
+            if account.status != .secured {
+                Text(L("Mit Apple oder Google kannst du dich jederzeit wieder anmelden und deinen Fortschritt laden."))
+                    .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                SignInButtons(linking: true) { errorText = $0 }
             }
         }
         .padding(12)
@@ -162,7 +171,7 @@ struct AccountSection: View {
 
     private var statusIcon: String {
         switch account.status {
-        case .apple: return "checkmark.shield.fill"
+        case .secured: return "checkmark.shield.fill"
         case .anonymous: return "exclamationmark.shield.fill"
         case .guest, .unavailable: return "person.crop.circle"
         }
@@ -170,7 +179,7 @@ struct AccountSection: View {
 
     private var statusColor: Color {
         switch account.status {
-        case .apple: return Theme.green
+        case .secured: return Theme.green
         case .anonymous: return Theme.gold
         case .guest, .unavailable: return Theme.textMuted
         }
@@ -178,7 +187,7 @@ struct AccountSection: View {
 
     private var statusText: String {
         switch account.status {
-        case .apple: return L("Mit Apple gesichert")
+        case .secured: return (account.provider ?? .apple).securedText
         case .anonymous: return L("Nicht gesichert – geht verloren, wenn du die App löschst.")
         case .guest: return L("Noch kein Online-Konto. Dein Fortschritt liegt nur auf diesem iPhone.")
         case .unavailable: return L("Keine Verbindung zum Server.")
