@@ -1031,8 +1031,10 @@ struct SettingsSheet: View {
         let info = Bundle.main.infoDictionary ?? [:]
         let v = (info["CFBundleShortVersionString"] as? String) ?? "?"
         let b = (info["CFBundleVersion"] as? String) ?? "?"
-        return L("Rook Raid {0} (Build {1})", v, b)
+        return L("Rook Raid {0} (Build {1})", "\(v) \(Self.stage)", b)
     }
+    /// Release stage shown next to the version (App Store versions must be plain numbers like 1.0.0). Same as APP_STAGE on the web.
+    static let stage = "Beta"
 
     /// Konto-Bereich: sobald online an ist – in Debug-Builds schon vorher zum Testen gegen den Server.
     private var showAccount: Bool { OnlineConfig.isLive }

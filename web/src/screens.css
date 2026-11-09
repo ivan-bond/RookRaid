@@ -1460,3 +1460,40 @@ button.hist-row:disabled { cursor: default; }
 @media (max-width: 520px) { .login-card .signin-buttons { width: 100%; flex-direction: column; } .login-card .google-login { width: 100%; } }
 .welcome-ok { display: flex; align-items: center; gap: 6px; color: #8FE39A; font-size: 12px; font-weight: 700; }
 .welcome-note { color: var(--text2); font-size: 12px; }
+
+/* Public „How to play“ page (/how-to-play, HowToPlay.tsx) – shares the legal-site frame */
+.htp { display: flex; flex-direction: column; gap: 28px; user-select: text; -webkit-user-select: text; }
+.htp h1 { margin: 0; font: 900 clamp(30px, 6vw, 44px) / 1.1 var(--round); color: #fff; }
+.htp h2 { margin: 0 0 10px; font: 900 24px / 1.2 var(--round); color: #fff; }
+.htp h3 { margin: 14px 0 8px; font: 900 13px var(--round); letter-spacing: .12em; text-transform: uppercase; }
+.htp p, .htp li { font-size: 15.5px; line-height: 1.6; color: var(--text2); }
+.htp p { margin: 0 0 10px; }
+.htp strong { color: #fff; }
+.htp section { scroll-margin-top: 80px; }
+.htp-hero { display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 20px; background: linear-gradient(135deg, #2A1F55, #172443); border: 1px solid #F2C14E40; }
+.htp-lead { font-size: 17px !important; margin: 0 !important; }
+.htp-cta { display: flex; flex-wrap: wrap; gap: 10px; }
+.htp-cta a { text-decoration: none; }
+.htp-cta.end { justify-content: center; }
+.htp-toc { display: flex; flex-wrap: wrap; gap: 6px; }
+.htp-toc a { padding: 6px 12px; border-radius: 999px; background: var(--raised); border: 1px solid #ffffff14; color: var(--text2); font: 800 13px var(--round); text-decoration: none; }
+.htp-toc a:hover { color: #fff; }
+.htp-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.htp-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.htp-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border-radius: 14px; overflow: hidden; background: var(--raised); }
+.htp-table th, .htp-table td { text-align: left; padding: 10px 14px; font-size: 15px; border-top: 1px solid #ffffff0f; }
+.htp-table tr:first-child th, .htp-table tr:first-child td { border-top: 0; }
+.htp-table th { color: #fff; font-weight: 800; width: 34%; }
+.htp-table td { color: var(--text2); }
+.htp-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+@media (min-width: 720px) { .htp-cards { grid-template-columns: 1fr 1fr; } }
+.htp-cards li { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 14px; background: var(--raised); border: 1px solid #ffffff12; }
+.htp-cards img { flex: none; width: 56px; height: 72px; object-fit: cover; border-radius: 9px; border: 2px solid var(--gold); }
+.htp-cards h4, .htp-cards h3.htp-item { margin: 0 0 4px; letter-spacing: 0; text-transform: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font: 900 16px var(--round); color: #fff; }
+.htp-cards p { margin: 0; font-size: 14px; line-height: 1.5; }
+.htp-cost, .htp-arena, .htp-bonus { padding: 2px 8px; border-radius: 999px; font: 800 11px var(--round); }
+.htp-cost { background: #8B5CF633; color: #C9B6FF; }
+.htp-arena { background: #F2C14E26; color: var(--gold); }
+.htp-bonus { background: #2F6FE433; color: #9CC0FF; }
+.htp-arenas { margin: 0 0 10px; padding-left: 22px; }
+.htp-faq h3 { margin: 16px 0 4px; font: 900 17px var(--round); letter-spacing: 0; text-transform: none; color: #fff; }

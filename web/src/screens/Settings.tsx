@@ -1,4 +1,5 @@
 // SettingsSheet (ProfileViews.swift) and AccountViews.swift.
+import { APP_STAGE, APP_VERSION } from '../version'
 import { useState } from 'react'
 import * as S from '../game/store'
 import { useI18n, LANGS, deviceLang } from '../i18n'
@@ -74,7 +75,7 @@ export function SettingsSheet() {
         <button className="li" onClick={() => setReset(true)}><span className="ico" style={{ background: '#E0413A' }}><Icon name="trash" size={16} /></span><span className="t" style={{ color: 'var(--red-light)' }}>{t('Fortschritt zurücksetzen')}</span></button>
       </div>
       <p className="list-f">{t('Profil, Fortschritt, Verlauf und die laufende Partie liegen in diesem Browser. Online liegen Konto, Trophäen und Partien zusätzlich auf dem Server in Frankfurt. Mehr dazu im Datenschutz.')}</p>
-      <p className="list-f" style={{ textAlign: 'center' }}>Rook Raid · Web · v0.9.36</p>
+      <p className="list-f" style={{ textAlign: 'center' }}>Rook Raid · Web · v{APP_VERSION} {APP_STAGE}</p>
       {reset && (
         <Dialog title={t('Gesamten Fortschritt löschen?')} message={t('Trophäen, Statistik, XP, gelöste Puzzles, Flammen und Verlauf werden zurückgesetzt. Einstellungen bleiben erhalten.')}
           onClose={() => setReset(false)} actions={[{ label: t('Zurücksetzen'), destructive: true, onClick: () => S.resetProgress() }, { label: t('Abbrechen'), bold: true }]} />

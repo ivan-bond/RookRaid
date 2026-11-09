@@ -1,5 +1,5 @@
 // RootView (HomeViews.swift): five tabs, full-screen views on top, sheets and the little celebrations.
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { appLogo, logoMark, rockyFace } from './art'
 import { GameController } from './game/controller'
 import { unlockAudio } from './game/feedback'
@@ -10,17 +10,12 @@ import * as Online from './online'
 import { Icon } from './ui/Icon'
 import { ChestOpening, ChestHub } from './screens/Chests'
 import { DeckScreen, PresetSheet, UltimateSheet } from './screens/Deck'
-import { GameScreen } from './screens/Game'
 import { HomeScreen } from './screens/Home'
-import { Matchmaking } from './screens/Matchmaking'
-import { CardLab } from './screens/Lab'
 import { LEGAL_PATHS } from './screens/Legal'
 import { AchievementsSheet, ProfileScreen, StatisticsSheet, StyleSheet } from './screens/Profile'
-import { PuzzleHub, PuzzlePlayer, PuzzleRush } from './screens/Puzzles'
+import { PuzzleHub } from './screens/Puzzles'
 import { LadderSheet, RoadGuide, RoadScreen } from './screens/Road'
 import { RulesSheet } from './screens/Rules'
-import { ReplayViewer } from './screens/Replay'
-import { Intro } from './screens/Intro'
 import { LanguageSheet, LegalSheet, NameSheet, SettingsSheet } from './screens/Settings'
 import { ShopSheet } from './screens/Shop'
 import { FlameIgnition, FlameSheet, FreezeNotice } from './screens/Flame'
@@ -32,6 +27,15 @@ import * as Friends from './friends'
 import * as FriendMatch from './friendMatch'
 import { FriendMatchInviteBanner, FriendMatchWaiting, installFriendMatchStart } from './screens/FriendMatch'
 import { syncPush } from './push'
+
+// Full-screen views load when first opened, so the first visit and the public pages download less.
+const GameScreen = lazy(() => import('./screens/Game').then(m => ({ default: m.GameScreen })))
+const Matchmaking = lazy(() => import('./screens/Matchmaking').then(m => ({ default: m.Matchmaking })))
+const CardLab = lazy(() => import('./screens/Lab').then(m => ({ default: m.CardLab })))
+const PuzzlePlayer = lazy(() => import('./screens/Puzzles').then(m => ({ default: m.PuzzlePlayer })))
+const PuzzleRush = lazy(() => import('./screens/Puzzles').then(m => ({ default: m.PuzzleRush })))
+const ReplayViewer = lazy(() => import('./screens/Replay').then(m => ({ default: m.ReplayViewer })))
+const Intro = lazy(() => import('./screens/Intro').then(m => ({ default: m.Intro })))
 
 const TABS: Array<[Tab, string, string]> = [
   ['arena', 'Pfad', 'trophy'], ['puzzles', 'Puzzles', 'puzzle'], ['play', 'Spielen', 'bolt'], ['deck', 'Deck', 'stack'], ['profile', 'Profil', 'person'],
@@ -156,6 +160,7 @@ export function App() {
         ))}
       </nav>
 
+      <Suspense fallback={null}>
       {overlay?.kind === 'game' && <GameScreen key={String(overlay.game.startedAt) + overlay.game.mode.kind} game={overlay.game} />}
       {overlay?.kind === 'puzzle' && <PuzzlePlayer key={overlay.puzzle.id} puzzle={overlay.puzzle} daily={overlay.daily} />}
       {overlay?.kind === 'rush' && <PuzzleRush />}
@@ -163,6 +168,7 @@ export function App() {
       {overlay?.kind === 'matchmaking' && <Matchmaking />}
       {overlay?.kind === 'intro' && <Intro />}
       {overlay?.kind === 'replay' && <ReplayViewer id={overlay.id} />}
+      </Suspense>
 
       {sheet === 'settings' && <SettingsSheet />}
       {sheet === 'chestHub' && <ChestHub />}

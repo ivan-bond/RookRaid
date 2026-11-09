@@ -35,3 +35,23 @@ DirectoryIndex index.html
 <IfModule mod_mime.c>
   AddType application/manifest+json .webmanifest
 </IfModule>
+
+# Speed (Core Web Vitals): files in /assets carry a content hash and never change → cache for a year.
+# Pictures without a hash (pieces, skins, icons, share image) for a week; robots.txt and the sitemap for a day.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(png|jpg|jpeg|webp|svg|ico|wav)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+  # Vite's hashed build files (name-AbCd1234.js); listed after the line above so it wins for hashed pictures too.
+  <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|css|png|jpg|jpeg|webp|svg|wav|woff2)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^(robots\.txt|sitemap\.xml)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>
+
+# Compress text files (Hostinger's CDN usually does this too).
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/javascript text/javascript application/json application/manifest+json application/xml image/svg+xml
+</IfModule>

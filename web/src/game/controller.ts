@@ -144,6 +144,9 @@ export class GameController {
   version = 0
   private listeners = new Set<() => void>()
   private timers: number[] = []
+  private unwatch: (() => void) | null = null
+  private pulsing = false
+  private pulseAgain = false
   private clockTimer = 0
   private lastTick = 0
   private finished = false
@@ -334,6 +337,8 @@ export class GameController {
     window.clearInterval(this.clockTimer)
     this.timers.forEach(id => window.clearInterval(id))
     this.timers = []
+    this.unwatch?.()
+    this.unwatch = null
     this.aiToken++
   }
   finishIntro() {
@@ -785,7 +790,7 @@ export class GameController {
     this.incomingDraw = false
     this.emit()
     try { await Online.answerDraw(this.online.matchId, accept) } catch { /* the poll reads the result */ }
-    void this.pulse()
+    this.requestPulse()
   }
   private notice(text: string) {
     if (this.persistentNotice) return
@@ -985,7 +990,9 @@ export class GameController {
   // MARK: Online human match
 
   private startOnline() {
-    this.timers.push(window.setInterval(() => { void this.pulse() }, 2000))
+    // Moves arrive live over Realtime (like the app); the 10 s check is only a safety net for a dropped connection.
+    if (this.online) this.unwatch = Online.watchMatch(this.online.matchId, () => this.requestPulse())
+    this.timers.push(window.setInterval(() => this.requestPulse(), 10_000))
     this.timers.push(window.setInterval(() => { void this.ping() }, 10_000))
     void this.ping()
     document.addEventListener('visibilitychange', this.onVisibleOnline)
@@ -993,14 +1000,14 @@ export class GameController {
   /** Reopened from the Play tab after leaving the match. */
   noteResumed() {
     this.hint = t('Zurück in deiner Partie')
-    if (this.online && !this.online.bot) { void this.ping(); void this.pulse() }
+    if (this.online && !this.online.bot) { void this.ping(); this.requestPulse() }
     this.emit()
   }
   /** Back in the tab: ask the server right away instead of waiting for the next 10 s beat (resumeOnlinePresence). */
   private onVisibleOnline = () => {
     if (document.visibilityState !== 'visible' || this.finished) return
     void this.ping()
-    void this.pulse()
+    this.requestPulse()
   }
   /** Sign of life, like pingHeartbeatOnce() in the app. */
   private async ping() {
@@ -1011,7 +1018,7 @@ export class GameController {
     if (this.persistentNotice) { this.persistentNotice = false; this.onlineNotice = null; this.emit() }
     if (snap.status !== 'active') {
       if (this.online.bot) void this.checkStandInStillActive()
-      else void this.pulse()
+      else this.requestPulse()
       return
     }
     if (this.online.bot || snap.opponentSilent === null) return
@@ -1063,6 +1070,15 @@ export class GameController {
     if (!this.online) return
     try { await Online.claimTimeout(this.online.matchId) } catch { /* the poll reads the result */ }
     await this.pulse()
+  }
+  /** One server read at a time: Realtime events can come in bursts (action + clock update). */
+  private requestPulse() {
+    if (this.pulsing) { this.pulseAgain = true; return }
+    this.pulsing = true
+    void this.pulse().finally(() => {
+      this.pulsing = false
+      if (this.pulseAgain) { this.pulseAgain = false; this.requestPulse() }
+    })
   }
   private async pulse(forceRebuild = false) {
     if (!this.online || this.online.bot || this.finished) return

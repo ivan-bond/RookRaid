@@ -1,13 +1,13 @@
 // LegalViews.swift: privacy policy, legal notice and terms (same wording as the app), plus a support page.
 // Reachable inside the game (Settings → Legal) and as public pages: /privacy, /imprint, /terms, /support
 // – those addresses go into App Store Connect (Privacy Policy URL, Support URL).
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { appLogo } from '../art'
-import { useI18n, LANGS, type Lang } from '../i18n'
+import { translateIn, useI18n, LANGS, type Lang } from '../i18n'
 import { Icon } from '../ui/Icon'
 
 export type LegalPage = 'privacy' | 'imprint' | 'terms' | 'support'
-export const LEGAL_PATHS: Record<LegalPage, string> = { privacy: '/privacy', imprint: '/imprint', terms: '/terms', support: '/support' }
+export const LEGAL_PATHS: Record<LegalPage, string> = { privacy: '/privacy/', imprint: '/imprint/', terms: '/terms/', support: '/support/' }
 export const LEGAL_TITLES: Record<LegalPage, string> = { privacy: 'Datenschutz', imprint: 'Impressum', terms: 'Nutzungsbedingungen', support: 'Hilfe & Kontakt' }
 
 export const PUBLISHER = { name: 'Ivan Bondarenko', street: 'Frommannstr. 16', city: '04317 Leipzig', email: 'rookraidchess@gmail.com' }
@@ -142,29 +142,45 @@ export function LegalBody({ page }: { page: LegalPage }) {
   )
 }
 
-/** Public page without the game around it (what App Review and visitors see). */
-export function LegalStandalone({ page }: { page: LegalPage }) {
-  const { t, lang, setLang } = useI18n()
-  document.title = `${t(LEGAL_TITLES[page])} · Rook Raid`
+/** Frame of the public pages (legal pages and „How to play“): brand, page links, optional language picker, footer.
+ *  Also rendered to static HTML at build time (scripts/prerender.mjs), so it must not touch the DOM while rendering. */
+export function PublicShell({ current, title, children, fixedLang }: { current: LegalPage | 'how-to-play'; title: string; children: ReactNode; fixedLang?: Lang }) {
+  const i18n = useI18n()
+  const { lang, setLang } = i18n
+  // A page in one fixed language (How to play: English) shows its header in that language too, without the picker.
+  const t = fixedLang ? (key: string) => translateIn(fixedLang, key) : i18n.t
+  const langPicker = !fixedLang
+  useEffect(() => { document.title = title }, [title])
   return (
     <div className="legal-site">
       <header className="legal-top">
-        <a href="/" className="legal-brand"><img src={appLogo} alt="" /><b>Rook Raid</b></a>
-        <nav className="legal-nav">
+        <a href="/" className="legal-brand"><img src={appLogo} alt="Rook Raid logo" width={36} height={36} /><b>Rook Raid</b></a>
+        <nav className="legal-nav" aria-label="Rook Raid">
+          <a href="/how-to-play/" className={current === 'how-to-play' ? 'on' : ''}>How to play</a>
           {(Object.keys(LEGAL_PATHS) as LegalPage[]).map(p => (
-            <a key={p} href={LEGAL_PATHS[p]} className={p === page ? 'on' : ''}>{t(LEGAL_TITLES[p])}</a>
+            <a key={p} href={LEGAL_PATHS[p]} className={p === current ? 'on' : ''}>{t(LEGAL_TITLES[p])}</a>
           ))}
         </nav>
-        <label className="legal-lang"><Icon name="globe" size={14} />
-          <select className="select" value={lang} onChange={e => setLang(e.target.value as Lang)}>{LANGS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
-        </label>
+        {langPicker && (
+          <label className="legal-lang"><Icon name="globe" size={14} />
+            <select className="select" aria-label="Language" value={lang} onChange={e => setLang(e.target.value as Lang)}>{LANGS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+          </label>
+        )}
       </header>
-      <main className="legal-main">
-        <h1 className="title-xl">{t(LEGAL_TITLES[page])}</h1>
-        <LegalBody page={page} />
-        <a className="chunky gold" href="/" style={{ textDecoration: 'none', marginTop: 24 }}><Icon name="bolt" size={18} />{t('Rook Raid im Browser spielen')}</a>
-      </main>
+      <main className="legal-main">{children}</main>
       <footer className="legal-foot">© 2026 {PUBLISHER.name} · <a href={`mailto:${PUBLISHER.email}`}>{PUBLISHER.email}</a></footer>
     </div>
+  )
+}
+
+/** Public page without the game around it (what App Review and visitors see). */
+export function LegalStandalone({ page }: { page: LegalPage }) {
+  const { t } = useI18n()
+  return (
+    <PublicShell current={page} title={`${t(LEGAL_TITLES[page])} · Rook Raid`}>
+      <h1 className="title-xl">{t(LEGAL_TITLES[page])}</h1>
+      <LegalBody page={page} />
+      <a className="chunky gold" href="/" style={{ textDecoration: 'none', marginTop: 24 }}><Icon name="bolt" size={18} />{t('Rook Raid im Browser spielen')}</a>
+    </PublicShell>
   )
 }

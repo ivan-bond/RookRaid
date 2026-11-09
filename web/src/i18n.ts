@@ -32,6 +32,7 @@ function chosen(): Lang | null {
 }
 /** The browser's language, if supported – otherwise English. */
 export function deviceLang(): Lang {
+  if (typeof navigator === 'undefined') return 'en'
   for (const id of navigator.languages ?? [navigator.language]) {
     const code = id.slice(0, 2).toLowerCase()
     if (IDS.includes(code)) return code as Lang
@@ -60,9 +61,13 @@ function applyLang(next: Lang, pick: Lang | null) {
 }
 
 export function translate(key: string, args: Array<string | number> = []): string {
+  return translateIn(lang, key, args)
+}
+/** A text in a fixed language (the public „How to play“ page is English for now). Load the pack first. */
+export function translateIn(l: Lang, key: string, args: Array<string | number> = []): string {
   let text: string
-  if (lang === 'de') text = extra.de?.[key] ?? key
-  else text = extra[lang]?.[key] ?? packs[lang]?.[key] ?? extra.en?.[key] ?? packs.en?.[key] ?? key
+  if (l === 'de') text = extra.de?.[key] ?? key
+  else text = extra[l]?.[key] ?? packs[l]?.[key] ?? extra.en?.[key] ?? packs.en?.[key] ?? key
   args.forEach((value, i) => { text = text.split(`{${i}}`).join(String(value)) })
   return text
 }
@@ -71,12 +76,14 @@ export const t = (key: string, ...args: Array<string | number>) => translate(key
 function subscribe(fn: () => void) { listeners.add(fn); return () => { listeners.delete(fn) } }
 
 export function useI18n() {
-  const current = useSyncExternalStore(subscribe, getLang)
-  const followsDevice = useSyncExternalStore(subscribe, () => follows)
+  const current = useSyncExternalStore(subscribe, getLang, getLang)
+  const followsDevice = useSyncExternalStore(subscribe, () => follows, () => follows)
   return { lang: current, setLang, followsDevice, t: (key: string, ...args: Array<string | number>) => translate(key, args) }
 }
 
-document.documentElement.lang = lang === 'zh' ? 'zh-Hans' : lang
-
-// Following the browser: switch along when its language changes.
-window.addEventListener('languagechange', () => { if (follows && deviceLang() !== lang) setLang(null) })
+// Guarded: the public pages are also rendered at build time in Node (scripts/prerender.mjs), without a DOM.
+if (typeof document !== 'undefined') {
+  document.documentElement.lang = lang === 'zh' ? 'zh-Hans' : lang
+  // Following the browser: switch along when its language changes.
+  window.addEventListener('languagechange', () => { if (follows && deviceLang() !== lang) setLang(null) })
+}
