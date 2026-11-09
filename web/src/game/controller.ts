@@ -234,6 +234,8 @@ export class GameController {
   get isBotMode() { return this.mode.kind === 'bot' || this.mode.kind === 'ladder' || this.mode.kind === 'practice' }
   get isOnlineHuman() { return this.mode.kind === 'online' }
   get isOnlineBot() { return !!this.online?.bot }
+  /** A real person online. A stand-in bot is shown openly as the training opponent it is (its name, portrait, pieces). */
+  get onlineOpponent(): Online.PlayerCard | null { return this.online && !this.online.bot ? this.online.opponent : null }
   get aiSide(): Side | null {
     if (this.mode.kind === 'hotseat' || this.mode.kind === 'online') return null
     return this.human === 'w' ? 'b' : 'w'
@@ -261,7 +263,7 @@ export class GameController {
     const p = S.getProfile()
     if (this.mode.kind === 'tutorial' && side === 'b') return botById('medium')
     // Stand-in for an online opponent: standard pieces – a bot's piece set would give it away (E1, like the app)
-    if (this.online && side !== this.human) return null
+    if (this.onlineOpponent && side !== this.human) return null
     if (this.isBotMode && side !== this.human && p.settings.botSkins) return this.bot
     if (side === this.human || this.mode.kind === 'hotseat') return S.activeSkin()
     return null
@@ -269,7 +271,7 @@ export class GameController {
   name(side: Side): string {
     const p = S.getProfile()
     if (this.mode.kind === 'tutorial') return side === 'w' ? S.shownName(p.name, t) : t('Mila')
-    if (this.online && side !== this.human) return this.online.opponent.name || t('Gegner')
+    if (this.onlineOpponent && side !== this.human) return this.onlineOpponent.name || t('Gegner')
     if (this.isBotMode) return side === this.human ? (S.shownName(p.name, t)) : t(this.bot!.name)
     if (this.online) return p.name
     return side === 'w' ? t('Weiß') : t('Schwarz')
@@ -872,7 +874,7 @@ export class GameController {
     if (this.mode.kind !== 'practice' && result) {
       delta = S.record({
         result, rated: this.mode.kind === 'bot' && !serverRated,
-        opponent: serverRated ? (this.online?.opponent.name ?? '') : bot ? botRecordName(bot) : 'Zu zweit',
+        opponent: this.onlineOpponent ? this.onlineOpponent.name : bot ? botRecordName(bot) : 'Zu zweit',
         reason: REASON[this.endReason ?? ''] ?? '', moves: this.actions.length, cardsPlayed: this.cardsPlayedByHuman, replayID,
         countsForStats: this.mode.kind === 'ladder' || serverRated, opponentTrophies: bot ? botRating(bot) : undefined,
         matchId: this.online?.matchId,
@@ -907,7 +909,7 @@ export class GameController {
       ladderUnlocked: ladder?.unlocked ? t(ladder.unlocked.name) : null,
       skinUnlocked: this.online || !bot ? null : (!skinBefore && S.isSkinUnlocked(bot) ? bot : null),
       chests: earned, winChestsUsedUp, roadReady, hasWinner: !!winner,
-      opponent: this.online ? null : (this.isBotMode ? bot : null), disguise: this.online?.opponent ?? null,
+      opponent: this.onlineOpponent ? null : (this.isBotMode ? bot : null), disguise: this.onlineOpponent,
       moveCount: this.entries.filter(e => e.side === this.human || !this.isBotMode).length, cardsPlayed: this.cardsPlayedByHuman,
       winnerColor: winner,
     }

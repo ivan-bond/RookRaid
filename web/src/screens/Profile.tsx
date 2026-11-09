@@ -14,6 +14,7 @@ import { CHEST_TITLES, SHOP_FRAMES, SHOP_FRAME_PRICE, rankFor } from '../game/ca
 import { haptic, sound } from '../game/feedback'
 import { BotPortrait } from './Game'
 import * as Online from '../online'
+import { FriendsCard } from './Friends'
 
 export function ProfileScreen() {
   const p = S.useProfile()
@@ -56,6 +57,8 @@ export function ProfileScreen() {
               </div>
               <Icon name="pencilCircle" size={22} color="var(--blue-light)" />
             </button>
+
+            <FriendsCard />
 
             <div className="card col">
               <span className="row section-h" style={{ gap: 6 }}><Icon name="columns" size={13} />{t('Ruhmeshalle')}</span>

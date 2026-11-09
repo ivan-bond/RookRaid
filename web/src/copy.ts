@@ -2,6 +2,7 @@
 export const extra: Record<string, Record<string, string>> = {
   de: {},
   en: {
+    "Die Seite liegt bei Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Zypern, als Auftragsverarbeiter. Beim Aufruf der Seite verarbeitet Hostinger technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.": "The site is hosted by Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Cyprus, as a processor. When you open the site, Hostinger processes technically necessary connection data such as IP address, time and requested file in order to deliver the site and protect it against abuse. The legal basis is Art. 6(1)(f) GDPR.",
     "Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.": "Not secured – lost if you clear your browser data.",
     "Anmeldung mit Apple ist in dieser Browser-Fassung noch nicht eingerichtet.": "Sign in with Apple isn't set up for the browser version yet.",
     "Spielst du als Gast?": "Playing as a guest?",
@@ -9,7 +10,6 @@ export const extra: Record<string, Record<string, string>> = {
     "Trophäen gibt es für gewertete Online-Partien – sie zählt der Server.": "You earn trophies in rated online games – the server keeps count.",
     "Anmeldung mit Apple fehlgeschlagen.": "Sign in with Apple failed.",
     "Cookies: Die Seite setzt zwei technisch notwendige Cookies. „rr_visited“ merkt sich, dass du Rook Raid schon einmal geöffnet hast (dann startet nicht wieder die erste Schlacht), „rr_auth“ merkt sich, ob du als Gast, anonym oder mit Apple angemeldet bist. Beide bleiben ein Jahr, enthalten keine Kennungen und dienen nicht der Werbung oder Analyse. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG.": "Cookies: the site sets two technically necessary cookies. “rr_visited” remembers that you have opened Rook Raid before (so the first battle doesn't start again), “rr_auth” remembers whether you play as a guest, anonymously or signed in with Apple. Both last one year, contain no identifiers and are not used for advertising or analytics. The legal basis is Section 25(2) no. 2 TDDDG.",
-    "Beim Aufruf der Seite verarbeitet der Webhoster technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.": "When you open the site, the web host processes technically necessary connection data such as IP address, time and requested file to deliver the site and protect it from abuse. The legal basis is Art. 6(1)(f) GDPR.",
     "Browser-Fassung": "Browser version",
     "Diese Figur ist eingefroren.": "This piece is frozen.",
     "Dieser Zug ist nicht erlaubt.": "That move isn't allowed.",
@@ -84,6 +84,7 @@ export const extra: Record<string, Record<string, string>> = {
     'Verbindung steht.': 'Connected.',
   },
   fr: {
+    "Die Seite liegt bei Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Zypern, als Auftragsverarbeiter. Beim Aufruf der Seite verarbeitet Hostinger technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.": "Le site est hébergé par Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Chypre, en tant que sous-traitant. Lors de la consultation du site, Hostinger traite les données de connexion techniquement nécessaires, comme l'adresse IP, l'heure et le fichier demandé, afin de fournir le site et de le protéger contre les abus. La base juridique est l'art. 6, par. 1, point f du RGPD.",
     "Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.": "Non sécurisé – perdu si tu effaces les données de ton navigateur.",
     'Gegen den Computer': "Contre l'ordinateur",
     'Online-Kampf': 'Combat en ligne',
@@ -127,6 +128,7 @@ export const extra: Record<string, Record<string, string>> = {
     'Verbindung steht.': 'Connecté.',
   },
   es: {
+    "Die Seite liegt bei Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Zypern, als Auftragsverarbeiter. Beim Aufruf der Seite verarbeitet Hostinger technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.": "El sitio está alojado en Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Chipre, como encargado del tratamiento. Al abrir el sitio, Hostinger trata los datos de conexión técnicamente necesarios, como la dirección IP, la hora y el archivo solicitado, para servir el sitio y protegerlo contra abusos. La base jurídica es el art. 6.1.f RGPD.",
     "Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.": "Sin asegurar – se pierde si borras los datos del navegador.",
     'Gegen den Computer': 'Contra el ordenador',
     'Online-Kampf': 'Combate en línea',
@@ -170,6 +172,7 @@ export const extra: Record<string, Record<string, string>> = {
     'Verbindung steht.': 'Conectado.',
   },
   it: {
+    "Die Seite liegt bei Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Zypern, als Auftragsverarbeiter. Beim Aufruf der Seite verarbeitet Hostinger technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.": "Il sito è ospitato da Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Cipro, in qualità di responsabile del trattamento. Quando apri il sito, Hostinger tratta i dati di connessione tecnicamente necessari, come indirizzo IP, orario e file richiesto, per fornire il sito e proteggerlo dagli abusi. La base giuridica è l'art. 6, par. 1, lett. f GDPR.",
     "Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.": "Non protetto – va perso se cancelli i dati del browser.",
     'Gegen den Computer': 'Contro il computer',
     'Online-Kampf': 'Battaglia online',
@@ -213,6 +216,7 @@ export const extra: Record<string, Record<string, string>> = {
     'Verbindung steht.': 'Connesso.',
   },
   zh: {
+    "Die Seite liegt bei Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Zypern, als Auftragsverarbeiter. Beim Aufruf der Seite verarbeitet Hostinger technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.": "本网站由 Hostinger International Ltd.（61 Lordou Vironos Street, 6023 Larnaca, 塞浦路斯）作为数据处理者托管。访问网站时，Hostinger 会处理技术上必需的连接数据，例如 IP 地址、时间和请求的文件，以便提供网站并防止滥用。法律依据为 GDPR 第 6 条第 1 款 f 项。",
     "Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.": "未保存——清除浏览器数据后将会丢失。",
     'Gegen den Computer': '对战电脑',
     'Online-Kampf': '在线对战',
@@ -256,6 +260,7 @@ export const extra: Record<string, Record<string, string>> = {
     'Verbindung steht.': '已连接。',
   },
   ru: {
+    "Die Seite liegt bei Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Zypern, als Auftragsverarbeiter. Beim Aufruf der Seite verarbeitet Hostinger technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.": "Сайт размещён у Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Кипр, в качестве обработчика данных. При открытии сайта Hostinger обрабатывает технически необходимые данные соединения, такие как IP-адрес, время и запрошенный файл, чтобы доставить сайт и защитить его от злоупотреблений. Правовое основание — ст. 6 п. 1 подп. f GDPR.",
     "Nicht gesichert – geht verloren, wenn du die Browserdaten löschst.": "Не сохранено – пропадёт, если очистить данные браузера.",
     'Gegen den Computer': 'Против компьютера',
     'Online-Kampf': 'Онлайн-бой',

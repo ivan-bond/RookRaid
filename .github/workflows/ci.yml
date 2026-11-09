@@ -142,7 +142,7 @@ jobs:
           deno-version: v2.x
       - name: Edge Functions type-check as deployed
         working-directory: Backend/supabase/functions
-        run: deno check submit-action/index.ts finish-bot-match/index.ts delete-account/index.ts
+        run: deno check submit-action/index.ts finish-bot-match/index.ts delete-account/index.ts push-dispatch/index.ts
       - name: Edge Functions reject forged moves and guests
         working-directory: Backend/supabase/functions
         run: deno test --allow-read --allow-net --allow-env functions_test.ts
@@ -155,6 +155,7 @@ jobs:
           node privileges.js
           node scenario.js
           node flow.mjs
+          node friends.js
 
   dependencies:
     name: Dependencies

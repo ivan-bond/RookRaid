@@ -9,36 +9,17 @@
 //   APPLE_PRIVATE_KEY   Inhalt der .p8-Datei (mit BEGIN/END-Zeilen)
 //   APPLE_CLIENT_ID     Bundle-ID der App (Standard: com.ivan.rookraid)
 
+import { importP8, signES256 } from "../_shared/jwt.ts";
+
 const APPLE = "https://appleid.apple.com";
 
 export type AppleRevoker = (code: string) => Promise<void>;
 
-function b64url(data: Uint8Array | string): string {
-  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function pemToDer(pem: string): ArrayBuffer {
-  const body = pem.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, "").replace(/\\n/g, "").replace(/\s+/g, "");
-  const bin = atob(body);
-  // A plain ArrayBuffer is a BufferSource for every TypeScript version (Uint8Array<ArrayBufferLike> is not, since TS 5.7).
-  const der = new ArrayBuffer(bin.length);
-  const view = new Uint8Array(der);
-  for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-  return der;
-}
-
-/** Client-Secret für Apple: JWT mit ES256 (WebCrypto liefert die Signatur schon im JWT-Format r‖s). */
+/** Client-Secret für Apple: JWT mit ES256, 5 Minuten gültig. */
 export async function clientSecret(teamId: string, keyId: string, privateKeyPem: string, clientId: string, now = Date.now()): Promise<string> {
-  const key = await crypto.subtle.importKey("pkcs8", pemToDer(privateKeyPem), { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
   const iat = Math.floor(now / 1000);
-  const header = b64url(JSON.stringify({ alg: "ES256", kid: keyId }));
-  const payload = b64url(JSON.stringify({ iss: teamId, iat, exp: iat + 300, aud: APPLE, sub: clientId }));
-  const input = `${header}.${payload}`;
-  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(input)));
-  return `${input}.${b64url(sig)}`;
+  return signES256(await importP8(privateKeyPem), { alg: "ES256", kid: keyId },
+    { iss: teamId, iat, exp: iat + 300, aud: APPLE, sub: clientId });
 }
 
 /** Echte Fassung: liest die Geheimnisse und spricht mit Apple. Wirft bei jedem Fehler. */

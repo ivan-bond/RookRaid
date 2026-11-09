@@ -1,0 +1,37 @@
+# Hostinger (Apache/LiteSpeed): the same rules as _redirects and _headers for Cloudflare Pages/Netlify.
+# Turn on "Force HTTPS" in hPanel (Websites → Security → SSL); this file deliberately does not redirect to https itself,
+# so it can never loop behind Hostinger's CDN.
+Options -MultiViews
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # www.rookraid.com → rookraid.com. Universal Links read the Apple file from exactly the host in the link.
+  # /.well-known stays untouched: Apple must get the file without a redirect, and the SSL certificate check uses it too.
+  RewriteCond %{REQUEST_URI} !^/\.well-known/
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L]
+
+  # Invite links /f/<code> are handled by the app page (no redirect, the address stays).
+  RewriteRule ^f/[^/]+/?$ /index.html [L]
+</IfModule>
+
+# Apple reads this file without an extension and expects JSON.
+<Files "apple-app-site-association">
+  ForceType application/json
+  <IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=3600"
+  </IfModule>
+</Files>
+
+# Always fetch the page shell and the service workers fresh, so updates arrive. Files in /assets carry a hash.
+<IfModule mod_headers.c>
+  <FilesMatch "^(index\.html|sw\.js|push-sw\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>

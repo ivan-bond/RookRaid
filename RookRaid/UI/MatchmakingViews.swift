@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Gegnersuche (Anleitung Schritt 8): Rocky, laufende Sekunden, Abbrechen. Sieht bei Bot-Ersatz aus wie bei Menschen.
+/// Gegnersuche (Anleitung Schritt 8): Rocky, laufende Sekunden, Abbrechen. Ist kein Spieler frei, springt offen ein Trainingsgegner ein.
 @MainActor
 final class MatchmakingController: ObservableObject {
     enum Phase: Equatable {
@@ -174,15 +174,18 @@ struct MatchmakingSheet: View {
     @ViewBuilder
     private var title: some View {
         if let found {
+            let trainer = found.kind == .bot ? found.botLevel : nil
             VStack(spacing: 4) {
-                Text(L("Gegner gefunden!"))
+                Text(trainer == nil ? L("Gegner gefunden!") : L("Trainingsgegner"))
                     .font(.system(size: 32, weight: .black, design: .rounded))
                     .italic()
                     .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE38A), Theme.gold], startPoint: .top, endPoint: .bottom))
                     .shadow(color: Theme.gold.opacity(0.7), radius: 14)
-                Text(found.opponent.name)
+                Text(trainer.map { L("Gerade ist kein Spieler frei – {0} springt ein.", $0.displayName) } ?? found.opponent.name)
                     .font(.system(size: 16, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
             }
             .transition(.scale(scale: 1.8).combined(with: .opacity))
         } else {
@@ -223,7 +226,12 @@ struct MatchmakingSheet: View {
                     .offset(y: 26)
             }
             .frame(width: 54)
-            if let found {
+            if let found, found.kind == .bot, let level = found.botLevel {
+                fighter(name: level.displayName, trophies: level.rating) {
+                    BotAvatar(level: level, size: 74)
+                }
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+            } else if let found {
                 fighter(name: found.opponent.name, trophies: found.opponent.trophies) {
                     PlayerAvatar(size: 74,
                                  frame: found.opponent.frame.flatMap(AvatarFrame.init(rawValue:)) ?? AvatarFrame.none,

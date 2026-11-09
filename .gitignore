@@ -6,5 +6,6 @@ xcuserdata/
 Config/Secrets.xcconfig
 # Supabase CLI und Tests
 Backend/supabase/.temp/
+Backend/tests/supabase/.temp/
 Backend/supabase/.branches/
 Backend/tests/node_modules/

@@ -3,7 +3,7 @@
 // golden flash with the opponent's card when someone is found. Large screens: radar on the left, the rest on the right.
 import { useEffect, useState, type ReactNode } from 'react'
 import { arenaImage, avatarImage, cardArt } from '../art'
-import { ARENA_PALETTE, AVATARS, BOTS, CARDS, TIME_CONTROLS, botForTrophies } from '../game/catalog'
+import { ARENA_PALETTE, AVATARS, BOTS, CARDS, TIME_CONTROLS, botForTrophies, botRating } from '../game/catalog'
 import { GameController } from '../game/controller'
 import { haptic, sound } from '../game/feedback'
 import * as S from '../game/store'
@@ -13,6 +13,7 @@ import * as Online from '../online'
 import type { OnlineStart } from '../online'
 import { Icon } from '../ui/Icon'
 import { Confetti, PlayerAvatar, Stars, tierColor } from '../ui/kit'
+import { BotPortrait } from './Game'
 
 /** Same as the server: after 10 s a stand-in takes over. */
 const TIMEOUT = 10
@@ -69,6 +70,8 @@ export function Matchmaking() {
   const progress = Math.min(1, seconds / TIMEOUT)
   const range = 100 + Math.round(300 * progress)
   const opp = found?.opponent
+  // No player free: the stand-in is openly a training opponent (its name and portrait, its rating).
+  const trainer = found?.bot ? BOTS.find(b => b.id === found.botId) ?? botForTrophies(p.trophies) : null
 
   return (
     <div className={`full mm${found ? ' found' : ''}`}>
@@ -89,7 +92,9 @@ export function Matchmaking() {
         <div className="mm-left">
           <div className="mm-title">
             {found
-              ? <><b className="mm-found-t">{t('Gegner gefunden!')}</b><span className="mm-found-n">{opp?.name}</span></>
+              ? trainer
+                ? <><b className="mm-found-t">{t('Trainingsgegner')}</b><span className="mm-found-n">{t('Gerade ist kein Spieler frei – {0} springt ein.', t(trainer.name))}</span></>
+                : <><b className="mm-found-t">{t('Gegner gefunden!')}</b><span className="mm-found-n">{opp?.name}</span></>
               : <><b>{t('Gegner wird gesucht')}</b><span>{seconds < 4 ? t('Spieler mit ähnlich vielen Trophäen …') : t('Noch ein Moment …')}</span></>}
           </div>
           <Radar found={!!found} accent={colors[0]} avatar={S.activeAvatar(p)} frame={S.activeFrame(p)} />
@@ -99,7 +104,9 @@ export function Matchmaking() {
           <div className="mm-duel">
             <Fighter name={S.shownName(p.name, t)} trophies={p.trophies}><PlayerAvatar avatar={S.activeAvatar(p)} frame={S.activeFrame(p)} size={74} /></Fighter>
             <div className="mm-vs"><span className="mm-bolt"><Icon name="bolt" size={30} /></span><span className="mm-vs-tag">VS</span></div>
-            {opp
+            {trainer
+              ? <Fighter name={t(trainer.name)} trophies={botRating(trainer)} pop><BotPortrait id={trainer.id} size={74} /></Fighter>
+              : opp
               ? <Fighter name={opp.name} trophies={opp.trophies} pop><PlayerAvatar avatar={opp.avatar} frame={opp.frame ?? 'none'} size={74} /></Fighter>
               : <Fighter name="???" trophies={null}><Roulette size={74} /></Fighter>}
           </div>

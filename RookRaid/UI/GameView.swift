@@ -380,6 +380,9 @@ struct PlayerBar: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white)
                         .lineLimit(1)
+                    if vm.onlineBotPlay != nil && color != vm.humanColor {
+                        TrainingTag()
+                    }
                     if vm.isThinking && vm.state.current == color {
                         ThinkingDots()
                     }
@@ -648,5 +651,23 @@ struct FinisherRays: Shape {
             p.closeSubpath()
         }
         return p
+    }
+}
+
+/// Kennzeichen für den Bot-Ersatz online (wie .training-tag in web/src/screens.css).
+struct TrainingTag: View {
+    var large = false
+
+    var body: some View {
+        Text(L("Trainingsgegner"))
+            .font(.system(size: large ? 12 : 10, weight: .heavy, design: .rounded))
+            .tracking(0.3)
+            .foregroundColor(Color(hex: 0x0B1B33))
+            .lineLimit(1)
+            .padding(.horizontal, large ? 10 : 6)
+            .frame(height: large ? 22 : 17)
+            .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0x8FE3A3), Color(hex: 0x4FBF6A)],
+                                                      startPoint: .top, endPoint: .bottom)))
+            .fixedSize()
     }
 }

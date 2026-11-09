@@ -92,7 +92,7 @@ struct GameOverInfo: Equatable {
     var hasWinner = false
     /// Für das Siegfenster: besiegter (oder siegreicher) Bot und kleine Statistik
     var opponent: BotLevel? = nil
-    /// Bot-Ersatz: Spielerkarte statt Bot-Porträt (der Ersatz bleibt unerkennbar)
+    /// Mensch online: seine Spielerkarte statt Bot-Porträt
     var disguise: PlayerCard? = nil
     var moveCount = 0
     var cardsPlayed = 0
@@ -175,11 +175,11 @@ final class GameViewModel: ObservableObject {
     let mode: GameMode
     let humanColor: PlayerColor
     let timeControl: TimeControl
-    /// Bot-Ersatz online: Lebenszeichen, Wertung über den Server, Gegner sieht aus wie ein Mensch (E1).
+    /// Bot-Ersatz online: Lebenszeichen, Wertung über den Server. Offen als Trainingsgegner gezeigt.
     let onlineBotPlay: OnlineBotPlay?
     /// Mensch gegen Mensch.
     let onlineSession: OnlineMatchSession?
-    /// Gegnerkarte: Bot-Ersatz oder echter Mensch.
+    /// Gegnerkarte eines echten Menschen online (der Bot-Ersatz zeigt sich als Bot).
     let onlineOpponent: PlayerCard?
 
     private var cardsPlayedByHuman = 0
@@ -213,7 +213,7 @@ final class GameViewModel: ObservableObject {
         self.timeControl = mode.isLadder ? .none : timeControl
         self.onlineBotPlay = onlineBotPlay
         self.onlineSession = nil
-        self.onlineOpponent = onlineBotPlay?.opponent
+        self.onlineOpponent = nil
         self.state = GameViewModel.freshState(mode: mode, humanColor: humanColor, onlineBotPlay: onlineBotPlay)
         self.introActive = mode.isBot
         setupNewGame()
@@ -390,8 +390,8 @@ final class GameViewModel: ObservableObject {
     func skin(for color: PlayerColor) -> BotLevel? {
         // Deine Figuren: das Set, das du im Profil gewählt hast (zu zweit gilt es für beide Seiten nicht)
         if mode.isBot && color == humanColor { return store.activeSkin }
-        // Bot-Ersatz: Standardfiguren – ein Bot-Set würde den Ersatz verraten (E1)
-        if onlineBotPlay != nil || mode.isOnline, color != humanColor { return nil }
+        // Mensch online: Standardfiguren
+        if mode.isOnline, color != humanColor { return nil }
         guard color == aiColor, store.profile.settings.botSkins else { return nil }
         if mode == .tutorial { return .medium }
         return botLevel
@@ -1289,7 +1289,7 @@ final class GameViewModel: ObservableObject {
         } else {
             delta = store.record(
                 result: result ?? .draw, rated: mode.isRated && !serverRated,
-                opponent: serverRated ? (onlineOpponent?.name ?? "") : (botLevel?.botName ?? "Zu zweit"),
+                opponent: onlineOpponent?.name ?? botLevel?.botName ?? "Zu zweit",
                 reason: serverDrawAgreed ? "durch Einigung" : status.reasonKey, moves: moves.count,
                 cardsPlayed: cardsPlayedByHuman, replayID: replayID,
                 countsForStats: mode.isLadder || serverRated,
@@ -1345,7 +1345,7 @@ final class GameViewModel: ObservableObject {
                                 skinUnlocked: botOnline || humanOnline || mode == .tutorial ? nil : botLevel.flatMap { !skinBefore && store.isSkinUnlocked($0) ? $0 : nil },
                                 chests: earned, winChestsUsedUp: winChestsUsedUp, roadReady: roadReady,
                                 hasWinner: winner != nil && !serverAborted,
-                                opponent: (botOnline || humanOnline) ? nil : (mode.isBot && mode != .tutorial ? botLevel : nil),
+                                opponent: humanOnline ? nil : (mode.isBot && mode != .tutorial ? botLevel : nil),
                                 disguise: onlineOpponent,
                                 moveCount: moves.filter { $0.color == humanColor || !mode.isBot }.count,
                                 cardsPlayed: cardsPlayedByHuman,

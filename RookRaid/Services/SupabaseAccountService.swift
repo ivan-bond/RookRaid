@@ -508,6 +508,7 @@ final class OnlineAccount: ObservableObject {
         defer { busy = false }
         // Alles, was noch wartet, zuerst aufs Konto – beim Abmelden geht nichts verloren.
         await syncNow()
+        await PushRegistration.shared.unregister()
         try? await service.signOut()
         syncRev = nil
         lastBackup = nil

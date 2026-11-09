@@ -122,6 +122,12 @@ private final class FlameReminderDelegate: NSObject, UNUserNotificationCenterDel
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // Freundschafts-Push bei offener App: kein Systembanner, der eigene Hinweis oben zeigt es (FriendBanner).
+        if notification.request.content.userInfo["type"] as? String == "friends" {
+            Task { @MainActor in await FriendsStore.shared.refresh() }
+            completionHandler([])
+            return
+        }
         completionHandler([.banner, .sound, .badge])
     }
 
@@ -131,6 +137,8 @@ private final class FlameReminderDelegate: NSObject, UNUserNotificationCenterDel
         if response.notification.request.identifier == FlameReminders.eveningID
             || response.notification.request.identifier == FlameReminders.dangerID {
             NotificationCenter.default.post(name: .showPuzzles, object: nil)
+        } else if response.notification.request.content.userInfo["type"] as? String == "friends" {
+            NotificationCenter.default.post(name: .showFriends, object: nil)
         }
         completionHandler()
     }

@@ -42,6 +42,12 @@ enum OnlineConfig {
     static var supabaseAnonKey: String? {
         (Bundle.main.object(forInfoDictionaryKey: "RRSupabaseAnonKey") as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
+    /// Domain der Browser-Fassung für Einladungslinks (RR_WEB_DOMAIN, z. B. play.rookraid.app). Leer = nur der Code.
+    static var webDomain: String? {
+        (Bundle.main.object(forInfoDictionaryKey: "RRWebDomain") as? String)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .flatMap { $0.isEmpty || $0.contains("$(") ? nil : $0 }
+    }
 
     /// Namen der Edge Functions und Datenbank-Funktionen (Backend/supabase)
     enum Endpoint {
@@ -421,24 +427,12 @@ final class LocalMatchService: MatchService {
     func cancel() { cancelled = true }
 }
 
-/// Spielerkarten für Bot-Gegner im Online-Modus (Name, Avatar, Trophäen in der Nähe des Spielers).
+/// Spielerkarte für den Bot-Ersatz im Online-Modus: offen ein Trainingsgegner (wie botCard() in web/src/online.ts) –
+/// sein Name, der Roboter, seine Wertung.
 enum BotCards {
-    private static let first = ["Luca", "Mia", "Noah", "Lena", "Finn", "Emma", "Ben", "Hanna", "Elias", "Lara",
-                                "Jonas", "Sofia", "Leon", "Clara", "Paul", "Ida", "Max", "Nora", "Tim", "Zoe"]
-    private static let style = ["Rook", "Knight", "Gambit", "Castle", "Pawn", "Bishop", "Check", "Raid", "Fork", "Mate"]
-
     static func card(for level: BotLevel, near trophies: Int) -> PlayerCard {
-        var rng = SystemRandomNumberGenerator()
-        let name: String
-        switch Int.random(in: 0..<3, using: &rng) {
-        case 0: name = (first.randomElement() ?? "Luca") + String(Int.random(in: 7...99))
-        case 1: name = (style.randomElement() ?? "Rook") + (first.randomElement() ?? "Mia")
-        default: name = (first.randomElement() ?? "Lena") + "_" + (style.randomElement() ?? "Raid").lowercased()
-        }
-        let avatar = Avatar.allCases.randomElement()?.rawValue ?? Avatar.knight.rawValue
-        let t = max(0, trophies + Int.random(in: -40...40))
-        return PlayerCard(name: name, avatar: avatar, frame: nil, title: nil, trophies: t,
-                          level: max(1, min(30, t / 120 + Int.random(in: 1...4))), pieceSet: nil)
+        PlayerCard(name: level.botName, avatar: Avatar.robot.rawValue, frame: nil, title: "Trainingsgegner",
+                   trophies: level.rating, level: level.tier, pieceSet: nil)
     }
 }
 

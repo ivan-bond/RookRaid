@@ -27,18 +27,21 @@ import { FlameIgnition, FlameSheet, FreezeNotice } from './screens/Flame'
 import { appleClientId } from './supabase'
 import { isFirstVisit, markVisited } from './cookies'
 import { AppleErrorDialog, AppleLoginButton } from './screens/Login'
+import { FriendBanner, FriendProfileSheet, FriendsSheet } from './screens/Friends'
+import * as Friends from './friends'
+import { syncPush } from './push'
 
 const TABS: Array<[Tab, string, string]> = [
   ['arena', 'Pfad', 'trophy'], ['puzzles', 'Puzzles', 'puzzle'], ['play', 'Spielen', 'bolt'], ['deck', 'Deck', 'stack'], ['profile', 'Profil', 'person'],
 ]
 
-function badge(tab: Tab, p: S.Profile): { count: number; dot: boolean } {
+function badge(tab: Tab, p: S.Profile, requests = 0): { count: number; dot: boolean } {
   switch (tab) {
     case 'play': return { count: p.chests.length + (S.dailyChestReady(p) ? 1 : 0), dot: false }
     case 'puzzles': return { count: 0, dot: S.dailyBonusAvailable(p) }
     case 'deck': return { count: S.newCardCount(p), dot: p.tutorialSeen && !S.deckIsFull(p) }
     case 'arena': return { count: S.claimableRoadSteps(p).length, dot: false }
-    case 'profile': return { count: S.claimableAchievements(p).length, dot: false }
+    case 'profile': return { count: S.claimableAchievements(p).length + requests, dot: false }
   }
 }
 const Badge = ({ b }: { b: { count: number; dot: boolean } }) =>
@@ -54,6 +57,8 @@ export function App() {
   const [invite, setInvite] = useState(false)
   const [snoozed, setSnoozed] = useState(false)
   const [applePrompt, setApplePrompt] = useState(false)
+  const friends = Friends.useFriends()
+  const requests = Friends.incomingCount(friends)
 
   useEffect(() => {
     S.checkStreak()
@@ -67,6 +72,22 @@ export function App() {
     const onVis = () => { if (document.visibilityState === 'visible') { S.checkStreak(); if (!nav.overlay) void Online.refreshAccount() } }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
+  // Friends and push follow the account: load the list, register this browser for push (if allowed).
+  useEffect(() => {
+    if (account.status !== 'anonymous' && account.status !== 'apple') { void Friends.refreshFriends(); return }
+    void Friends.refreshFriends()
+    void syncPush()
+    const code = Friends.consumeInvite()
+    if (code) openSheet('friends', code)
+  }, [account.status, account.userId])
+  // Opened from a friend link (/f/CODE) or a push tap: straight to the friends list.
+  useEffect(() => {
+    const launch = Friends.takeLaunch()
+    if (launch.openFriends) openSheet('friends', launch.code)
+    const onMessage = (e: MessageEvent) => { if (e.data?.type === 'rookraid-open') openSheet('friends') }
+    navigator.serviceWorker?.addEventListener('message', onMessage)
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage)
   }, [])
   // Signed in with Apple, but the name is taken or invalid: ask for a player name (like the app's name sheet).
   useEffect(() => { if (account.needsName && nav.sheet !== 'onlineName') openSheet('onlineName', 'apple') }, [account.needsName])
@@ -92,7 +113,7 @@ export function App() {
         {(account.status === 'guest' || account.status === 'anonymous') && <AppleLoginButton compact />}
         {TABS.map(([id, label, icon]) => (
           <button key={id} className={`rail-tab${nav.tab === id ? ' on' : ''}`} onClick={() => setTab(id)}>
-            <Icon name={icon} size={20} />{t(label)}<Badge b={badge(id, p)} />
+            <Icon name={icon} size={20} />{t(label)}<Badge b={badge(id, p, requests)} />
           </button>
         ))}
         <div className="rail-sep" />
@@ -123,7 +144,7 @@ export function App() {
           <button key={id} className={`tab${nav.tab === id ? ' on' : ''}`} onClick={() => setTab(id)} aria-label={t(label)}>
             <span className="pill-bg">
               {id === 'play' ? <img src={logoMark} alt="" className={`tab-logo${nav.tab === id ? ' on' : ''}`} /> : <Icon name={icon} size={18} />}
-              <Badge b={badge(id, p)} />
+              <Badge b={badge(id, p, requests)} />
             </span>
             <span className="lbl">{t(label)}</span>
             <span className="bar" />
@@ -154,6 +175,8 @@ export function App() {
       {sheet === 'onlineName' && <NameSheet online />}
       {sheet === 'language' && <LanguageSheet />}
       {sheet === 'roadGuide' && <RoadGuide />}
+      {sheet === 'friends' && <FriendsSheet />}
+      {sheet === 'friendProfile' && <FriendProfileSheet />}
       {sheet === 'legal-privacy' && <LegalSheet page="privacy" />}
       {sheet === 'legal-imprint' && <LegalSheet page="imprint" />}
       {sheet === 'legal-terms' && <LegalSheet page="terms" />}
@@ -173,6 +196,7 @@ export function App() {
           onSecondary={() => { setInvite(false); if (p.chests.length) setTab('deck'); else setSnoozed(true) }} />
       )}
       {applePrompt && <AppleSecure onClose={() => setApplePrompt(false)} />}
+      {!overlay && <FriendBanner />}
       <AppleErrorDialog />
     </div>
   )
