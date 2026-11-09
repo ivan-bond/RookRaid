@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct RookRaidApp: App {
+    /// Nur für das APNs-Token der Freundschafts-Push-Nachrichten
+    @UIApplicationDelegateAdaptor(RookRaidAppDelegate.self) private var appDelegate
     init() { FlameReminders.install() }
 
     var body: some Scene {
@@ -31,6 +33,8 @@ extension Notification.Name {
     static let startHotSeat = Notification.Name("RookRaidStartHotSeat")
     /// Zum Spielen-Tab wechseln und die erste wartende Truhe öffnen (Rockys Einladung)
     static let openPendingChest = Notification.Name("RookRaidOpenPendingChest")
+    /// Freundesliste öffnen (Push-Tipp, Einladungslink, Hinweis oben). Objekt: optional ein Freundescode
+    static let showFriends = Notification.Name("RookRaidShowFriends")
 }
 
 struct GameSession: Identifiable {
@@ -96,6 +100,9 @@ struct RootView: View {
     /// „Später“ – in dieser Sitzung nicht noch einmal fragen
     @State private var inviteSnoozed = false
     @ObservedObject private var account = OnlineAccount.shared
+    @ObservedObject private var friends = FriendsStore.shared
+    /// Freundesliste als Sheet; der Code kommt aus einem Einladungslink.
+    @State private var friendsSheet: FriendsInvite?
     @Environment(\.scenePhase) private var scenePhase
 
     /// Nur der ruhende, sichtbare Tab animiert. Während des Seitenwechsels stehen beide still:
@@ -144,11 +151,12 @@ struct RootView: View {
                 if phase == .active {
                     store.checkStreak()
                     Task { await FlameReminders.sync() }
+                    friends.startPolling()
                     if session == nil, puzzleSession == nil {
                         Task { await OnlineAccount.shared.reload() }
                     }
                 }
-                if phase != .active { store.flushSave() }
+                if phase != .active { store.flushSave(); friends.stopPolling() }
                 if phase == .background { OnlineAccount.shared.backupQuietly() }
             }
             .onChange(of: tab) { newTab in
@@ -241,6 +249,11 @@ struct RootView: View {
                 .zIndex(9)
             }
 
+            if !showSplash, session == nil, puzzleSession == nil, friends.news != nil {
+                FriendBanner { openFriends(nil) }
+                    .zIndex(9.5)
+            }
+
             if showSplash {
                 SplashView()
                     .transition(.opacity)
@@ -248,6 +261,7 @@ struct RootView: View {
             }
         }
         .sheet(isPresented: $showSettings) { SettingsSheet() }
+        .modifier(FriendsLinks(sheet: $friendsSheet, friends: friends, account: account, open: openFriends))
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in showSettings = true }
         .onReceive(NotificationCenter.default.publisher(for: .showPuzzles)) { _ in tab = .puzzles }
         .onReceive(NotificationCenter.default.publisher(for: .showTrophyRoad)) { _ in tab = .arena }
@@ -258,6 +272,10 @@ struct RootView: View {
         .onChange(of: session?.id) { id in
             if id == nil {
                 Task { await OnlineAccount.shared.reload() }
+                if account.hasAccount, let code = friends.pendingInvite {
+                    friends.pendingInvite = nil
+                    openFriends(code)
+                }
                 scheduleRockyInvite(after: 0.9)
                 scheduleAppleSecure(after: 1.1)
             }
@@ -291,6 +309,8 @@ struct RootView: View {
             try? await Task.sleep(nanoseconds: UInt64((SplashView.duration + 0.35) * 1_000_000_000))
             withAnimation(.easeOut(duration: 0.35)) { showSplash = false }
             await FlameReminders.askIfReady()
+            await PushRegistration.shared.syncIfAllowed()
+            friends.startPolling()
             // Kartenbilder im Hintergrund vorbereiten, ohne den Start aufzuhalten (v0.9.25)
             Task { await CardArtImage.preload() }
             if !store.profile.tutorialSeen {
@@ -300,6 +320,19 @@ struct RootView: View {
                 scheduleRockyInvite(after: 0.5)
             }
         }
+    }
+
+    /// Freundesliste öffnen. Ohne Konto wartet der Code, bis eins angelegt ist (die Liste zeigt dann „Konto erstellen“).
+    private func openFriends(_ code: String?) {
+        friends.news = nil
+        if let code, !account.hasAccount { friends.pendingInvite = code }
+        if session != nil || puzzleSession != nil {
+            // Mitten in einer Partie nicht stören: nach dem Ende zeigt der Hinweis oben die Anfrage.
+            if let code { friends.pendingInvite = code }
+            return
+        }
+        tab = .profile
+        friendsSheet = FriendsInvite(code: code)
     }
 
     /// Rocky lädt in die Deck-Werkstatt ein – nur auf der Startseite, ohne laufende Partie und nur, solange die Tour aussteht.
@@ -327,9 +360,43 @@ struct RootView: View {
 }
 
 /// Eigene Tab-Leiste: folgt dem Wischen zwischen den Seiten, die aktive Seite trägt eine blaue Kapsel.
+/// Freundesliste als Sheet, Einladungslinks, Push-Tipps und Kontowechsel – eigener Modifier, damit der
+/// Ausdruck in RootView.body für den Compiler überschaubar bleibt.
+private struct FriendsLinks: ViewModifier {
+    @Binding var sheet: FriendsInvite?
+    @ObservedObject var friends: FriendsStore
+    @ObservedObject var account: OnlineAccount
+    let open: (String?) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $sheet) { item in FriendsSheet(invite: item.code) }
+            .onReceive(NotificationCenter.default.publisher(for: .showFriends)) { note in open(note.object as? String) }
+            // Einladungslink https://<Domain>/f/<Code> (Universal Link) – öffnet die Freundesliste mit dem Code.
+            .onOpenURL { url in
+                if let code = FriendCode.from(url: url) { open(code) }
+            }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL, let code = FriendCode.from(url: url) { open(code) }
+            }
+            // Konto da (neu angelegt, angemeldet): Freunde laden, Push anmelden, wartende Einladung zeigen.
+            .onChange(of: account.status) { _ in
+                Task { @MainActor in
+                    await friends.refresh()
+                    await PushRegistration.shared.syncIfAllowed()
+                    if account.hasAccount, let code = friends.pendingInvite {
+                        friends.pendingInvite = nil
+                        open(code)
+                    }
+                }
+            }
+    }
+}
+
 struct RootTabBar: View {
     @Binding var tab: RootTab
     @ObservedObject var store = ProfileStore.shared
+    @ObservedObject private var friends = FriendsStore.shared
 
     /// Zahl oder Punkt am Tab: wartende Truhen, Tagespuzzle, neue Karten, abholbare Pfad-Belohnungen.
     private func badge(_ t: RootTab) -> (count: Int, dot: Bool) {
@@ -338,7 +405,7 @@ struct RootTabBar: View {
         case .puzzles: return (0, store.dailyBonusAvailable)
         case .deck: return (store.newCardCount, store.profile.tutorialSeen && !store.deckIsFull)
         case .arena: return (store.claimableRoadSteps.count, false)
-        case .profile: return (store.claimableAchievements.count, false)
+        case .profile: return (store.claimableAchievements.count + friends.incoming.count, false)
         }
     }
 

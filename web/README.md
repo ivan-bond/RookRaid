@@ -8,6 +8,7 @@ npm install
 cp .env.example .env.local   # Supabase URL + anon key, optional Apple Services ID
 npm run dev                  # http://localhost:5173
 npm run build                # static site in dist/
+npm run upload-zip           # build + upload/rookraid-web.zip for Hostinger (public_html → Extract)
 ```
 
 Phones get the app layout (tab bar at the bottom). Windows wider than 900 px get a side rail and two-column screens;
@@ -60,3 +61,14 @@ the seven app languages, plus a short section on the browser version and the web
 - **Tactics** are announced and count for achievements but give no mana, like the shared rules and the server.
 
 Language files load on demand (one chunk per language), so the first load stays small.
+
+## Friends, invite links and push
+- Invite links look like `https://<domain>/f/<CODE>`. The host must serve `index.html` for `/f/*` (`public/_redirects`)
+  and `/.well-known/apple-app-site-association` as JSON (`public/_headers`), so iPhones with the app open the link in the app.
+  rookraid.com is hosted on Hostinger (Apache/LiteSpeed), which reads `public/.htaccess` instead: the same rules, plus
+  www → rookraid.com. Upload the contents of `dist/` (including the hidden `.htaccess` and `.well-known`) to `public_html`,
+  and turn on "Force HTTPS" in hPanel.
+  The same domain goes into `RR_WEB_DOMAIN` in `Config/RookRaid.xcconfig`.
+- Push for friend requests needs `VITE_VAPID_PUBLIC_KEY` (the matching private key is a Supabase secret, see
+  `Backend/README.md`). On iPhone and iPad, Safari offers push only when Rook Raid was added to the home screen.
+

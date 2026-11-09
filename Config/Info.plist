@@ -17,5 +17,7 @@
 	<string>$(RR_SUPABASE_URL)</string>
 	<key>RRSupabaseAnonKey</key>
 	<string>$(RR_SUPABASE_ANON_KEY)</string>
+	<key>RRWebDomain</key>
+	<string>$(RR_WEB_DOMAIN)</string>
 </dict>
 </plist>

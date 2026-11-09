@@ -37,7 +37,7 @@ struct LegalDocumentView: View {
                         case .privacy: privacy
                         case .terms: terms
                         }
-                        Text(L("Stand: 1. November 2026"))
+                        Text(L("Stand: 7. November 2026"))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(Theme.textMuted)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,22 +100,29 @@ struct LegalDocumentView: View {
                 bullet(L("eine Sicherung des Spielstands, unter anderem Karten, XP, Splitter, Truhen, Puzzles und Flammen"))
                 bullet(L("Partien mit Decks, Ultimates, Zügen, Uhr, Ergebnis und der Spielerkarte, die der Gegner sieht"))
                 bullet(L("beim Sichern mit Apple die E-Mail-Adresse, die Apple übermittelt, oder eine Weiterleitungsadresse, falls du sie teilst. Die App zeigt sie nicht an und verschickt keine Werbung."))
+                bullet(L("ein Freundescode, über den dich andere finden können"))
+                bullet(L("Freundschaften und Freundschaftsanfragen, Spieler, die du blockierst, und Meldungen, die du abschickst oder die über dich eingehen"))
+                bullet(L("wenn du Mitteilungen erlaubst: eine Push-Adresse deines Geräts oder Browsers und deine Spielsprache, damit die Mitteilung in deiner Sprache ankommt"))
                 paragraph(L("Technische Protokolle des Serverbetriebs können Konto-ID und Zeitpunkt eines Fehlers enthalten."))
             }
             card(L("Zwecke")) {
                 paragraph(L("Die Daten braucht das Spiel: Konto, Gegnersuche, Partie, Uhr, Ergebnis und Trophäen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe b DSGVO (Nutzung des Spiels)."))
                 paragraph(L("Protokolle und das Löschen ungenutzter anonymer Anmeldungen dienen dem sicheren Betrieb. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO."))
+                paragraph(L("Freundesliste, Suche, Anfragen und Mitteilungen gehören zum Spiel (Art. 6 Abs. 1 Buchstabe b DSGVO). Blockieren und Meldungen schützen die Spieler und ein faires Spiel (Art. 6 Abs. 1 Buchstabe f DSGVO)."))
                 paragraph(L("Es gibt keine Werbung, kein Tracking über andere Apps oder Websites hinweg und keinen Verkauf von Daten."))
             }
             card(L("Empfänger")) {
                 paragraph(L("Auftragsverarbeiter ist Supabase, Inc. Das Projekt steht in Frankfurt in der EU. Datenbank und Anmeldung dieses Projekts werden dort betrieben. Protokolle, Sicherungen und der Ablauf der Spielfunktionen können nach dem Auftragsverarbeitungsvertrag von Supabase auch außerhalb dieser Region verarbeitet werden."))
                 paragraph(L("Die Anmeldung mit Apple läuft über Apple. Es gilt die Datenschutzerklärung von Apple."))
-                paragraph(L("Eine öffentliche Bestenliste gibt es in dieser Fassung nicht. Andere Spieler sehen deinen Namen und deine Spielerkarte in einer gemeinsamen Partie."))
+                paragraph(L("Mitteilungen stellt auf dem iPhone Apple zu (Apple Push Notification Service), im Browser der Push-Dienst des Browser-Herstellers, etwa Apple, Google oder Mozilla. Dabei werden die Push-Adresse und der Text der Mitteilung mit dem Namen des anderen Spielers übermittelt."))
+                paragraph(L("Eine öffentliche Bestenliste gibt es nicht. Andere Spieler sehen deinen Namen und deine Spielerkarte in einer gemeinsamen Partie."))
+                paragraph(L("Wer deinen genauen Spielernamen oder Freundescode eingibt, findet dich und sieht Name, Avatar, Rahmen, Titel, Level und Trophäen. Freunde und Spieler mit einer offenen Anfrage sehen außerdem Bestwert, Online-Bilanz, weltweiten Rang, die Zahl deiner Freunde und eure Partien gegeneinander. Wen du blockierst, findet dich nicht mehr."))
             }
             card(L("Speicherdauer")) {
                 paragraph(L("Konto, Trophäen, Bilanz und Sicherung bleiben, bis du das Konto unter Einstellungen löschst. Dabei werden das Konto, der Name im Profil, die Trophäen, die Bilanz und die Sicherung entfernt."))
                 paragraph(L("Abgeschlossene Partien bleiben gespeichert, damit das Ergebnis für den Gegner erhalten bleibt. Dein Konto ist danach nicht mehr damit verknüpft. In der Partie bleiben die Züge und die Spielerkarte mit dem Namen, den du dort gezeigt hast."))
                 paragraph(L("Eine anonyme Anmeldung, mit der kein Konto eingerichtet wird, wird innerhalb etwa einer Stunde gelöscht."))
+                paragraph(L("Freundschaften, Anfragen, Blockierungen und Push-Adressen werden mit dem Konto gelöscht. Offene und abgelehnte Anfragen verschwinden nach 30 Tagen, nicht zugestellte Mitteilungen nach 2 Tagen, Meldungen spätestens nach einem Jahr. Beim Abmelden entfernt das Gerät seine Push-Adresse."))
                 paragraph(L("Der Spielstand auf dem iPhone bleibt beim Löschen des Kontos erhalten. Fortschritt zurücksetzen in den Einstellungen löscht ihn auf diesem Gerät."))
             }
             card(L("Deine Rechte")) {

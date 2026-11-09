@@ -33,6 +33,7 @@ struct VersusIntro: View {
                                      ?? (vm.mode.isLadder ? level.title : (vm.mode.isPractice ? L("Übungspartie") : level.name)))
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundColor(Theme.redLight)
+                                if vm.onlineBotPlay != nil { TrainingTag(large: true) }
                                 deckIcons(vm.state.decks[opp]?.hand ?? [], ultimate: vm.state.ultimates[opp])
                             }
                             if let disguise, let avatar = Avatar(rawValue: disguise.avatar) {

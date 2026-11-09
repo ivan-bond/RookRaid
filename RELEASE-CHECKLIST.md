@@ -13,7 +13,11 @@ Status as of 2026-11-06. Based on the code and project files; the Supabase dashb
 
 ### 2. Put the web app online
 - [ ] Pick a host (Cloudflare Pages, Netlify or Vercel) and a domain, then upload `web/dist`. The build already writes `/privacy`, `/imprint`, `/terms` and `/support` as separate pages.
-- [ ] Set at the host: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_APPLE_CLIENT_ID`.
+- [ ] Set at the host: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_APPLE_CLIENT_ID`, `VITE_VAPID_PUBLIC_KEY`.
+- [ ] Host: Hostinger, domain rookraid.com. Upload `web/dist` into `public_html` (it includes the hidden `.htaccess`, which does
+  what `_redirects` and `_headers` do on Cloudflare/Netlify), and turn on Force HTTPS in hPanel. Check that `/f/ABCDEF` serves the
+  app and that `/.well-known/apple-app-site-association` is served as `application/json`.
+- [x] `RR_WEB_DOMAIN = rookraid.com` in `Config/RookRaid.xcconfig`. Invite links and the app's Universal Links use it.
 - [ ] Do this before the App Store submission: App Store Connect needs a live privacy policy URL and support URL.
 - [ ] Name the host in the privacy policy on web and iOS. It currently says only "der Webhoster"; under GDPR it should name the provider.
 
@@ -21,11 +25,15 @@ Status as of 2026-11-06. Based on the code and project files; the Supabase dashb
 - [ ] Authentication → URL configuration: set the site URL to the real web domain and add it to the redirect URLs.
 - [ ] Authentication → Apple: the client IDs contain both the bundle ID `com.ivan.rookraid` and the web Services ID.
 - [ ] Edge function secrets: `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`. Without them, deleting an account doesn't revoke Sign in with Apple, which Apple requires.
-- [ ] Deploy `delete-account` again (it was changed).
+- [ ] Deploy `delete-account` again (it was changed), and deploy the new `push-dispatch`.
+- [ ] Apply the migration `20261107120000_friends.sql` (`supabase db push`). Check that the cron job `rookraid-cleanup-social` exists.
+- [ ] Push secrets: `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_PRIVATE_KEY`, `APNS_TOPIC`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (commands in `Backend/README.md`).
 - [ ] Database → Cron jobs: check that `rookraid-maintain` is running. The 45-second rule and timeouts depend on it.
 
 ### 4. Apple Developer portal
 - [ ] Services ID for web sign-in: verify the real domain and add its return URL (`https://your-domain/`).
+- [ ] App ID `com.ivan.rookraid`: turn on the Push Notifications and Associated Domains capabilities, and create an APNs key.
+- [ ] Before the store build, set `aps-environment` in `Config/RookRaid.entitlements` to `production` (or let Xcode's distribution signing do it).
 
 ### 5. iPhone build
 - [ ] Move Xcode back from `/Users/Shared/Previously Relocated Items 10/…` to `/Applications`, then run `sudo xcode-select -s /Applications/Xcode.app`.
@@ -37,6 +45,7 @@ Status as of 2026-11-06. Based on the code and project files; the Supabase dashb
 - [ ] Description, keywords, subtitle and category (Games → Board) in each language you list.
 - [ ] Privacy policy URL and support URL from step 2.
 - [ ] Privacy labels: fill them in from `Legal/App-Store-Privacy.md`.
+- [ ] Update the privacy policy (web and iOS) and `Legal/App-Store-Privacy.md` for friends: friend list, blocks, reports and push tokens are now stored.
 - [ ] Age rating questionnaire. It should come out at 4+: no purchases for real money, no chat.
 - [ ] Review notes:
   - You can play without an account.

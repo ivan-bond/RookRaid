@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "upload-zip": "node scripts/upload-zip.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.78.0",

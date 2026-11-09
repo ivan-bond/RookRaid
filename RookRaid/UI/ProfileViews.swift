@@ -20,6 +20,9 @@ struct ProfileView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         topBar
                         ProfileHeroCard(onAvatar: { styleTab = .avatars; showStyle = true })
+                        if OnlineAccount.shared.status != .unavailable {
+                            FriendsCard { NotificationCenter.default.post(name: .showFriends, object: nil) }
+                        }
                         HallOfFameRow(onAchievements: { showAllAchievements = true })
                         BotConquestCard()
                         CollectionRingsCard(onStyle: { t in styleTab = t; showStyle = true })

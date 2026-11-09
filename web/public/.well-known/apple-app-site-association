@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["X2XXYAQYX6.com.ivan.rookraid"],
+        "components": [
+          { "/": "/f/*", "comment": "Friend invite: open the friends list with this code" }
+        ]
+      }
+    ]
+  }
+}

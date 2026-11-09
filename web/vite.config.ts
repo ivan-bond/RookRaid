@@ -73,7 +73,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,jpg,webp,ico,wav}'],
-        navigateFallbackDenylist: [/^\/(privacy|imprint|terms|support)/],
+        navigateFallbackDenylist: [/^\/(privacy|imprint|terms|support)/, /^\/\.well-known\//],
+        // Push notifications (friend requests): handlers live in public/push-sw.js.
+        importScripts: ['push-sw.js'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),

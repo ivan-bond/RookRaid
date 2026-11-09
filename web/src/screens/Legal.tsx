@@ -89,27 +89,34 @@ export function LegalContent({ page }: { page: LegalPage }) {
         <B>{t('eine Sicherung des Spielstands, unter anderem Karten, XP, Splitter, Truhen, Puzzles und Flammen')}</B>
         <B>{t('Partien mit Decks, Ultimates, Zügen, Uhr, Ergebnis und der Spielerkarte, die der Gegner sieht')}</B>
         <B>{t('beim Sichern mit Apple die E-Mail-Adresse, die Apple übermittelt, oder eine Weiterleitungsadresse, falls du sie teilst. Die App zeigt sie nicht an und verschickt keine Werbung.')}</B>
+        <B>{t('ein Freundescode, über den dich andere finden können')}</B>
+        <B>{t('Freundschaften und Freundschaftsanfragen, Spieler, die du blockierst, und Meldungen, die du abschickst oder die über dich eingehen')}</B>
+        <B>{t('wenn du Mitteilungen erlaubst: eine Push-Adresse deines Geräts oder Browsers und deine Spielsprache, damit die Mitteilung in deiner Sprache ankommt')}</B>
         <P>{t('Technische Protokolle des Serverbetriebs können Konto-ID und Zeitpunkt eines Fehlers enthalten.')}</P>
       </Card>
       <Card title={t('Browser-Fassung')}>
         <P>{t('In der Browser-Fassung liegt der Spielstand im lokalen Speicher deines Browsers (Local Storage). Er wird nicht an uns gesendet, solange du nicht online spielst. Es gibt keine Cookies für Werbung oder Analyse.')}</P>
         <P>{t('Cookies: Die Seite setzt zwei technisch notwendige Cookies. „rr_visited“ merkt sich, dass du Rook Raid schon einmal geöffnet hast (dann startet nicht wieder die erste Schlacht), „rr_auth“ merkt sich, ob du als Gast, anonym oder mit Apple angemeldet bist. Beide bleiben ein Jahr, enthalten keine Kennungen und dienen nicht der Werbung oder Analyse. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG.')}</P>
-        <P>{t('Beim Aufruf der Seite verarbeitet der Webhoster technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.')}</P>
+        <P>{t('Die Seite liegt bei Hostinger International Ltd., 61 Lordou Vironos Street, 6023 Larnaca, Zypern, als Auftragsverarbeiter. Beim Aufruf der Seite verarbeitet Hostinger technisch notwendige Verbindungsdaten wie IP-Adresse, Zeitpunkt und abgerufene Datei, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.')}</P>
       </Card>
       <Card title={t('Zwecke')}>
         <P>{t('Die Daten braucht das Spiel: Konto, Gegnersuche, Partie, Uhr, Ergebnis und Trophäen. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe b DSGVO (Nutzung des Spiels).')}</P>
         <P>{t('Protokolle und das Löschen ungenutzter anonymer Anmeldungen dienen dem sicheren Betrieb. Rechtsgrundlage ist Art. 6 Abs. 1 Buchstabe f DSGVO.')}</P>
+        <P>{t('Freundesliste, Suche, Anfragen und Mitteilungen gehören zum Spiel (Art. 6 Abs. 1 Buchstabe b DSGVO). Blockieren und Meldungen schützen die Spieler und ein faires Spiel (Art. 6 Abs. 1 Buchstabe f DSGVO).')}</P>
         <P>{t('Es gibt keine Werbung, kein Tracking über andere Apps oder Websites hinweg und keinen Verkauf von Daten.')}</P>
       </Card>
       <Card title={t('Empfänger')}>
         <P>{t('Auftragsverarbeiter ist Supabase, Inc. Das Projekt steht in Frankfurt in der EU. Datenbank und Anmeldung dieses Projekts werden dort betrieben. Protokolle, Sicherungen und der Ablauf der Spielfunktionen können nach dem Auftragsverarbeitungsvertrag von Supabase auch außerhalb dieser Region verarbeitet werden.')}</P>
         <P>{t('Die Anmeldung mit Apple läuft über Apple. Es gilt die Datenschutzerklärung von Apple.')}</P>
-        <P>{t('Eine öffentliche Bestenliste gibt es in dieser Fassung nicht. Andere Spieler sehen deinen Namen und deine Spielerkarte in einer gemeinsamen Partie.')}</P>
+        <P>{t('Mitteilungen stellt auf dem iPhone Apple zu (Apple Push Notification Service), im Browser der Push-Dienst des Browser-Herstellers, etwa Apple, Google oder Mozilla. Dabei werden die Push-Adresse und der Text der Mitteilung mit dem Namen des anderen Spielers übermittelt.')}</P>
+        <P>{t('Eine öffentliche Bestenliste gibt es nicht. Andere Spieler sehen deinen Namen und deine Spielerkarte in einer gemeinsamen Partie.')}</P>
+        <P>{t('Wer deinen genauen Spielernamen oder Freundescode eingibt, findet dich und sieht Name, Avatar, Rahmen, Titel, Level und Trophäen. Freunde und Spieler mit einer offenen Anfrage sehen außerdem Bestwert, Online-Bilanz, weltweiten Rang, die Zahl deiner Freunde und eure Partien gegeneinander. Wen du blockierst, findet dich nicht mehr.')}</P>
       </Card>
       <Card title={t('Speicherdauer')}>
         <P>{t('Konto, Trophäen, Bilanz und Sicherung bleiben, bis du das Konto unter Einstellungen löschst. Dabei werden das Konto, der Name im Profil, die Trophäen, die Bilanz und die Sicherung entfernt.')}</P>
         <P>{t('Abgeschlossene Partien bleiben gespeichert, damit das Ergebnis für den Gegner erhalten bleibt. Dein Konto ist danach nicht mehr damit verknüpft. In der Partie bleiben die Züge und die Spielerkarte mit dem Namen, den du dort gezeigt hast.')}</P>
         <P>{t('Eine anonyme Anmeldung, mit der kein Konto eingerichtet wird, wird innerhalb etwa einer Stunde gelöscht.')}</P>
+        <P>{t('Freundschaften, Anfragen, Blockierungen und Push-Adressen werden mit dem Konto gelöscht. Offene und abgelehnte Anfragen verschwinden nach 30 Tagen, nicht zugestellte Mitteilungen nach 2 Tagen, Meldungen spätestens nach einem Jahr. Beim Abmelden entfernt das Gerät seine Push-Adresse.')}</P>
         <P>{t('Der Spielstand auf dem iPhone bleibt beim Löschen des Kontos erhalten. Fortschritt zurücksetzen in den Einstellungen löscht ihn auf diesem Gerät.')}</P>
       </Card>
       <Card title={t('Deine Rechte')}>
@@ -126,7 +133,7 @@ export function LegalBody({ page }: { page: LegalPage }) {
   return (
     <div className="legal">
       <LegalContent page={page} />
-      <span className="legal-date">{t('Stand: 1. November 2026')}</span>
+      <span className="legal-date">{t('Stand: 7. November 2026')}</span>
     </div>
   )
 }

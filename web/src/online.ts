@@ -1,11 +1,12 @@
 // Online play and the account, against the same Supabase project as the iPhone app.
 // Snapshot format and RPC names follow Services/Online.swift and SupabaseAccountService.swift.
 import { useSyncExternalStore } from 'react'
-import { AVATARS, BOARD_THEMES, botForTrophies, CARD_IDS, ULT_IDS, type BoardTheme, type CardId, type ChestRarity, type ChestSource, type UltId } from './game/catalog'
+import { AVATARS, BOARD_THEMES, botForTrophies, botRating, botRecordName, CARD_IDS, ULT_IDS, type BoardTheme, type CardId, type ChestRarity, type ChestSource, type UltId } from './game/catalog'
 import * as S from './game/store'
 import { RULES_VERSION } from './engine'
 import { appleClientId, appleIdToken, sessionClient, supabase } from './supabase'
 import { setAuthCookie } from './cookies'
+import { dropPush } from './push'
 
 export type PlayerCard = { name: string; avatar: string; frame: string | null; title: string | null; trophies: number; level: number; pieceSet: string | null }
 export type OnlineStart = {
@@ -474,6 +475,7 @@ export async function signOut() {
   // Everything still waiting goes to the account first – nothing is lost by signing out.
   if (backupTimer) { window.clearTimeout(backupTimer); backupTimer = 0 }
   try { await backupQuietly() } catch { /* offline: the next sign-in loads the server's state */ }
+  await dropPush()
   await supabase?.auth.signOut()
   setSyncRev(null)
   lastBackup = ''
@@ -486,6 +488,7 @@ export async function deleteAccount() {
     const db = client()
     const { error } = await db.functions.invoke('delete-account')
     if (error) throw error
+    await dropPush()
     await db.auth.signOut()
     lastBackup = ''
     setSyncRev(null)
@@ -616,20 +619,10 @@ async function searchMatch(onPhase?: (seconds: number) => void): Promise<OnlineS
   } finally { searching = false }
 }
 
-/** The stand-in bot looks like a real player (BotCards in the app): a made-up name, any avatar, trophies near yours. */
-const FIRST = ['Luca', 'Mia', 'Noah', 'Lena', 'Finn', 'Emma', 'Ben', 'Hanna', 'Elias', 'Lara',
-  'Jonas', 'Sofia', 'Leon', 'Clara', 'Paul', 'Ida', 'Max', 'Nora', 'Tim', 'Zoe']
-const STYLE = ['Rook', 'Knight', 'Gambit', 'Castle', 'Pawn', 'Bishop', 'Check', 'Raid', 'Fork', 'Mate']
-const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)]
-const randInt = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
+/** The stand-in bot is openly a training opponent (BotCards in the app): its own name, the robot, its rating. */
 export function botCard(trophies: number): PlayerCard {
-  const name = [
-    () => pick(FIRST) + randInt(7, 99),
-    () => pick(STYLE) + pick(FIRST),
-    () => pick(FIRST) + '_' + pick(STYLE).toLowerCase(),
-  ][randInt(0, 2)]()
-  const t = Math.max(0, trophies + randInt(-40, 40))
-  return { name, avatar: pick(AVATARS).id, frame: null, title: null, trophies: t, level: Math.max(1, Math.min(30, Math.floor(t / 120) + randInt(1, 4))), pieceSet: null }
+  const bot = botForTrophies(trophies)
+  return { name: botRecordName(bot), avatar: 'robot', frame: null, title: 'Trainingsgegner', trophies: botRating(bot), level: bot.tier, pieceSet: null }
 }
 
 export async function cancelSearch() {
