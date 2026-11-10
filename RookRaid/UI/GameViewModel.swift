@@ -429,12 +429,6 @@ final class GameViewModel: ObservableObject {
         GameState.manaPerTurn
     }
 
-    func territoryCount(_ color: PlayerColor) -> Int {
-        territory[color, default: 0]
-    }
-
-    func isMoveTarget(_ sq: Square) -> Bool { legalMoves.contains { $0.to == sq } }
-
     func isLastMoveSquare(_ sq: Square) -> Bool {
         guard let m = state.lastMove else { return false }
         return m.from == sq || m.to == sq

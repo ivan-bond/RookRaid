@@ -36,7 +36,6 @@ function set(patch: Partial<State>) { state = { ...state, ...patch }; listeners.
 export function useFriends(): State {
   return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn) }, () => state)
 }
-export const getFriends = () => state
 export const incomingCount = (s: State = state) => s.players.filter(p => p.relation === 'incoming').length
 export const clearNews = () => set({ news: null })
 
@@ -204,8 +203,6 @@ export const appLink = (code: string) => `rookraid://f/${code}`
 /** The friend code the page was opened with (for the „In der App öffnen“ bar). */
 let appLinkCode: string | null = null
 export const launchCode = () => appLinkCode
-export const CODE_RE = /^[2-9A-HJ-NP-Z]{6}$/
-
 /** A friend link or a push tap the page was opened with. Read once at start, then the address is cleaned up. */
 let launch: { code: string | null; openFriends: boolean } = { code: null, openFriends: false }
 {

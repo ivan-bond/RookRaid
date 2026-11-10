@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { avatarImage, cardArt } from '../art'
-import { CARDS, CHEST, FRAMES, TIERS, ULTS, cardCost, ultCost, type CardId, type ChestRarity, type FrameId, type UltId, FLAME, flameTier, KEEPS_TURN } from '../game/catalog'
+import { CARDS, CHEST, FRAMES, TIERS, ULTS, cardCost, ultCost, type CardId, type ChestRarity, type FrameId, type UltId, FLAME, KEEPS_TURN } from '../game/catalog'
 import { useI18n } from '../i18n'
 import { Icon } from './Icon'
 import { CHEST_LAYERS, CHEST_PALETTES, CHEST_RARITY_KEYS } from './chestArt'
@@ -218,21 +218,6 @@ export function LivingFlame({ colors, lit = true, embers = 8, width, height, sty
     return () => cancelAnimationFrame(raf)
   }, [colors.join(), lit, embers, width, height])
   return <canvas ref={ref} style={{ width, height, display: 'block', pointerEvents: 'none', ...style }} aria-hidden="true" />
-}
-
-export function FlameGlyph({ size = 18, lit = true, streak = 1 }: { size?: number; lit?: boolean; streak?: number }) {
-  const id = useId()
-  const tier = flameTier(Math.max(1, streak))
-  const [outer, mid, inner] = lit ? tier.colors : [FLAME.off, FLAME.off, '#8D9AB8']
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flex: 'none' }}>
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={mid} /><stop offset="1" stopColor={outer} /></linearGradient>
-      </defs>
-      <path d="M12.4 1.5c.8 4-2.4 6-3.9 8.3C7 12 6 13.6 6 16a6 6 0 0 0 12 0c0-3-1.4-5-2.8-6.6-.1 1.6-.9 2.7-2 3.2.9-4-.2-7.6-.8-11.1z" fill={`url(#${id})`} />
-      <path d="M12.3 12.5c1.6 1.4 2.7 2.6 2.7 4.3a3 3 0 0 1-6 0c0-1.5 1.1-2.6 2.2-3.6.3.8.8 1.2 1.3 1.4-.3-.7-.4-1.4-.2-2.1z" fill={inner} opacity={lit ? 1 : 0.5} />
-    </svg>
-  )
 }
 
 // MARK: Chest

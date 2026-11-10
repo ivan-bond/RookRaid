@@ -1,12 +1,12 @@
 // GameView.swift: the match screen. Phones: everything stacked. Wide windows: board left, cards and names right.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { appLogo, avatarImage, pieceImage } from '../art'
+import { appLogo, pieceImage } from '../art'
 import { ARENA_PALETTE, CARDS, TIME_CONTROLS, ULTS, botById, type CardId, type UltId } from '../game/catalog'
 import { GameController, useController, type GameOverInfo } from '../game/controller'
 import * as S from '../game/store'
 import * as FM from '../friendMatch'
 import { useI18n } from '../i18n'
-import { closeOverlay, openChests, openOverlay, parkGame, run, setTab } from '../nav'
+import { closeOverlay, openChests, parkGame, run, setTab } from '../nav'
 import { roadTitle } from './Home'
 import { ROAD } from '../game/catalog'
 import { Icon } from '../ui/Icon'
@@ -148,7 +148,7 @@ export function GameScreen({ game }: { game: GameController }) {
       {c.introActive && <VersusIntro c={c} />}
       {c.tutorialComplete && <TutorialComplete xp={c.tutorialComplete.xp} streak={c.tutorialComplete.streak} />}
       {c.gameOver && (
-        <GameOver info={c.gameOver} c={c} onExit={closeOverlay} onRematch={!c.online ? rematch : undefined}
+        <GameOver info={c.gameOver} onExit={closeOverlay} onRematch={!c.online ? rematch : undefined}
           onNext={nextAction(c, next)} />
       )}
       {confirmResign && (
@@ -550,7 +550,7 @@ export function BotPortrait({ id, size = 64, style }: { id: string; size?: numbe
 
 // MARK: Game over
 
-function GameOver({ info, c, onExit, onRematch, onNext }: { info: GameOverInfo; c: GameController; onExit: () => void; onRematch?: () => void; onNext: { title: string; icon: string; run: () => void } | null }) {
+function GameOver({ info, onExit, onRematch, onNext }: { info: GameOverInfo; onExit: () => void; onRematch?: () => void; onNext: { title: string; icon: string; run: () => void } | null }) {
   const { t } = useI18n()
   const won = info.result === 'win' || (info.result === null && info.hasWinner)
   const lost = info.result === 'loss'
@@ -640,4 +640,3 @@ function GameOver({ info, c, onExit, onRematch, onNext }: { info: GameOverInfo; 
 import { CHEST } from '../game/catalog'
 const CHEST_NAME = (r: number) => CHEST[r].name
 
-export { avatarImage, openOverlay }

@@ -1,7 +1,7 @@
 // PuzzleViews.swift: hub, puzzle player and the 3-minute puzzle rush.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { pieceImage } from '../art'
-import { BOARD_COLORS, CARDS, KEEPS_TURN, ULTS, PUZZLES_PER_CHEST, cardCost, isCard, ultCost, type CardId, type UltId } from '../game/catalog'
+import { BOARD_COLORS, CARDS, KEEPS_TURN, ULTS, PUZZLES_PER_CHEST, cardCost, ultCost, type CardId, type UltId } from '../game/catalog'
 import { apply, E, fromFEN, isFrozen, isShielded, sqIndex, type MatchState, type Move, type Side } from '../engine'
 import { haptic, sound } from '../game/feedback'
 import * as S from '../game/store'
@@ -612,4 +612,3 @@ export function PuzzleRush() {
   )
 }
 
-export { isCard, cardCost, ultCost }

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { imagetools } from 'vite-imagetools'
 
 const rulesEntry = path.resolve(__dirname, '../Tools/rules-js/core.js')
 
@@ -43,8 +44,9 @@ function appStoreBanner(id: string | undefined): Plugin {
 // (scripts/prerender.mjs), so it skips the service worker and the HTML plugins.
 export default defineConfig(({ isSsrBuild, mode }) => ({
   worker: { format: 'es' as const, plugins: () => [rulesEsm()] },
-  plugins: isSsrBuild ? [rulesEsm(), react()] : [
+  plugins: isSsrBuild ? [rulesEsm(), imagetools(), react()] : [
     rulesEsm(),
+    imagetools(),
     appStoreBanner(loadEnv(mode, __dirname, 'VITE_').VITE_APP_STORE_ID),
     react(),
     VitePWA({

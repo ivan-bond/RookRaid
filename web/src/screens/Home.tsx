@@ -1,11 +1,11 @@
 // HomeView.swift (tab "Spielen"): header, continue banner, battle hero card and ladder tile.
 import { useEffect, useRef, useState } from 'react'
 import { arenaImage } from '../art'
-import { ARENA_PALETTE, ARENAS, BOTS, CHEST, DECK_SIZE, TIME_CONTROLS, ULTS, botForTrophies, cardCost, ladderChest, type UltId } from '../game/catalog'
+import { ARENA_PALETTE, BOTS, CHEST, DECK_SIZE, TIME_CONTROLS, ULTS, botForTrophies, cardCost, ladderChest, type UltId } from '../game/catalog'
 import { GameController } from '../game/controller'
 import * as S from '../game/store'
 import { useI18n } from '../i18n'
-import { onAction, openChests, openOverlay, openSheet, run, setTab, parkGame, parkedGame, useNav } from '../nav'
+import { onAction, openChests, openOverlay, openSheet, setTab, parkGame, parkedGame, useNav } from '../nav'
 import * as Online from '../online'
 import { Icon } from '../ui/Icon'
 import { CardThumb, ChestView, Dialog, FlameIcon, LevelBadge, PlayerAvatar, Progress, ShardIcon, tierColor } from '../ui/kit'
@@ -389,4 +389,3 @@ function SideExtras({ onHotSeat }: { onHotSeat: () => void }) {
   )
 }
 
-export { ARENAS, run }

@@ -159,7 +159,6 @@ enum CardType: String, Codable, CaseIterable, Identifiable {
         default: return .single
         }
     }
-    var targetsEnemy: Bool { self == .freeze || self == .lightning }
 
     var targetPrompt: String {
         switch self {

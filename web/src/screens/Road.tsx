@@ -7,9 +7,9 @@ import { useI18n } from '../i18n'
 import { closeSheet, openChests, openSheet } from '../nav'
 import { Icon } from '../ui/Icon'
 import { sound } from '../game/feedback'
-import { CardThumb, ChestView, Confetti, PlayerAvatar, Progress, ShardIcon, Sheet, Stars, tierColor, useToast } from '../ui/kit'
+import { CardThumb, ChestView, Confetti, PlayerAvatar, Progress, ShardIcon, Sheet, useToast } from '../ui/kit'
 import { BotPortrait } from './Game'
-import { HomeHeader, roadTitle, useStartGame, EmptyDeckDialog } from './Home'
+import { roadTitle, useStartGame, EmptyDeckDialog } from './Home'
 
 export function RoadScreen() {
   const p = S.useProfile()
@@ -299,4 +299,3 @@ export function LadderSheet() {
   )
 }
 
-export { HomeHeader }

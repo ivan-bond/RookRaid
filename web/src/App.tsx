@@ -1,11 +1,10 @@
 // RootView (HomeViews.swift): five tabs, full-screen views on top, sheets and the little celebrations.
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { appLogo, logoMark, rockyFace } from './art'
-import { GameController } from './game/controller'
 import { unlockAudio } from './game/feedback'
 import * as S from './game/store'
 import { useI18n } from './i18n'
-import { closeOverlay, closeSheet, openChests, openOverlay, openSheet, setTab, useNav, type Tab } from './nav'
+import { closeSheet, openChests, openOverlay, openSheet, setTab, useNav, type Tab } from './nav'
 import * as Online from './online'
 import { Icon } from './ui/Icon'
 import { ChestOpening, ChestHub } from './screens/Chests'
@@ -19,9 +18,8 @@ import { RulesSheet } from './screens/Rules'
 import { LanguageSheet, LegalSheet, NameSheet, SettingsSheet } from './screens/Settings'
 import { ShopSheet } from './screens/Shop'
 import { FlameIgnition, FlameSheet, FreezeNotice } from './screens/Flame'
-import { appleClientId } from './supabase'
 import { isFirstVisit, markVisited } from './cookies'
-import { AppleErrorDialog, AppleLoginButton, SignInButtons } from './screens/Login'
+import { SignInButtons, SignInErrorDialog } from './screens/Login'
 import { FriendBanner, FriendProfileSheet, FriendsSheet, OpenInAppBar } from './screens/Friends'
 import * as Friends from './friends'
 import * as FriendMatch from './friendMatch'
@@ -118,7 +116,7 @@ export function App() {
     <div className="app">
       <nav className="rail" aria-label="Rook Raid">
         <div className="rail-brand"><img src={appLogo} alt="" /><b>Rook Raid</b></div>
-        {(account.status === 'guest' || account.status === 'anonymous') && <AppleLoginButton compact />}
+        {(account.status === 'guest' || account.status === 'anonymous') && <SignInButtons compact />}
         {TABS.map(([id, label, icon]) => (
           <button key={id} className={`rail-tab${nav.tab === id ? ' on' : ''}`} onClick={() => setTab(id)}>
             <Icon name={icon} size={20} />{t(label)}<Badge b={badge(id, p, requests)} />
@@ -210,7 +208,7 @@ export function App() {
       {!overlay && <FriendMatchInviteBanner />}
       <FriendMatchWaiting />
       <OpenInAppBar />
-      <AppleErrorDialog />
+      <SignInErrorDialog />
     </div>
   )
 }
@@ -248,4 +246,3 @@ function AppleSecure({ onClose }: { onClose: () => void }) {
   )
 }
 
-export { GameController, closeOverlay }

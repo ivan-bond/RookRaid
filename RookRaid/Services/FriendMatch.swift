@@ -66,11 +66,6 @@ final class FriendMatchCenter: ObservableObject {
         }
     }
 
-    func stop() {
-        heartbeat?.cancel()
-        heartbeat = nil
-    }
-
     func touch() async {
         guard OnlineAccount.shared.hasAccount, let client else { incoming = []; return }
         struct Reply: Decodable { let invites: [MatchInvite] }

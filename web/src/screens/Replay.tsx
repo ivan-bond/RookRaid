@@ -5,9 +5,9 @@ import { BOARD_COLORS, CARDS, isCard, type CardId } from '../game/catalog'
 import { apply, initialFromRecord, isFrozen, isShielded, sqIndex, type MatchState, type Side } from '../engine'
 import * as S from '../game/store'
 import { useI18n } from '../i18n'
-import { closeOverlay, closeSheet, openOverlay } from '../nav'
+import { closeOverlay } from '../nav'
 import { Icon } from '../ui/Icon'
-import { ManaDrop, Sheet } from '../ui/kit'
+import { ManaDrop } from '../ui/kit'
 import { cardArt } from '../art'
 
 function timeline(r: S.Replay): MatchState[] {
