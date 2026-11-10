@@ -89,7 +89,8 @@ function PlayerRow({ p, onOpen, children, rank, me }: { p: { name: string; avata
   )
 }
 
-/** Challenge a friend right from the list (same as the button in the profile). Online friends get a highlighted button. */
+/** Challenge a friend right from the list (same as the button in the profile). Online friends get a highlighted button.
+ *  After a successful invite the friends screen closes, so the waiting card (FriendMatchWaiting) is in view. */
 function ChallengeButton({ f, onError }: { f: F.Player; onError: (msg: string) => void }) {
   const { t } = useI18n()
   const [busy, setBusy] = useState(false)
@@ -97,7 +98,7 @@ function ChallengeButton({ f, onError }: { f: F.Player; onError: (msg: string) =
     <button className={`icon-btn fr-fight${f.online ? ' on' : ''}`} disabled={busy} aria-label={t('{0} herausfordern', f.name)} title={t('{0} herausfordern', f.name)}
       onClick={async e => {
         e.stopPropagation(); setBusy(true)
-        try { await FM.invite(f) } catch (err) { onError(t(F.friendError(err))) } finally { setBusy(false) }
+        try { await FM.invite(f); closeSheet() } catch (err) { onError(t(F.friendError(err))) } finally { setBusy(false) }
       }}>
       <Icon name="bolt" size={16} />
     </button>
@@ -316,7 +317,7 @@ export function FriendProfileSheet() {
         {fp.relation === 'friend' && <>
           <button className="chunky gold fp-challenge" disabled={challenging} onClick={async () => {
             setChallenging(true)
-            try { await FM.invite(fp) } catch (e) { showToast(t(F.friendError(e))) } finally { setChallenging(false) }
+            try { await FM.invite(fp); closeSheet() } catch (e) { showToast(t(F.friendError(e))) } finally { setChallenging(false) }
           }}><Icon name="bolt" size={16} />{t('Freundschaftsspiel')}</button>
           <span className="fp-note">{t('5 | 0 · ohne Trophäen · zählt für eure Bilanz')}</span>
         </>}

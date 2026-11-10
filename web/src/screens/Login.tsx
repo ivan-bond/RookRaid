@@ -26,7 +26,7 @@ export function SignInButtons({ compact = false, highlighted = true }: { compact
   if (acc.status === 'unavailable' || acc.status === 'secured') return null
   const anonymous = acc.status === 'anonymous'
   const apple = async () => {
-    try { await (anonymous ? Online.linkApple() : Online.signInWithApple()) } catch (e) { setError({ title: t('Mit Apple anmelden'), text: t(Online.serverMessage(e)) }) }
+    try { await Online.signInWithApple() } catch (e) { setError({ title: t('Mit Apple anmelden'), text: t(Online.serverMessage(e)) }) }
   }
   const google = async () => {
     try { await Online.signInWithGoogle() } catch (e) { setError({ title: t('Mit Google anmelden'), text: t(Online.serverMessage(e)) }) }
@@ -45,8 +45,6 @@ export function SignInButtons({ compact = false, highlighted = true }: { compact
     </div>
   )
 }
-/** Older name, still used by the side rail. */
-export const AppleLoginButton = SignInButtons
 
 /** Under the Play-tab header for guests and anonymous accounts. */
 export function LoginCard() {
@@ -73,7 +71,6 @@ export function SignInErrorDialog() {
   const title = acc.signInErrorProvider === 'google' ? t('Mit Google anmelden') : t('Mit Apple anmelden')
   return <Dialog title={title} message={acc.signInErrorDetail ? `${t(acc.signInError)}\n\n(${acc.signInErrorDetail})` : t(acc.signInError)} onClose={Online.clearSignInError} actions={[{ label: t('Fertig'), bold: true }]} />
 }
-export const AppleErrorDialog = SignInErrorDialog
 
 /** „Mit Apple gesichert“ / „Mit Google gesichert“ */
 export const securedText = (provider: Online.SignInProvider | null, t: (k: string) => string) =>

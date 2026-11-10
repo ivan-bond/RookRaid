@@ -28,6 +28,5 @@ const out = join(root, 'upload')
 mkdirSync(out, { recursive: true })
 const zip = join(out, 'rookraid-web.zip')
 rmSync(zip, { force: true })
-// _headers/_redirects are for Cloudflare/Netlify; Hostinger uses .htaccess.
-execFileSync('zip', ['-qr', '-X', zip, '.', '-x', '*.DS_Store', '_headers', '_redirects'], { cwd: dist, stdio: 'inherit' })
+execFileSync('zip', ['-qr', '-X', zip, '.', '-x', '*.DS_Store'], { cwd: dist, stdio: 'inherit' })
 console.log(`\nReady: web/upload/rookraid-web.zip – upload it to public_html in Hostinger's File Manager and extract it there.`)

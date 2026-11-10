@@ -63,7 +63,6 @@ export const CARDS: Record<CardId, CardInfo> = {
 export const KEEPS_TURN: Record<string, boolean> = {
   shield: true, freeze: true, bulwark: true, sprint: true, sacrifice: true, advance: true, swap: true, retreat: true,
 }
-export const LOCKS_TARGET = (c: string) => c === 'shield' || c === 'retreat'
 export const cardCost = (c: string) => E.COST[c] ?? 0
 export const isCard = (id: string): id is CardId => (CARD_IDS as string[]).includes(id)
 export const isUlt = (id: string): id is UltId => (ULT_IDS as string[]).includes(id)
@@ -98,9 +97,6 @@ export const ULTS: Record<UltId, UltInfo> = {
 }
 export const ultCost = (u: string) => E.ultCost(u)
 
-export function cardArtKey(id: string): string {
-  return isUlt(id) ? `art-ult-${id}` : `art-card-${id}`
-}
 
 export type Preset = { id: string; name: string; strategy: string; icon: string; cards: CardId[]; ultimate: UltId }
 export const PRESETS: Preset[] = [
@@ -117,9 +113,6 @@ export const PRESETS: Preset[] = [
   { id: 'taktik', name: 'Taktiker', icon: 'scope', cards: ['shield', 'freeze', 'swap', 'sprint'], ultimate: 'meteor',
     strategy: 'Bonusaktionen für Doppelschläge: einfrieren, schützen, vorstoßen – und dann zuschlagen.' },
 ]
-export const STARTER_PRESET: Preset = { id: 'start', name: 'Grundausstattung', icon: 'stack', cards: ['lightning', 'shield', 'sprint', 'freeze'],
-  ultimate: 'meteor', strategy: 'Ein ausgewogenes Deck für den Anfang.' }
-
 // MARK: Bots
 
 export type BotId = 'easy' | 'apprentice' | 'medium' | 'jester' | 'knight' | 'tactician' | 'shadow' | 'baron' | 'hard' | 'frost' | 'sphinx' | 'queen'
@@ -240,7 +233,6 @@ export const CHEST_SOURCE: Record<ChestSource, { title: string; icon: string }> 
   road: { title: 'Trophäenpfad', icon: 'trophy' }, streak: { title: 'Flammentruhe', icon: 'flame' },
   shop: { title: 'Laden-Truhe', icon: 'bag' }, friend: { title: 'Freundestruhe', icon: 'person2' },
 }
-export const CHARGE_TAPS = 3
 export const WIN_CHESTS_PER_DAY = 3
 export const PUZZLES_PER_CHEST = 5
 export const PITY_LIMIT = 18

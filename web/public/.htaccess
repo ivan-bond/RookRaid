@@ -1,4 +1,4 @@
-# Hostinger (Apache/LiteSpeed): the same rules as _redirects and _headers for Cloudflare Pages/Netlify.
+# Hostinger (Apache/LiteSpeed): invite links, the Apple app file, www → rookraid.com and caching.
 # Turn on "Force HTTPS" in hPanel (Websites → Security → SSL); this file deliberately does not redirect to https itself,
 # so it can never loop behind Hostinger's CDN.
 Options -MultiViews

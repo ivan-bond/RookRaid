@@ -5,7 +5,6 @@ import * as S from '../game/store'
 import { useI18n, LANGS, deviceLang } from '../i18n'
 import { closeSheet, getNav, openOverlay, openSheet, run, useNav } from '../nav'
 import * as Online from '../online'
-import { appleClientId } from '../supabase'
 import { Icon } from '../ui/Icon'
 import { Dialog, Sheet, Switch } from '../ui/kit'
 import { GoogleG, securedText } from './Login'
@@ -106,7 +105,7 @@ function AccountSection() {
         </div>
         {acc.record && <div className="li"><span className="t muted" style={{ fontSize: 13 }}>{t('{0} S · {1} N · {2} R', acc.record.wins, acc.record.losses, acc.record.draws)}</span></div>}
         {!Online.hasAccount() && <Row icon="plusCircle" color="#6FBF73" title={t('Online-Konto erstellen')} onClick={() => openSheet('onlineName', 'create')} />}
-        {acc.status === 'anonymous' && <button className="li apple-row" disabled={acc.busy} onClick={() => act(Online.linkApple)}><Icon name="apple" size={18} /><span className="t">{t('Mit Apple sichern')}</span></button>}
+        {acc.status === 'anonymous' && <button className="li apple-row" disabled={acc.busy} onClick={() => act(Online.signInWithApple)}><Icon name="apple" size={18} /><span className="t">{t('Mit Apple sichern')}</span></button>}
         {acc.status === 'anonymous' && <button className="li google-row" disabled={acc.busy} onClick={() => act(Online.signInWithGoogle)}><GoogleG size={18} /><span className="t">{t('Mit Google sichern')}</span></button>}
         {acc.status === 'guest' && <button className="li apple-row" disabled={acc.busy} onClick={() => act(Online.signInWithApple)}><Icon name="apple" size={18} /><span className="t">{t('Schon ein Konto?')} {t('Mit Apple anmelden')}</span></button>}
         {acc.status === 'guest' && <button className="li google-row" disabled={acc.busy} onClick={() => act(Online.signInWithGoogle)}><GoogleG size={18} /><span className="t">{t('Schon ein Konto?')} {t('Mit Google anmelden')}</span></button>}

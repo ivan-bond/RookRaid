@@ -15,6 +15,4 @@ export function setCookie(name: string, value: string, maxAge = YEAR) {
 export const isFirstVisit = () => getCookie('rr_visited') !== '1'
 export const markVisited = () => setCookie('rr_visited', '1')
 export type AuthCookie = 'guest' | 'anonymous' | 'secured'
-/** Older versions wrote „apple“ for a secured account. */
-export const authCookie = (): AuthCookie => { const v = getCookie('rr_auth'); return v === 'apple' || v === 'secured' ? 'secured' : v === 'anonymous' ? 'anonymous' : 'guest' }
 export const setAuthCookie = (v: AuthCookie) => setCookie('rr_auth', v)

@@ -145,10 +145,6 @@ export function getProfile() { return profile }
 export function useProfile(): Profile {
   return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn) }, () => profile)
 }
-export function useVersion(): number {
-  return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn) }, () => version)
-}
-
 window.addEventListener('pagehide', flushSave)
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave() })
 
@@ -896,7 +892,6 @@ export function resetProgress() {
   commit(next)
 }
 
-export function replaceProfile(next: Profile) { commit(next) }
 export { uid }
 
 /** The default name in every language ("Du" is saved translated by the app: "You", "Tú" …). */

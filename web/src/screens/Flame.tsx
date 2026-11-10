@@ -14,28 +14,6 @@ const WEEK = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 const monday = (d = new Date()) => { const m = new Date(d); m.setHours(0, 0, 0, 0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m }
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 
-/** Mo–So of this week (home and chest hub): flame on active days, today ringed. */
-export function WeekStrip() {
-  const p = S.useProfile()
-  const { t } = useI18n()
-  const start = monday()
-  const today = S.dayKey()
-  return (
-    <div className="week">
-      {WEEK.map((d, i) => {
-        const key = S.dayKey(addDays(start, i))
-        const active = p.activeDays.includes(key)
-        return (
-          <span key={d} className={`wd${key === today ? ' today' : ''}`}>
-            <span>{t(d)}</span>
-            <span className="wd-ico" style={{ background: active ? '#FF7A2F38' : '#27395B99' }}>{active && <FlameIcon size={13} colors={[FLAME.lit, FLAME.lit]} />}</span>
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
 export function FlameSheet() {
   const p = S.useProfile()
   const { t } = useI18n()

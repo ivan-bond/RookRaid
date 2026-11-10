@@ -30,7 +30,6 @@ enum Theme {
     static let blueLight = Color(hex: 0x6E9BF0)
     /// Rot – Gegner und Warnungen.
     static let red = Color(hex: 0xE0413A)
-    static let redDark = Color(hex: 0x8C2620)
     static let redLight = Color(hex: 0xF07A72)
 
     /// Frühere Primärfarbe – zeigt jetzt auf Blau, damit alle Stellen das neue Design übernehmen.
@@ -110,7 +109,6 @@ enum CardStyle {
     static let face = Color(hex: 0x1E2E4C)
     static let faceTop = Color(hex: 0x27395B)
     static let border = Color(hex: 0x34486F)
-    static let ultimateFace = Color(hex: 0x2A2618)
     static let ultimateTop = Color(hex: 0xFFE08A)
     static let ultimate = Color(hex: 0xF2C14E)
     static let ultimateDeep = Color(hex: 0xB8892B)

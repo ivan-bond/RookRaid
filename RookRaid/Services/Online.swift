@@ -423,22 +423,6 @@ protocol MatchService: AnyObject {
     func cancel()
 }
 
-/// Offline-Fassung: sofort ein Bot passend zu den Trophäen (so spielt die App heute).
-final class LocalMatchService: MatchService {
-    private var cancelled = false
-
-    func findMatch(_ request: MatchRequest) async throws -> MatchFound {
-        cancelled = false
-        let level = BotLevel.forTrophies(request.player.trophies)
-        try Task.checkCancellation()
-        if cancelled { throw CancellationError() }
-        return MatchFound(kind: .bot, opponent: BotCards.card(for: level, near: request.player.trophies),
-                          botLevel: level, youAreWhite: Bool.random())
-    }
-
-    func cancel() { cancelled = true }
-}
-
 /// Spielerkarte für den Bot-Ersatz im Online-Modus: offen ein Trainingsgegner (wie botCard() in web/src/online.ts) –
 /// sein Name, der Roboter, seine Wertung.
 enum BotCards {

@@ -173,6 +173,10 @@ struct FriendsSheet: View {
                 if let id = showProfile { FriendProfileView(userId: id) }
             }
         }
+        // Freund herausgefordert (aus der Liste oder dem Profil): die Freunde schließen, damit das Warten zu sehen ist (wie im Web).
+        .onChange(of: matches.outgoing != nil) { challenged in
+            if challenged { dismiss() }
+        }
         .preferredColorScheme(.dark)
         .sheet(item: $nameSheet) { purpose in OnlineNameSheet(purpose: purpose) }
         .task {

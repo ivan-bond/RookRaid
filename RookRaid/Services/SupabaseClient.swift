@@ -8,5 +8,4 @@ enum Backend {
         guard let url = OnlineConfig.supabaseURL, let key = OnlineConfig.supabaseAnonKey else { return nil }
         return SupabaseClient(supabaseURL: url, supabaseKey: key)
     }()
-    static var isAvailable: Bool { client != nil && OnlineConfig.enabled }
 }

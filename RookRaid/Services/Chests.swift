@@ -25,8 +25,6 @@ enum ChestRarity: Int, Codable, CaseIterable, Comparable, Identifiable {
         }
     }
 
-    var shortName: String { [L("Holz"), L("Silber"), L("Gold"), L("Magisch"), L("Legendär")][rawValue] }
-
     /// Großes Wort beim Aufwerten.
     var shout: String {
         switch self {

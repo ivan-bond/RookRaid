@@ -432,16 +432,6 @@ enum Tactic: Equatable {
         }
     }
 
-    var shortName: String {
-        switch self {
-        case .doubleCheck: return L("Doppelschach")
-        case .discoveredCheck: return L("Abzugsschach")
-        case .fork: return L("Gabel")
-        case .skewer: return L("Spieß")
-        case .pin: return L("Fesselung")
-        }
-    }
-
     var icon: String {
         switch self {
         case .doubleCheck: return "bolt.horizontal.fill"

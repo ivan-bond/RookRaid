@@ -19,4 +19,6 @@ async function view() {
 }
 void Promise.all([loadLanguage(), howToPlay ? loadLanguage('en') : null, view()]).then(([, , page]) => {
   createRoot(document.getElementById('root')!).render(<StrictMode>{page}</StrictMode>)
+  // The loading sign in index.html only appears after half a second; once the page is there it goes away at once.
+  document.getElementById('boot')?.remove()
 })

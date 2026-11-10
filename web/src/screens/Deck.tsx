@@ -1,7 +1,7 @@
 // CollectionViews.swift (tab "Deck") with Rocky's deck workshop (DeckTour.swift), presets and the ultimate picker.
 import { useEffect, useState } from 'react'
 import { rockyFace } from '../art'
-import { ARENAS, CARDS, CARD_IDS, DECK_SIZE, KEEPS_TURN, PRESETS, ROLES, TIERS, ULTS, ULT_IDS, cardCost, ultCost, type CardId, type Role, type UltId } from '../game/catalog'
+import { ARENAS, CARDS, CARD_IDS, DECK_SIZE, PRESETS, ROLES, TIERS, ULTS, ULT_IDS, cardCost, ultCost, type CardId, type Role } from '../game/catalog'
 import { haptic, sound } from '../game/feedback'
 import * as S from '../game/store'
 import { useI18n } from '../i18n'
@@ -280,5 +280,3 @@ export function UltimateSheet() {
   )
 }
 
-export { Confetti, isUlt }
-import { isUlt } from '../game/catalog'

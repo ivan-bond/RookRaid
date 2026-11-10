@@ -1,2 +1,0 @@
-# Cloudflare Pages / Netlify: invite links /f/<code> are handled by the app page (status 200 = no redirect).
-/f/*  /index.html  200

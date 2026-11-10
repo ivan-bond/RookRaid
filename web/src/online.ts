@@ -1,7 +1,7 @@
 // Online play and the account, against the same Supabase project as the iPhone app.
 // Snapshot format and RPC names follow Services/Online.swift and SupabaseAccountService.swift.
 import { useSyncExternalStore } from 'react'
-import { AVATARS, BOARD_THEMES, botForTrophies, botRating, botRecordName, CARD_IDS, ULT_IDS, type BoardTheme, type CardId, type ChestRarity, type ChestSource, type UltId } from './game/catalog'
+import { BOARD_THEMES, botForTrophies, botRating, botRecordName, CARD_IDS, ULT_IDS, type BoardTheme, type CardId, type ChestRarity, type ChestSource, type UltId } from './game/catalog'
 import * as S from './game/store'
 import { RULES_VERSION } from './engine'
 import { appleClientId, appleIdToken, sessionClient, supabase } from './supabase'
@@ -331,9 +331,8 @@ export async function createAccount(name: string) {
     await ensureAnon()
     if (!(await nameAvailable(name))) throw new Error('name_taken')
     S.update(p => { p.name = name })
-    const { data, error } = await client().rpc('setup_account', { p_snapshot: snapshot(), p_card: { ...playerCard(), name } })
+    const { error } = await client().rpc('setup_account', { p_snapshot: snapshot(), p_card: { ...playerCard(), name } })
     if (error) throw error
-    const reply = data as { status: string; progress: ServerProgress; name?: string } | null
     lastBackup = ''
     setSyncRev(null)
     // An existing account always brings its progress along (no question): the server is the truth.
@@ -377,8 +376,6 @@ export async function signInWithApple() {
   if (error) throw error
   await goToProvider(data.url, 'apple')
 }
-/** "Secure with Apple" for an anonymous account is the same single step (no separate linking any more). */
-export const linkApple = signInWithApple
 
 /**
  * Sign in with Google – the same single step as Apple (Supabase's redirect to Google and back):

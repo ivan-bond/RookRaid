@@ -503,7 +503,6 @@ struct FreezeNoticeOverlay: View {
     let streak: Int
     let onClose: () -> Void
     @State var appear = false
-    @State var crack = false
 
     var body: some View {
         ZStack {

@@ -63,10 +63,10 @@ the seven app languages, plus a short section on the browser version and the web
 Language files load on demand (one chunk per language), so the first load stays small.
 
 ## Friends, invite links and push
-- Invite links look like `https://<domain>/f/<CODE>`. The host must serve `index.html` for `/f/*` (`public/_redirects`)
-  and `/.well-known/apple-app-site-association` as JSON (`public/_headers`), so iPhones with the app open the link in the app.
-  rookraid.com is hosted on Hostinger (Apache/LiteSpeed), which reads `public/.htaccess` instead: the same rules, plus
-  www → rookraid.com. Upload the contents of `dist/` (including the hidden `.htaccess` and `.well-known`) to `public_html`,
+- Invite links look like `https://<domain>/f/<CODE>`. The host must serve `index.html` for `/f/*` and
+  `/.well-known/apple-app-site-association` as JSON, so iPhones with the app open the link in the app.
+  rookraid.com is hosted on Hostinger (Apache/LiteSpeed); `public/.htaccess` holds these rules, plus
+  www → rookraid.com and caching. Upload the contents of `dist/` (including the hidden `.htaccess` and `.well-known`) to `public_html`,
   and turn on "Force HTTPS" in hPanel.
   The same domain goes into `RR_WEB_DOMAIN` in `Config/RookRaid.xcconfig`.
 - Push for friend requests needs `VITE_VAPID_PUBLIC_KEY` (the matching private key is a Supabase secret, see

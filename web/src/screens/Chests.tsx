@@ -7,7 +7,7 @@ import * as S from '../game/store'
 import { useI18n } from '../i18n'
 import { closeChests, closeSheet, openChests, openOverlay, openSheet, run } from '../nav'
 import { Icon } from '../ui/Icon'
-import { ChestView, Confetti, FlameIcon, ManaDrop, PlayerAvatar, Rays, Sheet, ShardIcon, Stars } from '../ui/kit'
+import { ChestView, Confetti, ManaDrop, PlayerAvatar, Rays, Sheet, ShardIcon, Stars } from '../ui/kit'
 import { BOTS } from '../game/catalog'
 
 function chestTitle(c: S.Chest, t: (k: string, ...a: Array<string | number>) => string) {
@@ -501,4 +501,3 @@ export function useMidnight() {
   return mins >= 60 ? t('{0} h {1} min', Math.floor(mins / 60), mins % 60) : t('{0} min', mins)
 }
 
-export { openChests }

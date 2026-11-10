@@ -1,10 +1,10 @@
 // Port of GameViewModel.swift: one running match (battle, ladder, practice, two players, first battle, online).
 import { useSyncExternalStore } from 'react'
-import { apply, cooldownLeft, E, forkCount, fromFEN, initialFromRecord, isFrozen, sqIndex, type MatchState, type Move, type Side } from '../engine'
+import { apply, cooldownLeft, E, forkCount, initialFromRecord, isFrozen, sqIndex, type MatchState, type Move, type Side } from '../engine'
 import { t } from '../i18n'
 import { askBot } from './aiClient'
 import {
-  BOTS, CARDS, KEEPS_TURN, TIME_CONTROLS, ULTS, botById, botForTrophies, botRating, botRecordName, cardCost, isCard, ultCost,
+  BOTS, CARDS, KEEPS_TURN, TIME_CONTROLS, ULTS, botById, botRating, botRecordName, cardCost, ultCost,
   type Bot, type CardId, type TimeControl, type UltId,
 } from './catalog'
 import * as S from './store'
@@ -1225,5 +1225,3 @@ export function useController(c: GameController) {
   return c
 }
 
-export const isCardId = isCard
-export function fenState(fen: string) { return fromFEN(fen) }
