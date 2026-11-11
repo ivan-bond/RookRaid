@@ -639,7 +639,7 @@ struct AvatarPortrait: View {
     var pieceColor: PlayerColor = .white
 
     var body: some View {
-        Image(avatar.imageName)
+        PreparedImages.image(avatar.imageName)
             .resizable()
             .scaledToFill()
             .accessibilityHidden(true)

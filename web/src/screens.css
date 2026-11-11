@@ -179,7 +179,8 @@
 .sq .dot { width: 100%; height: 100%; }
 .pc { position: absolute; width: 12.5%; height: 12.5%; z-index: 2; pointer-events: none; transition: left .2s ease-out, top .2s ease-out; }
 .pc.static { position: absolute; inset: 0; width: 100%; height: 100%; }
-.pc img { position: absolute; inset: 3%; width: 94%; height: 94%; filter: drop-shadow(0 1.5px 1px #00000038); }
+/* The piece images carry their own shadow and light (Tools/art/cut_pieces.py), so no extra filter here. */
+.pc img { position: absolute; inset: 1%; width: 98%; height: 98%; }
 .pc.slide { animation: slidePiece .2s ease-out; }
 @keyframes slidePiece { from { transform: translate(var(--dx), var(--dy)) } }
 .pc-shield { position: absolute; inset: 4%; border-radius: 50%; border: 2px solid #ffffffe6; background: #ffffff2e; }
@@ -699,8 +700,6 @@
 .shop-hero-name { font: 900 19px/1.15 var(--round); }
 .shop-hero-sub { font-size: 12px; font-weight: 700; color: var(--acc); }
 .shop-hero .shop-price, .shop-hero .shop-owned { align-self: flex-start; padding-inline: 18px; }
-.shop-soon { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; border: 1.5px dashed var(--hi); }
-.shop-soon-ico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--raised); color: #7FE3FF; flex: none; }
 .shop-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 30px; text-align: center; }
 .shop-celebrate { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: #050b16e6; overflow: hidden; }
 .shop-celebrate-rays { position: absolute; left: 50%; top: 45%; width: 0; height: 0; } .shop-celebrate-rays > svg { left: -350px; top: -350px; }
@@ -980,7 +979,7 @@ body.legal-body { user-select: text; -webkit-user-select: text; overflow: auto; 
 .mb-sq { position: relative; display: grid; place-items: center; }
 .mb-piece { position: absolute; width: 20%; height: 20%; display: grid; place-items: center; transition: left .32s cubic-bezier(.3, 1.3, .5, 1), top .32s cubic-bezier(.3, 1.3, .5, 1); pointer-events: none; }
 .mb-piece[tabindex='0'] { pointer-events: auto; cursor: pointer; }
-.mb-piece img { width: 88%; filter: drop-shadow(0 4px 3px #0008); }
+.mb-piece img { width: 96%; }
 .mb-target { pointer-events: auto; }
 .mb-target::before { content: ''; position: absolute; inset: 4%; border-radius: 50%; box-shadow: 0 0 0 3px var(--red-light), 0 0 18px var(--red-light); animation: targetPulse 1s ease-in-out infinite; }
 @keyframes targetPulse { 50% { transform: scale(1.12); opacity: .6 } }
@@ -1442,3 +1441,20 @@ body.legal-body { user-select: text; -webkit-user-select: text; overflow: auto; 
 .htp-bonus { background: #2F6FE433; color: #9CC0FF; }
 .htp-arenas { margin: 0 0 10px; padding-left: 22px; }
 .htp-faq h3 { margin: 16px 0 4px; font: 900 17px var(--round); letter-spacing: 0; text-transform: none; color: #fff; }
+
+/* Feedback (FeedbackView.swift) */
+.fb-link { gap: 12px; text-align: left; border: 1px solid #FF8A6B40; background: linear-gradient(135deg, #7A2E1E99, var(--panel-raised, #ffffff0a)); }
+.fb-link-ico { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: linear-gradient(#FF7A5C, #B23A2A); flex: none; }
+.fb-note { display: flex; gap: 12px; padding: 14px; border-radius: 16px; background: linear-gradient(135deg, #1E3A7A88, #4A1E2C66); border: 1px solid #8FB6FF33; font-size: 14px; line-height: 1.45; }
+.fb-note b { font: 900 16px var(--round); }
+.fb-note-ico { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: linear-gradient(var(--blue), #1E3A7A); flex: none; }
+.fb-sign { color: var(--text2); font-weight: 700; font-style: italic; }
+.fb-label { font: 800 13px var(--round); color: var(--text2); }
+.fb-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.fb-cat { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border-radius: 12px; background: var(--raised); border: 1px solid #ffffff1a; font: 800 12px var(--round); color: var(--text2); }
+.fb-cat.on { background: #2F6FE433; border-color: var(--blue-light); color: #fff; }
+.fb-text { resize: vertical; min-height: 120px; line-height: 1.4; }
+.fb-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 12px 4px 4px; }
+.fb-done b { font: 900 20px var(--round); }
+.fb-done-ico { color: #5BD18B; }
+.fb-done .chunky { align-self: stretch; margin-top: 8px; }

@@ -351,6 +351,91 @@ extension EnvironmentValues {
         get { self[LiveAnimationsKey.self] }
         set { self[LiveAnimationsKey.self] = newValue }
     }
+    /// Die Uhr, nach der Dauer-Animationen rechnen (statt nach der Wanduhr).
+    var animationClock: AnimationClock {
+        get { self[AnimationClockKey.self] }
+        set { self[AnimationClockKey.self] = newValue }
+    }
+}
+
+/// Uhr für Dauer-Animationen: Sie läuft nur, solange ihr Bereich lebt, und macht danach dort weiter, wo sie
+/// angehalten hat. Ein Tab, zu dem man zurückkehrt, setzt seine Bewegungen also nahtlos fort, statt zu springen.
+/// Ohne Vorgabe (Partie, Sheets) ist sie die normale Uhr.
+struct AnimationClock: Equatable {
+    /// So viel Zeit stand die Uhr bisher still.
+    var offset: TimeInterval = 0
+    /// Angehalten bei dieser Uhrzeit (nil = läuft).
+    var frozenAt: TimeInterval?
+
+    /// Sekunden für Effekte; ersetzt `date.timeIntervalSinceReferenceDate`.
+    func time(_ date: Date) -> TimeInterval {
+        frozenAt ?? (date.timeIntervalSinceReferenceDate - offset)
+    }
+}
+
+private struct AnimationClockKey: EnvironmentKey {
+    static let defaultValue = AnimationClock()
+}
+
+/// Eine Uhr je Bereich (Tabs, Tab-Leiste). Hält sie an, sobald der Bereich nicht mehr lebt, und lässt sie
+/// beim Zurückkehren weiterlaufen. Wird beim Zeichnen von RootView abgefragt, löst selbst kein Neuzeichnen aus.
+@MainActor
+final class AnimationClocks {
+    private var clocks: [AnyHashable: AnimationClock] = [:]
+
+    func clock(_ key: AnyHashable, live: Bool) -> AnimationClock {
+        var c = clocks[key] ?? AnimationClock()
+        let now = Date().timeIntervalSinceReferenceDate
+        if live, let frozen = c.frozenAt {
+            c.offset = now - frozen
+            c.frozenAt = nil
+        } else if !live, c.frozenAt == nil {
+            c.frozenAt = now - c.offset
+        }
+        clocks[key] = c
+        return c
+    }
+}
+
+/// Große Bilder aus dem Asset-Katalog (Arenen, Avatare), einmal dekodiert und gemerkt. Ohne das entpackt
+/// SwiftUI ein Bild erst beim ersten Zeigen – mitten im Wisch zum neuen Tab, und genau dann ruckelt es.
+/// Nur auf dem Hauptthread gelesen und geschrieben; `preload` dekodiert im Hintergrund.
+enum PreparedImages {
+    private static var cache: [String: UIImage] = [:]
+    /// Avatare erscheinen höchstens 160 Punkte groß – 512 Pixel reichen auch bei 3-facher Auflösung.
+    private static func maxSide(_ name: String) -> CGFloat? { name.hasPrefix("avatar-") ? 512 : nil }
+
+    nonisolated private static func decode(_ name: String, maxSide: CGFloat?) -> UIImage? {
+        guard let ui = UIImage(named: name) else { return nil }
+        if let side = maxSide, max(ui.size.width * ui.scale, ui.size.height * ui.scale) > side {
+            let f = side / max(ui.size.width * ui.scale, ui.size.height * ui.scale)
+            let target = CGSize(width: ui.size.width * ui.scale * f, height: ui.size.height * ui.scale * f)
+            return ui.preparingThumbnail(of: target) ?? ui
+        }
+        return ui.preparingForDisplay() ?? ui
+    }
+
+    @MainActor
+    static func image(_ name: String) -> Image {
+        if let ui = cache[name] { return Image(uiImage: ui) }
+        guard let ui = decode(name, maxSide: maxSide(name)) else { return Image(name) }
+        cache[name] = ui
+        return Image(uiImage: ui)
+    }
+
+    /// Alle Arenen und Avatare im Hintergrund vorbereiten, ohne den Start aufzuhalten.
+    @MainActor
+    static func preload() async {
+        let names = (1...6).map { ArenaArt.imageName($0) } + Avatar.allCases.map(\.imageName)
+        let todo = names.filter { cache[$0] == nil }.map { ($0, maxSide($0)) }
+        guard !todo.isEmpty else { return }
+        let decoded: [(String, UIImage?)] = await Task.detached(priority: .utility) {
+            todo.map { ($0.0, decode($0.0, maxSide: $0.1)) }
+        }.value
+        for (name, ui) in decoded where cache[name] == nil {
+            if let ui { cache[name] = ui }
+        }
+    }
 }
 
 /// Bildschirmwackeln bei großen Treffern.
@@ -358,6 +443,7 @@ extension EnvironmentValues {
 /// Endlos-Animation: `active = false` pausiert die Zeitleiste und stellt die Karte sofort gerade.
 struct Jiggle: ViewModifier {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let active: Bool
     var amplitude: Double = 2.5
     var period: Double = 0.28
@@ -366,12 +452,12 @@ struct Jiggle: ViewModifier {
     func body(content: Content) -> some View {
         // Höchstens 60 (schnelles Zittern) bzw. 30 Bilder pro Sekunde statt bis zu 120 auf ProMotion-Displays (v0.9.25)
         TimelineView(.animation(minimumInterval: period < 0.4 ? 1.0 / 60 : 1.0 / 30, paused: !active || !live)) { ctx in
-            content.rotationEffect(.degrees(active && live ? angle(at: ctx.date) : 0))
+            content.rotationEffect(.degrees(active ? angle(at: clock.time(ctx.date)) : 0))
         }
     }
 
-    private func angle(at date: Date) -> Double {
-        sin(date.timeIntervalSinceReferenceDate * 2 * .pi / period + phase) * amplitude
+    private func angle(at t: TimeInterval) -> Double {
+        sin(t * 2 * .pi / period + phase) * amplitude
     }
 }
 

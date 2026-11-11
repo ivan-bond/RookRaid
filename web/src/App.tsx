@@ -1,6 +1,6 @@
 // RootView (HomeViews.swift): five tabs, full-screen views on top, sheets and the little celebrations.
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { appLogo, logoMark, rockyFace } from './art'
+import { appLogo, logoMark, preloadArt, rockyFace } from './art'
 import { unlockAudio } from './game/feedback'
 import * as S from './game/store'
 import { useI18n } from './i18n'
@@ -12,6 +12,7 @@ import { DeckScreen, PresetSheet, UltimateSheet } from './screens/Deck'
 import { HomeScreen } from './screens/Home'
 import { LEGAL_PATHS } from './screens/Legal'
 import { AchievementsSheet, ProfileScreen, StatisticsSheet, StyleSheet } from './screens/Profile'
+import { FeedbackSheet } from './screens/Feedback'
 import { PuzzleHub } from './screens/Puzzles'
 import { LadderSheet, RoadGuide, RoadScreen } from './screens/Road'
 import { RulesSheet } from './screens/Rules'
@@ -66,6 +67,7 @@ export function App() {
 
   useEffect(() => {
     S.checkStreak()
+    preloadArt()
     // No loading screen: the first visit (cookie rr_visited) goes straight into the first battle.
     const first = isFirstVisit() && !S.getProfile().tutorialSeen
     markVisited()
@@ -177,6 +179,7 @@ export function App() {
       {sheet === 'style' && <StyleSheet />}
       {sheet === 'rules' && <RulesSheet onClose={closeSheet} />}
       {sheet === 'stats' && <StatisticsSheet />}
+      {sheet === 'feedback' && <FeedbackSheet />}
       {sheet === 'presets' && <PresetSheet />}
       {sheet === 'ultimates' && <UltimateSheet />}
       {sheet === 'name' && <NameSheet online={false} />}

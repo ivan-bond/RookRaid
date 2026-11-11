@@ -142,6 +142,15 @@ export function ProfileScreen() {
               </span>
               <Icon name="chevronRight" size={14} color="var(--muted)" />
             </button>
+
+            <button className="card row press fb-link" onClick={() => openSheet('feedback')}>
+              <span className="fb-link-ico"><Icon name="envelope" size={18} /></span>
+              <span className="col grow" style={{ gap: 4, textAlign: 'left' }}>
+                <b>{t('Feedback senden')}</b>
+                <span className="dim" style={{ fontSize: 12 }}>{t('Bugs, Balance, Ideen – Rook Raid ist in der Beta.')}</span>
+              </span>
+              <Icon name="chevronRight" size={14} color="var(--muted)" />
+            </button>
           </div>
         </div>
       </div>

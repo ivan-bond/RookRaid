@@ -197,6 +197,9 @@ final class GameViewModel: ObservableObject {
     /// Trophäen-Änderung vom Server, wenn die Partie schon als `abandoned` gewertet wurde.
     private var pendingServerDelta: Int?
     private var appliedServerTrophies = false
+    /// Trophäen, die beim Spielende sofort angezeigt wurden (gleiche Formel wie der Server). Kommt die Zahl des
+    /// Servers, wird nur noch die Differenz verbucht.
+    private var optimisticDelta = 0
     private var serverAborted = false
     private var serverDrawAgreed = false
     private var timeoutClaimed = false
@@ -1319,8 +1322,22 @@ final class GameViewModel: ObservableObject {
         if (mode.isRated || botOnline) && !serverAborted && !isFriendly {
             if result == .win { winChestsUsedUp = !store.grantWinChest() }
         }
-        // Tägliche Flamme: jede abgeschlossene Partie mit mindestens 10 Aktionen zählt.
-        let lit = moves.count >= 10 ? store.registerActivity() : nil
+        // Trophäen sofort zeigen, nicht erst nach der Antwort des Servers. Er rechnet mit derselben Formel;
+        // seine Zahl ersetzt die geschätzte, sobald sie da ist (settleServerDelta).
+        if serverRated && !serverAborted && !isFriendly && !appliedServerTrophies && pendingServerDelta == nil, let result {
+            let opponent = opponentCard?.trophies ?? botLevel?.rating ?? store.profile.trophies
+            let expected = TrophyStake.delta(mine: store.profile.trophies, opponent: opponent, result: result)
+            optimisticDelta = expected
+            store.profile.trophies = max(0, store.profile.trophies + expected)
+            store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
+            if expected != 0, !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == 0 {
+                store.profile.history[0].trophyDelta = expected
+            }
+        }
+        // Tägliche Flamme: Jede gewertete Partie (Kampf, Leiter, online) zählt, egal wie kurz.
+        // Übungs- und Zu-zweit-Partien brauchen mindestens 10 Aktionen.
+        let countsForFlame = !serverAborted && (mode.isRated || mode.isLadder || serverRated || moves.count >= 10)
+        let lit = countsForFlame ? store.registerActivity() : nil
         // Tagesziele gerade erfüllt (z. B. durch diesen Sieg): Die Tagestruhe kommt gleich mit.
         if mode.isBot && !mode.isPractice && store.dailyChestReady { _ = store.claimDailyChest() }
         let earned = store.profile.chests.filter { !chestsBefore.contains($0.id) }
@@ -1342,7 +1359,7 @@ final class GameViewModel: ObservableObject {
         let reason = serverAborted ? L("ohne Wertung") : (serverDrawAgreed ? L("durch Remis") : status.reason)
         let subtitle = isFriendly && !serverAborted ? L("Freundschaftsspiel") + " · " + reason : reason
         var info = GameOverInfo(title: title, subtitle: subtitle, result: (mode.isBot || humanOnline) ? result : nil,
-                                trophyDelta: pendingServerDelta ?? delta, rated: (mode.isRated || botOnline) && !serverAborted && !isFriendly, streakLit: lit,
+                                trophyDelta: pendingServerDelta ?? (optimisticDelta != 0 ? optimisticDelta : delta), rated: (mode.isRated || botOnline) && !serverAborted && !isFriendly, streakLit: lit,
                                 ladderXP: ladderReward?.xp, ladderUnlocked: ladderReward?.unlocked?.displayName,
                                 skinUnlocked: botOnline || humanOnline || mode == .tutorial ? nil : botLevel.flatMap { !skinBefore && store.isSkinUnlocked($0) ? $0 : nil },
                                 chests: earned, winChestsUsedUp: winChestsUsedUp, roadReady: roadReady,
@@ -1360,8 +1377,8 @@ final class GameViewModel: ObservableObject {
                     info.trophyDelta = vm.pendingServerDelta ?? reported
                 } else {
                     // Trophäen zählt nur der Server. Schon gewertet (45 s weg): dessen Änderung zeigen.
-                    // Netz weg: die Meldung geht beim nächsten Start nach, bis dahin ändert sich hier nichts.
-                    info.trophyDelta = vm.pendingServerDelta ?? 0
+                    // Netz weg: die Meldung geht beim nächsten Start nach, bis dahin bleibt die Schätzung stehen.
+                    info.trophyDelta = vm.pendingServerDelta ?? (reported == nil ? vm.optimisticDelta : 0)
                 }
             }
             if humanOnline {
@@ -1394,11 +1411,7 @@ final class GameViewModel: ObservableObject {
             let delta = try await SupabaseBotMatchReporter(client: client)
                 .finish(matchId: play.matchId, actions: actions, outcome: outcome, humanIsWhite: humanColor == .white)
             PendingBotReports.clear()
-            store.profile.trophies = max(0, store.profile.trophies + delta)
-            store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
-            if delta != 0, !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == 0 {
-                store.profile.history[0].trophyDelta = delta
-            }
+            settleServerDelta(delta)
             if play.rated { OnlineAccount.shared.noteOnlineResult(result) }
             OnlineAccount.shared.backupQuietly()
             Task { await OnlineAccount.shared.reload() }
@@ -1406,6 +1419,7 @@ final class GameViewModel: ObservableObject {
         } catch where error.isServerRejection {
             // Abgelehnt (z. B. schon als Abbruch gewertet): keine Trophäen nur auf dem Gerät – der Server-Stand gilt.
             PendingBotReports.clear()
+            settleServerDelta(0)
             Task { await OnlineAccount.shared.reload() }
             return 0
         } catch {
@@ -1669,12 +1683,23 @@ final class GameViewModel: ObservableObject {
         finish()
     }
 
+    /// Die Zahl des Servers ersetzt die beim Spielende geschätzte (ohne doppelt zu zählen).
+    private func settleServerDelta(_ delta: Int) {
+        let shown = optimisticDelta
+        optimisticDelta = 0
+        store.profile.trophies = max(0, store.profile.trophies + delta - shown)
+        store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
+        // Erst nach Spielende steht die Partie oben im Verlauf (die Server-Zahl kann schon vorher eintreffen).
+        if finished, !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == shown {
+            store.profile.history[0].trophyDelta = delta
+        }
+    }
+
     private func applyServerTrophies(_ delta: Int, result: GameResultKind) {
         guard !appliedServerTrophies else { return }
         appliedServerTrophies = true
         pendingServerDelta = delta
-        store.profile.trophies = max(0, store.profile.trophies + delta)
-        store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
+        settleServerDelta(delta)
         if var info = gameOver {
             info.trophyDelta = delta
             gameOver = info

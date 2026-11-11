@@ -217,13 +217,6 @@ export function ShopSheet() {
             <div className="row"><b className="shop-h">{t('Heute im Laden')}</b><span className="spacer" /><span className="muted num" style={{ fontSize: 11, fontWeight: 700 }}><Icon name="clock" size={11} /> {t('Neu in {0}', midnight)}</span></div>
             {heroOffer}
             <div className="shop-grid2">{offers.slice(1).map(o => tile(o.item, { price: o.price, base: o.basePrice, offer: o.id }))}</div>
-            <div className="shop-soon">
-              <span className="shop-soon-ico"><Icon name="bag" size={20} /></span>
-              <div className="col" style={{ gap: 2 }}>
-                <b>{t('Bald: Splitter-Pakete')}</b>
-                <span className="muted" style={{ fontSize: 11, fontWeight: 600 }}>{t('Mit der Online-Version kommen Pakete und Saison-Angebote. Bis dahin: sammeln, sparen, ausgeben!')}</span>
-              </div>
-            </div>
           </>}
           {tab === 'cards' && <>
             <span className="shop-intro">{t('Neue Karten für dein Deck – jede einmal kaufen, für immer behalten.')}</span>

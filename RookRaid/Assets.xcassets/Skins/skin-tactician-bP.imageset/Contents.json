@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "skin-tactician-bP.pdf",
+      "filename": "skin-tactician-bP.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

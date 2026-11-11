@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "skin-queen-bQ.pdf",
+      "filename": "skin-queen-bQ.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

@@ -7,37 +7,42 @@ struct ProfileView: View {
     @State var showStyle = false
     @State var styleTab: StyleSheet.StyleTab = .avatars
     @State var showAllAchievements = false
+    @State var showFeedback = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                // Leichter Blau-Rot-Schimmer oben, wie im Logo
-                LinearGradient(colors: [Theme.blueDark.opacity(0.55), Color(hex: 0x4A1E2C).opacity(0.25), .clear],
-                               startPoint: .topLeading, endPoint: .center)
-                    .ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        topBar
-                        ProfileHeroCard(onAvatar: { styleTab = .avatars; showStyle = true })
-                        if OnlineAccount.shared.status != .unavailable {
-                            FriendsCard { NotificationCenter.default.post(name: .showFriends, object: nil) }
-                        }
-                        HallOfFameRow(onAchievements: { showAllAchievements = true })
-                        BotConquestCard()
-                        CollectionRingsCard(onStyle: { t in styleTab = t; showStyle = true })
-                        AchievementShowcase(onShowAll: { showAllAchievements = true })
-                        Button {
-                            Haptics.shared.play(.select)
-                            showStats = true
-                        } label: { statsRow }
-                            .buttonStyle(PressScaleStyle())
+        // Ohne eigenen NavigationStack: Das Profil schiebt keine Seiten, und ein Stack in einer TabView-Seite
+        // kann nach Sheets oder einem Neuaufbau leer bleiben.
+        ZStack {
+            Theme.background.ignoresSafeArea()
+            // Leichter Blau-Rot-Schimmer oben, wie im Logo
+            LinearGradient(colors: [Theme.blueDark.opacity(0.55), Color(hex: 0x4A1E2C).opacity(0.25), .clear],
+                           startPoint: .topLeading, endPoint: .center)
+                .ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    topBar
+                    ProfileHeroCard(onAvatar: { styleTab = .avatars; showStyle = true })
+                    if OnlineAccount.shared.status != .unavailable {
+                        FriendsCard { NotificationCenter.default.post(name: .showFriends, object: nil) }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 40)
+                    HallOfFameRow(onAchievements: { showAllAchievements = true })
+                    BotConquestCard()
+                    CollectionRingsCard(onStyle: { t in styleTab = t; showStyle = true })
+                    AchievementShowcase(onShowAll: { showAllAchievements = true })
+                    Button {
+                        Haptics.shared.play(.select)
+                        showStats = true
+                    } label: { statsRow }
+                        .buttonStyle(PressScaleStyle())
+                    Button {
+                        Haptics.shared.play(.select)
+                        showFeedback = true
+                    } label: { feedbackRow }
+                        .buttonStyle(PressScaleStyle())
                 }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 40)
             }
-            .navigationBarHidden(true)
         }
         .sheet(isPresented: $showStats) {
             NavigationStack { StatisticsView() }
@@ -46,6 +51,7 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showStyle) { StyleSheet(tab: styleTab) }
         .sheet(isPresented: $showAllAchievements) { AchievementListSheet() }
+        .sheet(isPresented: $showFeedback) { FeedbackView() }
         .onChange(of: store.profile.settings) { newValue in
             Feedback.apply(settings: newValue)
         }
@@ -73,6 +79,37 @@ struct ProfileView: View {
             .accessibilityLabel(L("Einstellungen"))
         }
         .padding(.top, 8)
+    }
+
+    /// Feedback an Ivan: Bugs, Balance, Ideen (Beta).
+    private var feedbackRow: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(LinearGradient(colors: [Color(hex: 0xFF7A5C), Color(hex: 0xB23A2A)], startPoint: .top, endPoint: .bottom))
+                Image(systemName: "envelope.fill")
+                    .font(.system(size: 17, weight: .black))
+                    .foregroundColor(.white)
+            }
+            .frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L("Feedback senden"))
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundColor(Theme.textPrimary)
+                Text(L("Bugs, Balance, Ideen – Rook Raid ist in der Beta."))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.textSecondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(Theme.textMuted)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(LinearGradient(colors: [Color(hex: 0x7A2E1E).opacity(0.6), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color(hex: 0xFF8A6B).opacity(0.25), lineWidth: 1))
     }
 
     /// Kurzfassung der Bilanz mit der Form der letzten Partien; die ganze Statistik liegt auf einer eigenen Seite.

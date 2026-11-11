@@ -135,6 +135,8 @@ export class GameController {
   onlineNotice: string | null = null
   incomingDraw = false
   private serverResult: { result: string; winner: Side | null; delta: number | null } | null = null
+  /** Trophies shown at the end before the server's number arrived (same formula as the server). */
+  private optimisticDelta = 0
   private sending = Promise.resolve()
   /** Last answered sign of life (for "Verbindung verloren – noch {0} s"); the claim on a silent opponent goes out once. */
   private lastHeartbeatOK: number | null = null
@@ -170,7 +172,8 @@ export class GameController {
       this.decks = { w: opts.online.decks.white, b: opts.online.decks.black }
       this.ults = { w: opts.online.ultimates.white, b: opts.online.ultimates.black }
     } else {
-      this.human = opts.human ?? (profile.settings.playAsWhite ? 'w' : 'b')
+      // Colour is always 50 : 50 against bots and in the ladder (like the app); hot seat and the guided games start as White.
+      this.human = opts.human ?? (this.mode.kind === 'bot' || this.mode.kind === 'ladder' ? (Math.random() < 0.5 ? 'w' : 'b') : 'w')
       this.timeControl = opts.timeControl ?? 'none'
       const setup = GameController.setup(this.mode, this.human)
       this.decks = setup.decks
@@ -805,7 +808,8 @@ export class GameController {
     this.stop()
     this.flushStats()
     S.clearGame()
-    return new GameController({ mode: this.mode, human: this.human, timeControl: this.timeControl })
+    const freshColour = this.mode.kind === 'bot' || this.mode.kind === 'ladder'
+    return new GameController({ mode: this.mode, human: freshColour ? undefined : this.human, timeControl: this.timeControl })
   }
 
   save() {
@@ -892,6 +896,20 @@ export class GameController {
         matchId: this.online?.matchId,
       })
     }
+    // Trophies show at once, not only after the server answers. It uses the same formula; its number replaces this
+    // estimate as soon as it arrives (noteServerDelta, then the account refresh sets the server's total).
+    const aborted = this.endReason === 'aborted'
+    if (serverRated && !this.isFriendly && !aborted && result && !this.serverResult) {
+      const mine = S.getProfile().trophies
+      const opp = this.opponentCard ? this.opponentCard.trophies : bot ? botRating(bot) : mine
+      const expected = S.trophyDelta(mine, opp, result)
+      this.optimisticDelta = expected
+      S.update(p => {
+        p.trophies = Math.max(0, p.trophies + expected)
+        p.bestTrophies = Math.max(p.bestTrophies, p.trophies)
+        if (expected !== 0 && p.history[0] && p.history[0].trophyDelta === 0) p.history[0].trophyDelta = expected
+      })
+    }
     if (this.isBotMode && this.mode.kind !== 'practice' && result) {
       S.update(p => {
         if (result === 'win') {
@@ -905,7 +923,9 @@ export class GameController {
     if (this.mode.kind === 'ladder' && result === 'win' && bot) ladder = S.recordLadderWin(bot)
     let winChestsUsedUp = false
     if ((this.mode.kind === 'bot' || serverRated) && !this.isFriendly && result === 'win') winChestsUsedUp = !S.grantWinChest()
-    const lit = this.actions.length >= 10 ? S.registerActivity() : null
+    // Daily flame: every rated game (battle, ladder, online) counts, however short; practice and hot seat need 10 actions.
+    const countsForFlame = !aborted && (this.mode.kind === 'bot' || this.mode.kind === 'ladder' || serverRated || this.actions.length >= 10)
+    const lit = countsForFlame ? S.registerActivity() : null
     if (this.isBotMode && this.mode.kind !== 'practice' && S.dailyChestReady()) S.claimDailyChest()
     const earned = S.getProfile().chests.filter(c => !chestsBefore.has(c.id))
     const roadReady = S.claimableRoadSteps().find(s => !roadBefore.has(s.trophies))?.trophies ?? null
@@ -916,7 +936,7 @@ export class GameController {
     }
     const info: GameOverInfo = {
       title, subtitle: (this.isFriendly ? t('Freundschaftsspiel') + ' · ' : '') + (this.endReason === 'draw' ? t('durch Remis') : reasonText),
-      result: this.isBotMode || this.online ? result : null, trophyDelta: delta,
+      result: this.isBotMode || this.online ? result : null, trophyDelta: this.optimisticDelta || delta,
       rated: (this.mode.kind === 'bot' || serverRated) && !this.isFriendly, streakLit: lit, ladderXP: ladder?.xp ?? null,
       ladderUnlocked: ladder?.unlocked ? t(ladder.unlocked.name) : null,
       skinUnlocked: this.online || !bot ? null : (!skinBefore && S.isSkinUnlocked(bot) ? bot : null),
@@ -927,8 +947,8 @@ export class GameController {
     }
     if (this.online?.bot && result) {
       const reported = await this.reportOnlineBot()
-      // Only the server counts trophies. Network gone: nothing changes here; the server's count arrives with the next refresh.
-      info.trophyDelta = reported ?? 0
+      // Only the server counts trophies. Network gone: the estimate stays until the report goes through on the next start.
+      info.trophyDelta = reported ?? this.optimisticDelta
     }
     // Against a person – or a stand-in the server already ended (45 s rule): the server's change.
     if (this.online && !this.online.bot) {
@@ -947,7 +967,13 @@ export class GameController {
 
   /** The server scored the game: trophies come from the account (no adding here – that could count twice), the history shows the change. */
   private noteServerDelta(d: number) {
-    if (d !== 0) S.update(p => { if (p.history[0] && p.history[0].trophyDelta === 0) p.history[0].trophyDelta = d })
+    const shown = this.optimisticDelta
+    this.optimisticDelta = 0
+    S.update(p => {
+      p.trophies = Math.max(0, p.trophies + d - shown)
+      p.bestTrophies = Math.max(p.bestTrophies, p.trophies)
+      if (p.history[0] && p.history[0].trophyDelta === shown) p.history[0].trophyDelta = d
+    })
     void Online.refreshAccount().then(() => Online.backupQuietly())
   }
 

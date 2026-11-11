@@ -331,6 +331,7 @@ struct MatchmakingSheet: View {
 /// Radar: drehender Lichtkegel, Pulsringe und Gegner-„Echos“, die aufleuchten, wenn der Kegel sie trifft.
 private struct MatchmakingRadar: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let found: Bool
     let accent: Color
     private let blips: [(angle: Double, radius: Double, avatar: Avatar)] = [
@@ -339,7 +340,7 @@ private struct MatchmakingRadar: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
+            let t = clock.time(tl.date)
             let sweep = (t * (found ? 260 : 120)).truncatingRemainder(dividingBy: 360)
             GeometryReader { geo in
                 let r = min(geo.size.width, geo.size.height) / 2
@@ -395,12 +396,13 @@ private struct MatchmakingRadar: View {
 /// Gegner-Platz während der Suche: Die Avatare wechseln wie an einem Spielautomaten.
 private struct AvatarRoulette: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let size: CGFloat
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 12, paused: !live)) { tl in
             let all = Avatar.allCases
-            let i = Int(tl.date.timeIntervalSinceReferenceDate * 9) % all.count
+            let i = Int(clock.time(tl.date) * 9) % all.count
             ZStack {
                 AvatarPortrait(avatar: all[i])
                     .frame(width: size, height: size)

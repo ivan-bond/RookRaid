@@ -66,7 +66,8 @@ struct GameHost: View {
             let store = ProfileStore.shared
             let settings = store.profile.settings
             store.clearGame()
-            let next = GameViewModel(mode: mode, humanColor: settings.playAsWhite ? .white : .black,
+            // Farbe immer 50 : 50 (auch gegen Bots und in der Leiter).
+            let next = GameViewModel(mode: mode, humanColor: Bool.random() ? .white : .black,
                                      timeControl: mode.isBot ? settings.timeControl : .none)
             vm.flushStats()
             withAnimation(.easeInOut(duration: 0.35)) { vm = next }
@@ -87,9 +88,8 @@ struct RootView: View {
     @State private var showIntro = false
     @State private var showSplash = true
     @State private var lastTab: RootTab = .play
-    /// Der zuletzt ruhende Tab. Er folgt `tab` erst nach dem Seitenwechsel – so animiert der alte Tab weiter,
-    /// während er hinausgleitet, und wird erst danach angehalten (v0.9.28: der neue startet sofort, siehe `isLive`).
-    @State private var liveTab: RootTab = .play
+    /// Eine Animationsuhr je Tab: Ein angehaltener Tab macht beim Zurückkehren dort weiter, wo er stand.
+    @State private var clocks = AnimationClocks()
     @State private var settleTask: Task<Void, Never>?
     /// Der Deck-Tab wurde verlassen – „neue Karten gesehen“ wird nach dem Wechsel gespeichert, nicht währenddessen.
     @State private var seenPending = false
@@ -107,10 +107,22 @@ struct RootView: View {
     @State private var friendsSheet: FriendsInvite?
     @Environment(\.scenePhase) private var scenePhase
 
-    /// Nur der ruhende, sichtbare Tab animiert. Während des Seitenwechsels stehen beide still:
-    /// sonst zeichnen zwei schwere Seiten gleichzeitig und der Wisch ruckelt.
+    /// Nur der gewählte Tab animiert. Beim Wechsel hält der alte sofort an und der neue läuft sofort los –
+    /// es zeichnet also nie mehr als eine Seite, und die neue gleitet schon lebendig herein (statt erst danach
+    /// loszulegen). Ihre Uhr setzt dort fort, wo sie zuletzt stand, deshalb springt nichts.
     private func isLive(_ t: RootTab) -> Bool {
-        tab == t && liveTab == t && session == nil && puzzleSession == nil
+        tab == t && session == nil && puzzleSession == nil
+    }
+
+    private func page<V: View>(_ t: RootTab, _ view: V) -> some View {
+        let live = isLive(t)
+        return view
+            // Sprachwechsel baut nur den Inhalt der Seite neu auf, nicht den Seiten-Container: Ein neu angelegter
+            // TabView mit einer anderen Seite als der ersten zeigt sonst manchmal eine leere Seite (Profil leer).
+            .id(store.profile.settings.language)
+            .environment(\.liveAnimations, live)
+            .environment(\.animationClock, clocks.clock(t, live: live))
+            .tag(t)
     }
 
     var body: some View {
@@ -119,30 +131,20 @@ struct RootView: View {
                 // Seiten-Container: Zwischen den Tabs lässt sich mit dem Finger wischen.
                 // Reihenfolge wie die Tab-Leiste: Pfad · Puzzle · Spielen (Mitte, Start) · Deck · Profil
                 TabView(selection: $tab) {
-                    TrophyRoadView()
-                        .environment(\.liveAnimations, isLive(.arena))
-                        .tag(RootTab.arena)
-                    PuzzleHubView(session: $puzzleSession)
-                        .environment(\.liveAnimations, isLive(.puzzles))
-                        .tag(RootTab.puzzles)
-                    HomeView(session: $session, puzzleSession: $puzzleSession, tab: $tab)
-                        .environment(\.liveAnimations, isLive(.play))
-                        .tag(RootTab.play)
-                    DeckView()
-                        .environment(\.liveAnimations, isLive(.deck))
-                        .tag(RootTab.deck)
-                    ProfileView()
-                        .environment(\.liveAnimations, isLive(.profile))
-                        .tag(RootTab.profile)
+                    page(.arena, TrophyRoadView())
+                    page(.puzzles, PuzzleHubView(session: $puzzleSession))
+                    page(.play, HomeView(session: $session, puzzleSession: $puzzleSession, tab: $tab))
+                    page(.deck, DeckView())
+                    page(.profile, ProfileView())
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .background(Theme.background.ignoresSafeArea())
 
                 RootTabBar(tab: $tab)
+                    .id(store.profile.settings.language)
                     .environment(\.liveAnimations, session == nil && puzzleSession == nil)
+                    .environment(\.animationClock, clocks.clock("tabBar", live: session == nil && puzzleSession == nil))
             }
-            // Sprachwechsel: Oberfläche neu aufbauen (Tab und Startbildschirm-Zustand bleiben)
-            .id(store.profile.settings.language)
             .environment(\.locale, store.profile.settings.language.locale)
             .background(Theme.background.ignoresSafeArea())
             .onAppear {
@@ -170,8 +172,7 @@ struct RootView: View {
                 // Wer den Deck-Tab verlässt, hat die neuen Karten gesehen.
                 if lastTab == .deck && newTab != .deck { seenPending = true }
                 lastTab = newTab
-                // Animationen erst nach dem Wisch. Ein withAnimation um den Tab würde jede Seite
-                // mitinterpolieren – der Pfad und die Startseite sind dafür zu schwer.
+                // Speichern erst nach dem Wisch, damit er nicht von der Festplatte aufgehalten wird.
                 settleTask?.cancel()
                 settleTask = Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 320_000_000)
@@ -180,9 +181,6 @@ struct RootView: View {
                         seenPending = false
                         store.markAllSeen()
                     }
-                    var t = Transaction()
-                    t.disablesAnimations = true
-                    withTransaction(t) { liveTab = tab }
                 }
             }
             .fullScreenCover(item: $session) { s in
@@ -323,7 +321,10 @@ struct RootView: View {
             await PushRegistration.shared.syncIfAllowed()
             friends.startPolling()
             // Kartenbilder im Hintergrund vorbereiten, ohne den Start aufzuhalten (v0.9.25)
-            Task { await CardArtImage.preload() }
+            Task {
+                await CardArtImage.preload()
+                await PreparedImages.preload()
+            }
             if !store.profile.tutorialSeen {
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 showIntro = true
@@ -584,10 +585,9 @@ struct HomeView: View {
                         afterSheet { showEmptyDeck = true }
                         return
                     }
-                    let s = store.profile.settings
                     store.clearGame()
                     // Bot-Leiter ohne Uhr (v0.9.34)
-                    session = GameSession(vm: GameViewModel(mode: .ladder(level), humanColor: s.playAsWhite ? .white : .black,
+                    session = GameSession(vm: GameViewModel(mode: .ladder(level), humanColor: Bool.random() ? .white : .black,
                                                             timeControl: .none))
                 }
             }
@@ -724,8 +724,7 @@ struct HomeView: View {
             Task { await beginOnline() }
             return
         }
-        let s = store.profile.settings
-        start(mode: .bot(BotLevel.forTrophies(store.profile.trophies)), humanColor: s.playAsWhite ? .white : .black)
+        start(mode: .bot(BotLevel.forTrophies(store.profile.trophies)), humanColor: Bool.random() ? .white : .black)
     }
 
     /// Regeln abgleichen, dann Konto oder Suche. Eine laufende oder gespeicherte Partie behält ihre Fassung.
@@ -1032,7 +1031,6 @@ struct BattleHeroCard: View {
 
     /// Du auf dem Podest, darunter das Deck – der leere Platz in der Bühne wird dafür genutzt.
     private func stage(colors: [Color]) -> some View {
-        let s = store.profile.settings
         let avatarSize: CGFloat = compact ? 92 : (large ? 128 : 112)
         return ZStack(alignment: .topTrailing) {
             VStack(spacing: compact ? 14 : 18) {
@@ -1044,7 +1042,7 @@ struct BattleHeroCard: View {
                                                  startRadius: 2, endRadius: avatarSize * 0.7))
                             .frame(width: avatarSize * 1.5, height: avatarSize * 0.36)
                             .offset(y: avatarSize * 0.1)
-                        PlayerAvatar(size: avatarSize, pieceColor: s.playAsWhite ? .white : .black)
+                        PlayerAvatar(size: avatarSize)
                             .modifier(RoadBob(active: true, amplitude: 3, speed: 2.2))
                             .padding(.bottom, avatarSize * 0.06)
                     }
@@ -1370,10 +1368,11 @@ struct SettingChip: View {
 /// Lichtstreifen, der regelmäßig über den Kampf-Knopf wischt (über die Uhrzeit, keine Endlos-Animation).
 struct ShineSweep: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live)) { tl in
             let cycle = 2.2
-            let t = tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle)
+            let t = clock.time(tl.date).truncatingRemainder(dividingBy: cycle)
             let p = min(1, t / 1.3)
             let eased = p < 0.5 ? 2 * p * p : 1 - pow(-2 * p + 2, 2) / 2
             GeometryReader { geo in

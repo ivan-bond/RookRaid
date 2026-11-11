@@ -43,7 +43,8 @@ const ok = (cond, msg, got) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg + 
   ok(r.length === 0, 'alle Decks gültig (4 verschiedene Karten, bekanntes Ultimate)', r);
   r = await q(`select count(*) filter (where accepts_friends)::int f, count(*) filter (where accepts_matches)::int m,
                       count(*) filter (where accepts_friends and accept_minutes is null)::int bad from private.bot_players`);
-  ok(r[0].f > 50 && r[0].f < 90 && r[0].m > 40 && r[0].m < 80 && r[0].bad === 0, 'Verhalten gemischt: manche nehmen an, manche nicht', r[0]);
+  // Migration 20261111120000: alle nehmen Anfragen (nach einer Minute) und Freundschaftsspiele an.
+  ok(r[0].f === 100 && r[0].m === 100 && r[0].bad === 0, 'alle Bot-Spieler nehmen Anfragen und Freundschaftsspiele an', r[0]);
   await q(`select private.seed_bot_players()`);
   r = await q(`select count(*)::int n from profiles`); ok(r[0].n === 103, 'zweimal anlegen: keine Doppelten', r[0]);
   r = await as(A, `select * from private.bot_players`); ok(!!r.error, 'Bot-Verhalten nicht lesbar für die App');
@@ -94,31 +95,39 @@ const ok = (cond, msg, got) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg + 
   ok(r.bot_player !== b1, 'blockierte Bot-Spieler kommen nicht', r);
   if (r.match_id) await as('service', `select finish_match($1, 'aborted', null)`, [r.match_id]);
   await as(A, `select unblock_player($1)`, [b1]);
+
+  // Abwechslung (Migration 20261111120000): die Bot-Spieler der letzten drei Partien kommen nicht gleich wieder
+  const seen = [];
+  for (let i = 0; i < 12; i++) {
+    r = await startBot(C, 600);
+    seen.push(r.bot_player);
+    await as('service', `select finish_match($1, 'aborted', null)`, [r.match_id]);
+    await q(`update matches set created_at = now() - interval '1 minute' where id = $1`, [r.match_id]);
+  }
+  const repeats = seen.filter((b, i) => seen.slice(Math.max(0, i - 3), i).includes(b)).length;
+  ok(repeats === 0, 'kein Bot-Spieler aus den letzten drei Partien', seen);
+  ok(new Set(seen).size >= 8, 'viele verschiedene Gegner', new Set(seen).size);
   await allOffline();
   r = await startBot(A, 600);
   ok(r.bot_player === null && r.bot_card.title === 'Trainingsgegner', 'niemand online: Trainingsgegner wie bisher', r);
   await as('service', `select finish_match($1, 'aborted', null)`, [r.match_id]);
 
   // ── Freundschaftsanfragen an Bot-Spieler ──
-  const yes = (await q(`select user_id, accept_minutes m from private.bot_players where accepts_friends order by accept_minutes desc limit 1`))[0];
-  const no = (await q(`select user_id from private.bot_players where not accepts_friends limit 1`))[0].user_id;
+  const [yes, no] = await q(`select user_id from private.bot_players order by user_id limit 2`);
   await as(A, `select send_friend_request($1)`, [yes.user_id]);
-  await as(A, `select send_friend_request($1)`, [no]);
+  await as(A, `select send_friend_request($1)`, [no.user_id]);
   await allOnline();
   await q(`select private.run_bot_players()`);
   r = await as(A, `select * from my_friends()`);
-  ok(r.every(x => x.relation === 'outgoing'), 'vor der Wartezeit: noch nicht angenommen', r);
-  await q(`update friendships set created_at = now() - make_interval(mins => $2) where addressee = $1`, [yes.user_id, yes.m + 1]);
-  await q(`update friendships set created_at = now() - interval '29 days' where addressee = $1`, [no]);
+  ok(r.every(x => x.relation === 'outgoing'), 'vor der Wartezeit (1 Minute): noch nicht angenommen', r);
+  await q(`update friendships set created_at = now() - interval '61 seconds' where addressee = $1`, [yes.user_id]);
   await allOffline();
   await q(`select private.run_bot_players()`);
-  r = await as(A, `select * from my_friends()`); ok(r.every(x => x.relation === 'outgoing'), 'offline: nimmt nicht an');
   await allOnline();
-  r = await q(`select private.run_bot_players() n`);
   r = await as(A, `select * from my_friends()`);
-  const fy = r.find(x => x.user_id === yes.user_id), fn = r.find(x => x.user_id === no);
-  ok(fy && fy.relation === 'friend' && fy.is_bot && fy.online === true, 'nach der Wartezeit und online: angenommen, als Bot und online gezeigt', fy);
-  ok(fn && fn.relation === 'outgoing' && fn.online === false, 'Bot, der nie annimmt: Anfrage bleibt liegen', fn);
+  const fy = r.find(x => x.user_id === yes.user_id), fn = r.find(x => x.user_id === no.user_id);
+  ok(fy && fy.relation === 'friend' && fy.is_bot && fy.online === true, 'nach einer Minute angenommen – auch offline, als Bot gezeigt', fy);
+  ok(fn && fn.relation === 'outgoing', 'Anfrage jünger als eine Minute: noch offen', fn);
   r = await q(`select recipient, kind from push_outbox where actor = $1`, [yes.user_id]);
   ok(r.length === 1 && r[0].recipient === A && r[0].kind === 'friend_accepted', 'Push für den Anfragenden vorgemerkt', r);
   await q(`insert into push_tokens (token, user_id, platform, environment) values ('${'ab'.repeat(32)}', '${A}', 'ios', 'sandbox')`);
@@ -181,16 +190,15 @@ const ok = (cond, msg, got) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg + 
   r = await one(B, `select answer_friend_match($1, true, $2, $3, $4, $5) m`, [inv5, 3, DECK, 'meteor', card('Mia', 600)]); ok(r.error === 'invite_gone', 'verfallen: nicht mehr annehmbar');
 
   // ── Freundschaftsspiel gegen Bot-Spieler ──
-  const lover = (await q(`select user_id from private.bot_players where accepts_matches and user_id <> $1 limit 1`, [yes.user_id]))[0].user_id;
-  const hater = (await q(`select user_id from private.bot_players where not accepts_matches limit 1`))[0].user_id;
+  const [{ user_id: lover }, { user_id: hater }] = await q(`select user_id from private.bot_players where user_id <> $1 order by user_id desc limit 2`, [yes.user_id]);
   for (const u of [lover, hater]) {
     await q(`insert into friendships (requester, addressee, status, responded_at) values ($1, $2, 'accepted', now()) on conflict do nothing`, [A, u]);
   }
   await q(`delete from push_outbox`);
   r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5) id`, [lover, ...inviteParams]); const bi = r.id;
   ok((await q(`select * from push_outbox`)).length === 0, 'an Bot-Spieler kein Push');
-  r = await one(A, `select friend_match_status($1) s`, [bi]); ok(r.s.status === 'pending', 'Bot überlegt noch ein paar Sekunden', r);
-  await q(`update match_invites set created_at = now() - interval '10 seconds' where id = $1`, [bi]);
+  r = await one(A, `select friend_match_status($1) s`, [bi]); ok(r.s.status === 'pending', 'Bot überlegt noch (3 Sekunden)', r);
+  await q(`update match_invites set created_at = now() - interval '3 seconds' where id = $1`, [bi]);
   r = await one(A, `select friend_match_status($1) s`, [bi]);
   ok(r.s.status === 'accepted' && r.s.match_id, 'Bot-Spieler, der gern spielt: nimmt an', r);
   row = (await q(`select * from matches where id = $1`, [r.s.match_id]))[0];
@@ -208,13 +216,16 @@ const ok = (cond, msg, got) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg + 
   r = await one(A, `select friend_matches($1) h`, [lover]); ok(r.h.length === 1 && r.h[0].result === 'loss', 'Verlauf gegen den Bot-Spieler', r.h);
   r = await one(A, `select friend_matches($1) h`, [C]); ok(r.error === 'not_friends', 'Verlauf nur unter Freunden', r);
   r = await one(A, `select friend_matches($1, 1) h`, [B]); ok(r.h.length === 1, 'Grenze für die Anzahl', r.h);
-  r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5) id`, [hater, ...inviteParams]);
-  await q(`update match_invites set created_at = now() - interval '10 seconds' where id = $1`, [r.id]);
-  r = await one(A, `select friend_match_status($1) s`, [r.id]); ok(r.s.status === 'declined', 'Bot-Spieler ohne Lust: lehnt ab', r);
+  // Immer annehmen (Migration 20261111120000): auch offline und während er schon spielt
   await allOffline();
-  r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5) id`, [lover, ...inviteParams]);
-  await q(`update match_invites set created_at = now() - interval '10 seconds' where id = $1`, [r.id]);
-  r = await one(A, `select friend_match_status($1) s`, [r.id]); ok(r.s.status === 'declined', 'Bot-Spieler offline: lehnt ab', r);
+  r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5) id`, [hater, ...inviteParams]);
+  await q(`update match_invites set created_at = now() - interval '3 seconds' where id = $1`, [r.id]);
+  r = await one(A, `select friend_match_status($1) s`, [r.id]); ok(r.s.status === 'accepted' && r.s.match_id, 'Bot-Spieler offline: nimmt trotzdem an', r);
+  const busyMatch = r.s.match_id;
+  r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5) id`, [hater, ...inviteParams]);
+  await q(`update match_invites set created_at = now() - interval '3 seconds' where id = $1`, [r.id]);
+  r = await one(A, `select friend_match_status($1) s`, [r.id]); ok(r.s.status === 'accepted' && r.s.match_id !== busyMatch, 'Bot-Spieler spielt schon: nimmt trotzdem an', r);
+  for (const id of [busyMatch, r.s.match_id]) await as('service', `select finish_match($1, 'aborted', null)`, [id]);
 
   // ── Trophäen im Hintergrund ──
   await allOnline();

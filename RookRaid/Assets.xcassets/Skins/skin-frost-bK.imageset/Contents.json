@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "skin-frost-bK.pdf",
+      "filename": "skin-frost-bK.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

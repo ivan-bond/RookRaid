@@ -706,13 +706,14 @@ struct FlameTier {
 /// Alles hängt nur an der Uhrzeit – keine Endlos-Animation, die andere Ansichten mitreißen könnte.
 struct LivingFlame: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let colors: [Color]
     var lit = true
     var embers = 8
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !lit || !live)) { ctx in
-            let t = lit ? ctx.date.timeIntervalSinceReferenceDate : 0
+            let t = lit ? clock.time(ctx.date) : 0
             Canvas { g, size in
                 let w = size.width, h = size.height
                 let base = CGPoint(x: w / 2, y: h * 0.96)

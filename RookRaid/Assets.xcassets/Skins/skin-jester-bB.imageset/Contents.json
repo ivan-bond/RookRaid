@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "skin-jester-bB.pdf",
+      "filename": "skin-jester-bB.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

@@ -15,6 +15,7 @@ import SwiftUI
 
 struct TrophyRoadView: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     @ObservedObject var store = ProfileStore.shared
     @State var chestToOpen: Chest?
     @State var toast: RoadToast?
@@ -579,7 +580,7 @@ struct TrophyRoadView: View {
         return ZStack(alignment: .topLeading) {
             // Nur in deiner Arena wandern Funken über den goldenen Weg
             TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isCurrent || !live)) { tl in
-                let phase = isCurrent ? CGFloat(tl.date.timeIntervalSinceReferenceDate * 22) : 0
+                let phase = isCurrent ? CGFloat(clock.time(tl.date) * 22) : 0
                 Canvas { ctx, _ in
                     TrophyRoadView.drawRoad(ctx, road: road, progress: progress, phase: phase)
                 }
@@ -595,6 +596,12 @@ struct TrophyRoadView: View {
                     .id(item.id)
                 trailLabel(item, leading: leftSide)
                     .frame(width: w * 0.5 - 20, alignment: leftSide ? .leading : .trailing)
+                    // Ruhende Beschriftung mit mehreren Textschatten als ein einziges Bild zeichnen: Beim Wisch
+                    // und Scrollen wird es nur verschoben statt jeder Schatten neu berechnet. Der Rand hält die
+                    // Schatten im Bild.
+                    .padding(4)
+                    .drawingGroup()
+                    .padding(-4)
                     .position(x: leftSide ? p.x + 46 + (w * 0.5 - 20) / 2 : p.x - 46 - (w * 0.5 - 20) / 2, y: p.y)
                     .allowsHitTesting(false)
             }
@@ -769,7 +776,7 @@ struct TrophyRoadView: View {
     /// Du: dein Avatar mit pulsierendem Ring und kreisendem Goldkranz.
     private var youNode: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
+            let t = clock.time(tl.date)
             let ph = (sin(t * 3) + 1) / 2
             ZStack {
                 Circle()
@@ -1118,6 +1125,7 @@ enum ArenaPalette {
 /// Sanftes Auf und Ab.
 struct RoadBob: ViewModifier {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let active: Bool
     var amplitude: CGFloat = 3
     var speed: Double = 3
@@ -1125,7 +1133,7 @@ struct RoadBob: ViewModifier {
 
     func body(content: Content) -> some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !active || !live)) { tl in
-            content.offset(y: active ? CGFloat(sin(tl.date.timeIntervalSinceReferenceDate * speed + phase)) * amplitude : 0)
+            content.offset(y: active ? CGFloat(sin(clock.time(tl.date) * speed + phase)) * amplitude : 0)
         }
     }
 }
@@ -1133,12 +1141,13 @@ struct RoadBob: ViewModifier {
 /// Atmen: wird größer und kleiner (für Leuchthöfe).
 struct RoadBreathe: ViewModifier {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let active: Bool
     var speed: Double = 3.5
 
     func body(content: Content) -> some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !active || !live)) { tl in
-            let ph = active ? (sin(tl.date.timeIntervalSinceReferenceDate * speed) + 1) / 2 : 0.5
+            let ph = active ? (sin(clock.time(tl.date) * speed) + 1) / 2 : 0.5
             content
                 .scaleEffect(0.88 + 0.26 * ph)
                 .opacity(0.6 + 0.4 * ph)
@@ -1167,13 +1176,14 @@ struct Battlements: Shape {
 /// Wimpel an einer Stange; flattert auf Wunsch.
 struct Pennant: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let color: Color
     var waving = false
     var phase: Double = 0
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !waving || !live)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
+            let t = clock.time(tl.date)
             let wave = waving ? CGFloat(sin(t * 5 + phase)) : 0
             Canvas { ctx, size in
                 // Stange
@@ -1211,7 +1221,7 @@ struct BiomeBackdrop: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Image(ArenaArt.imageName(arena))
+                PreparedImages.image(ArenaArt.imageName(arena))
                     .resizable()
                     .scaledToFill()
                     .frame(width: geo.size.width, height: geo.size.height)
@@ -1237,12 +1247,13 @@ struct BiomeBackdrop: View {
 /// Ein Canvas pro Abschnitt, die Positionen ergeben sich aus der Uhrzeit (keine gespeicherten Teilchen).
 struct BiomeParticles: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let arena: Int
     let animated: Bool
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 24, paused: !animated || !live)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
+            let t = clock.time(tl.date)
             Canvas { ctx, size in
                 BiomeParticles.draw(arena, ctx: ctx, size: size, t: t)
             }

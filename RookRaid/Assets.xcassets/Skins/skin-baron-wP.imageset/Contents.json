@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "skin-baron-wP.pdf",
+      "filename": "skin-baron-wP.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

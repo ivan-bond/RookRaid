@@ -7,7 +7,7 @@ Stand v0.9.36: Datenbank, Regeln (Version 3), Wartungsjob und die drei Edge Func
 ## Inhalt
 - `supabase/migrations/` – Datenbank (Tabellen, Zugriffsregeln, Funktionen für Konto, Gegnersuche, Bot-Ersatz, Uhr, Remis, Aufgeben, Wartung, Bestenliste) und Wartungsjob.
 - `supabase/seed/rules.sql` – aktuelle Regeln (generiert: `node Tools/rules-js/seed-rules.js`).
-- `supabase/functions/` – Edge Functions `submit-action`, `finish-bot-match`, `delete-account`, `push-dispatch` (Push für Freundschaftsanfragen); Regeln in `_shared/rookraid-rules.mjs` (generiert: `node Tools/rules-js/build-server.js`).
+- `supabase/functions/` – Edge Functions `submit-action`, `finish-bot-match`, `delete-account`, `push-dispatch` (Push für Freundschaftsanfragen), `send-feedback` (Feedback aus der App per Mail); Regeln in `_shared/rookraid-rules.mjs` (generiert: `node Tools/rules-js/build-server.js`).
 - `tests/` – Datenbank- und Ablauf-Tests gegen ein lokales Postgres.
 
 ## Kurzbefehle
@@ -15,7 +15,7 @@ Stand v0.9.36: Datenbank, Regeln (Version 3), Wartungsjob und die drei Edge Func
 node Tools/rules-js/check-golden.js && node Tools/rules-js/build-server.js && node Tools/rules-js/check-server.mjs
 node Tools/rules-js/seed-rules.js
 cd Backend && supabase link --project-ref <ref> && supabase db push
-supabase functions deploy submit-action && supabase functions deploy finish-bot-match && supabase functions deploy delete-account && supabase functions deploy push-dispatch --no-verify-jwt
+supabase functions deploy submit-action && supabase functions deploy finish-bot-match && supabase functions deploy delete-account && supabase functions deploy push-dispatch --no-verify-jwt && supabase functions deploy send-feedback --no-verify-jwt
 ```
 
 Konto löschen widerruft „Sign in with Apple“ (Richtlinie 5.1.1(v)). Dafür braucht `delete-account` den „Sign in with Apple“-Schlüssel:
@@ -63,6 +63,19 @@ select vault.create_secret('<derselbe CRON_SECRET>', 'rookraid_cron_secret');
 ```
 `push-dispatch` muss mit `--no-verify-jwt` deployt werden (der Aufruf aus der Datenbank hat kein Nutzer-Token; die
 Function prüft Token bzw. Geheimnis selbst). Fehlt etwas, werden Anfragen trotzdem angenommen – nur ohne Push.
+
+## Feedback (Migration `20261111130000_feedback.sql`, Function `send-feedback`)
+
+Profil → Feedback schickt Kategorie, Text, optional eine Kontaktadresse und Geräteinfos an `send-feedback`. Die Function
+speichert jede Nachricht in `public.feedback` (höchstens 5 pro Stunde je Gerät oder Konto, 300 am Tag) und mailt sie
+über [Resend](https://resend.com) an rookraidchess@gmail.com (Antworten gehen an die angegebene Kontaktadresse).
+Einmalig: Resend-Konto **mit rookraidchess@gmail.com** anlegen (ohne eigene Domain stellt Resend nur an die eigene
+Adresse zu), API-Schlüssel erzeugen, dann:
+```bash
+supabase secrets set RESEND_API_KEY=<Schlüssel>          # optional: FEEDBACK_TO, FEEDBACK_FROM
+supabase functions deploy send-feedback --no-verify-jwt  # Gäste ohne Konto dürfen auch Feedback senden
+```
+Ohne Schlüssel wird nur gespeichert (Dashboard → Table Editor → feedback). Tests: `Backend/tests/feedback.js`.
 
 ## Verlauf gegeneinander (Migration `20261110120000_friend_history.sql`)
 

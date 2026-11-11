@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "skin-knight-wR.pdf",
+      "filename": "skin-knight-wR.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

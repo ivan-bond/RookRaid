@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "skin-easy-bR.pdf",
+      "filename": "skin-easy-bR.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }
