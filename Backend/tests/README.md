@@ -14,4 +14,5 @@ Prüfen die Datenbank-Funktionen (Migration 1) und das Zusammenspiel mit dem Reg
    node flow.mjs         # echte Partie bis zum Matt über Regel-Bündel + record_action
    node friends.js       # Freunde: Suche, Anfragen, Blockieren, Melden, Grenzen, Push-Postausgang, Konto löschen
    node bots.js          # Bot-Spieler: Anlage, Online-Zeiten, gewertete Partien, Anfragen, Online-Status, Freundschaftsspiele
+   node feedback.js      # Feedback: speichern, Eingaben prüfen, Begrenzung, nur die Edge Function darf schreiben
    ```

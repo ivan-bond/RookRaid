@@ -339,7 +339,6 @@ struct ShardShopSheet: View {
                          basePrice: offer.basePrice, offerID: offer.id)
                 }
             }
-            comingSoon
         }
     }
 
@@ -615,27 +614,6 @@ struct ShardShopSheet: View {
         }
     }
 
-    private var comingSoon: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "bag.fill")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(ShardStyle.color)
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(ShardStyle.color.opacity(0.15)))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L("Bald: Splitter-Pakete"))
-                    .font(.system(size: 14, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                Text(L("Mit der Online-Version kommen Pakete und Saison-Angebote. Bis dahin: sammeln, sparen, ausgeben!"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Theme.textMuted)
-            }
-        }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
-        .padding(.top, 4)
-    }
-
     @ViewBuilder
     private func preview(_ item: ShopItem, size: CGFloat) -> some View {
         switch item {
@@ -732,9 +710,10 @@ struct ShopProgressBar: View {
 /// Großer Kristall der Schatzkammer: schwebt, funkelt und dreht sich leicht.
 struct ShardCrystal: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live)) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
+            let t = clock.time(ctx.date)
             ZStack {
                 Circle()
                     .fill(RadialGradient(colors: [ShardStyle.color.opacity(0.55), .clear], center: .center, startRadius: 2, endRadius: 34))

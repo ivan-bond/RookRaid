@@ -876,8 +876,8 @@ struct PuzzleThumbnail: View {
                     let r = flip ? 7 - p.row : p.row
                     let c = flip ? 7 - p.col : p.col
                     PieceImage(type: p.type, color: p.color)
-                        .frame(width: s * 0.94, height: s * 0.94)
-                        .offset(x: CGFloat(c) * s + s * 0.03, y: CGFloat(r) * s + s * 0.03)
+                        .frame(width: s * 0.98, height: s * 0.98)
+                        .offset(x: CGFloat(c) * s + s * 0.01, y: CGFloat(r) * s + s * 0.01)
                 }
             }
         }
@@ -915,11 +915,12 @@ struct PuzzleThumbnail: View {
 /// Mini-Brett, das sanft schwebt und kippt (zeitgesteuert, keine Endlos-Animation).
 struct FloatingThumbnail: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let fen: String
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live)) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
+            let t = clock.time(ctx.date)
             PuzzleThumbnail(fen: fen)
                 .rotationEffect(.degrees(-5 + sin(t * 1.2) * 2))
                 .offset(y: CGFloat(sin(t * 1.6)) * 3)

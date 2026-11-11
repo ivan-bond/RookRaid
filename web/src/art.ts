@@ -17,12 +17,37 @@ const brand = glob(import.meta.glob(['../../RookRaid/Assets.xcassets/AppLogo.ima
 export const cardArt = (key: string) => painted['painted-' + key]
 export const arenaImage = (n: number) => arenas[`arena-${Math.min(6, Math.max(1, n))}`]
 export const avatarImage = (id: string) => avatars[`avatar-${id}`] ?? avatars['avatar-knight']
+/** Load and decode the big pictures (arenas, avatars, card art) in idle time after the start, like PreparedImages and
+ *  CardArtImage.preload in the app: the first switch to the path, deck or profile then shows them at once instead of
+ *  decoding them in the middle of the change. Kept in `warm` so the browser doesn't drop them again. */
+const warm: HTMLImageElement[] = []
+export function preloadArt() {
+  if (typeof window === 'undefined' || warm.length) return
+  // Respect „data saver“: then pictures load only when they are shown.
+  if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return
+  const urls = [...Object.values(arenas), ...Object.values(avatars), ...Object.values(painted)]
+  const idle = (fn: () => void) => { if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: 3000 }); else setTimeout(fn, 1500) }
+  let i = 0
+  const next = () => {
+    // A few at a time, so the first screen and the game always have the connection first.
+    for (const url of urls.slice(i, i + 4)) {
+      const img = new Image()
+      img.decoding = 'async'
+      img.src = url
+      img.decode?.().catch(() => {})
+      warm.push(img)
+    }
+    i += 4
+    if (i < urls.length) idle(next)
+  }
+  idle(next)
+}
 export const appLogo = brand['AppLogo']
 export const rockyFace = brand['RockyFace']
 export const logoMark = brand['Logo']
 
 export function pieceImage(color: Side, type: string, skin?: string | null): string {
   const letter = type.toUpperCase()
-  return skin ? `/skins/skin-${skin}-${color}${letter}.png` : `/pieces/${color}${letter}.png`
+  return skin ? `/skins/skin-${skin}-${color}${letter}.webp` : `/pieces/${color}${letter}.webp`
 }
 

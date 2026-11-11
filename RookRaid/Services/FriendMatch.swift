@@ -113,7 +113,8 @@ final class FriendMatchCenter: ObservableObject {
         watcher = Task { @MainActor [weak self] in
             struct Status: Decodable { let status: String; let match_id: UUID? }
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                // Jede Sekunde: Bot-Spieler antworten nach 3 s, die Partie soll dann sofort starten.
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard let self, let client = self.client, self.outgoing?.inviteId == id else { return }
                 guard let s: Status = try? await client.rpc("friend_match_status", params: ["p_invite": id]).execute().value else { continue }
                 switch s.status {

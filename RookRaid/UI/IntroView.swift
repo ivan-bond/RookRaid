@@ -236,8 +236,7 @@ private struct IntroPiece: View {
 
     var body: some View {
         PieceImage(type: type, color: color)
-            .frame(width: cell * 0.82, height: cell * 0.82)
-            .shadow(color: .black.opacity(0.3), radius: 2, y: 2)
+            .frame(width: cell * 0.92, height: cell * 0.92)
             .frame(width: cell, height: cell)
             .modifier(TargetRing(active: target))
             .contentShape(Rectangle())

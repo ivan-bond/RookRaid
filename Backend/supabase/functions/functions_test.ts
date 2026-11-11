@@ -6,6 +6,7 @@ import { handle as submit } from "./submit-action/handle.ts";
 import { handle as finishBot } from "./finish-bot-match/handle.ts";
 import { handle as deleteAccount } from "./delete-account/handle.ts";
 import { handle as pushDispatch } from "./push-dispatch/handle.ts";
+import { handle as sendFeedback, type Mail } from "./send-feedback/handle.ts";
 import { apnsRequest, encryptWebPush, message, pushSender, type PushTarget, webPushRequest, importVapid } from "./_shared/push.ts";
 import { b64url, fromB64url } from "./_shared/jwt.ts";
 
@@ -324,4 +325,54 @@ Deno.test("push-dispatch: Wartungsjob mit Geheimnis verschickt die Nachrichten d
   assertEquals(await bodyOf(await pushDispatch(cron(secret), client, deliver, env)), { sent: 1 });
   assertEquals(rpc, ["claim_bot_push_outbox"]);
   assertEquals(delivered, ["t-web:Turmfalke accepted your friend request."]);
+});
+
+// ── send-feedback ──
+function feedbackAdmin(rpcError: string | null = null) {
+  const calls: { name: string; args: Record<string, unknown> }[] = [];
+  const client = {
+    auth: { getUser: async (token: string) => token === "good" ? { data: { user: { id: WHITE } }, error: null } : { data: { user: null }, error: { message: "bad" } } },
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      calls.push({ name, args });
+      if (name === "save_feedback" && rpcError) return { data: null, error: { message: rpcError } };
+      return { data: name === "save_feedback" ? "fb-1" : null, error: null };
+    },
+  } as unknown as SupabaseClient;
+  return { client, calls };
+}
+const feedbackReq = (body: unknown, token?: string) => new Request("http://x/send-feedback", {
+  method: "POST", body: JSON.stringify(body),
+  headers: { "x-forwarded-for": "1.2.3.4, 10.0.0.1", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+});
+
+Deno.test("send-feedback speichert, mailt mit Antwortadresse und hängt das Konto an", async () => {
+  const { client, calls } = feedbackAdmin();
+  const mails: Mail[] = [];
+  const res = await sendFeedback(feedbackReq({ category: "balance", message: "Meteor ist zu stark\nDetails", contact: "a@b.de",
+    meta: { platform: "ios", trophies: 812, evil: "x".repeat(500) } }, "good"), client, async (m) => { mails.push(m); });
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { ok: true, emailed: true });
+  assertEquals(calls.map((c) => c.name), ["save_feedback", "mark_feedback_emailed"]);
+  assertEquals(calls[0].args.p_user, WHITE);
+  assertEquals(calls[0].args.p_meta, { platform: "ios", trophies: 812 });
+  assertEquals(String(calls[0].args.p_ip_hash).length, 64);
+  assertEquals(mails[0].subject, "[Rook Raid Balance] Meteor ist zu stark");
+  assertEquals(mails[0].replyTo, "a@b.de");
+});
+
+Deno.test("send-feedback: Gäste dürfen, falsche Eingaben und zu viele Nachrichten nicht, Mail-Fehler verliert nichts", async () => {
+  let { client, calls } = feedbackAdmin();
+  let res = await sendFeedback(feedbackReq({ category: "bug", message: "Hängt beim Start", contact: "kein mail" }), client, async () => { throw new Error("down"); });
+  assertEquals(await res.json(), { ok: true, emailed: false });
+  assertEquals(calls[0].args.p_user, null);
+  assertEquals(calls.length, 1);
+  res = await sendFeedback(feedbackReq({ category: "bug", message: "ok ok" }), client, null);
+  assertEquals(await res.json(), { ok: true, emailed: false });
+  res = await sendFeedback(feedbackReq({ category: "spam", message: "Hallo" }), client, null);
+  assertEquals(res.status, 400);
+  res = await sendFeedback(feedbackReq({ category: "idea", message: " " }), client, null);
+  assertEquals(res.status, 400);
+  ({ client, calls } = feedbackAdmin("rate_limited"));
+  res = await sendFeedback(feedbackReq({ category: "idea", message: "Noch eine Idee" }), client, null);
+  assertEquals(res.status, 429);
 });

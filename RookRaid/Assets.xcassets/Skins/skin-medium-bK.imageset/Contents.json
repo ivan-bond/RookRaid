@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "skin-medium-bK.pdf",
+      "filename": "skin-medium-bK.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

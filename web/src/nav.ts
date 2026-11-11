@@ -5,7 +5,7 @@ import type { Chest, Puzzle } from './game/store'
 
 export type Tab = 'arena' | 'puzzles' | 'play' | 'deck' | 'profile'
 export type SheetId =
-  | 'settings' | 'chestHub' | 'ladder' | 'shop' | 'flame' | 'achievements' | 'style' | 'stats' | 'rules' | 'presets' | 'ultimates'
+  | 'settings' | 'chestHub' | 'ladder' | 'shop' | 'flame' | 'achievements' | 'style' | 'stats' | 'feedback' | 'rules' | 'presets' | 'ultimates'
   | 'name' | 'onlineName' | 'language' | 'legal-privacy' | 'legal-imprint' | 'legal-terms' | 'legal-support' | 'roadGuide'
   | 'friends' | 'friendProfile'
 export type Overlay =

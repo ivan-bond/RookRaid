@@ -339,9 +339,9 @@ struct PieceSprite: View {
                     .padding(size * 0.04)
             }
 
+            // Schatten und Licht sind Teil des Bildes (Tools/art/cut_pieces.py) – kein zusätzlicher Schatten.
             PieceImage(type: piece.type, color: piece.color, skin: skin)
-                .padding(size * 0.03)
-                .shadow(color: .black.opacity(0.22), radius: 1, y: 1.5)
+                .padding(size * 0.01)
 
             if piece.isFrozen(at: ply) {
                 RoundedRectangle(cornerRadius: size * 0.12)

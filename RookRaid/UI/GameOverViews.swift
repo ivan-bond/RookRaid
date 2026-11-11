@@ -587,10 +587,11 @@ struct GameOverOverlay: View {
 /// Drei Sterne auf einer flachen Ellipse über dem Kopf (vorne größer und heller als hinten).
 private struct DizzyStars: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
+            let t = clock.time(tl.date)
             ZStack {
                 ForEach(0..<3, id: \.self) { i in
                     let a = t * 2.6 + Double(i) * 2 * .pi / 3

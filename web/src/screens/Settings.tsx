@@ -46,7 +46,6 @@ export function SettingsSheet() {
         <Row icon="grid" color="#2F6FE4" title={t('Gebiet auf dem Brett zeigen')}><Switch on={p.settings.showTerritory} onChange={v => set(s => { s.showTerritory = v })} /></Row>
         <Row icon="cpu" color="#E0413A" title={t('Bots mit eigenem Figurenset')}><Switch on={p.settings.botSkins} onChange={v => set(s => { s.botSkins = v })} /></Row>
         <Row icon="checker" color="#7E8AA3" title={t('Koordinaten anzeigen')}><Switch on={p.settings.showCoordinates} onChange={v => set(s => { s.showCoordinates = v })} /></Row>
-        <Row icon="flipBoard" color="#8B5CF6" title={t('Mit Weiß spielen')}><Switch on={p.settings.playAsWhite} onChange={v => set(s => { s.playAsWhite = v })} /></Row>
       </div>
 
       <div className="list-h">{t('Sprache')}</div>

@@ -555,6 +555,7 @@ struct FinisherTitle: View {
     var delay: Double = 0.78
 
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     @State private var shown = false
     @State private var crown = false
     @State private var burst = false
@@ -579,7 +580,7 @@ struct FinisherTitle: View {
                 FinisherRays(count: 14)
                     .fill(RadialGradient(colors: [glow.opacity(0.55), glow.opacity(0)], center: .center, startRadius: 10, endRadius: 190))
                     .frame(width: 380, height: 380)
-                    .rotationEffect(.degrees(tl.date.timeIntervalSinceReferenceDate * 18))
+                    .rotationEffect(.degrees(clock.time(tl.date) * 18))
             }
             .scaleEffect(shown ? 1 : 0.2)
             .opacity(shown ? (style == .loss ? 0.6 : 1) : 0)

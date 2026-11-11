@@ -79,7 +79,7 @@ function watch(inviteId: string) {
       set({ outgoing: null }); onReady?.(s.match_id); return
     }
     if (state.outgoing) set({ outgoing: { ...state.outgoing, state: s.status === 'declined' ? 'declined' : 'expired' } })
-  }, 2000)
+  }, 1000) // every second: bot players answer after 3 s, the game should then start at once
 }
 
 export function cancelOutgoing() {

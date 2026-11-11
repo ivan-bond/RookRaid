@@ -28,13 +28,14 @@ struct CountUpText: View, Animatable {
 /// Funkelnde Sterne auf festen, zufällig wirkenden Plätzen (zeitgesteuert).
 struct TwinkleField: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     var count = 16
     var colors: [Color] = [.white]
     var active = true
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 20, paused: !active || !live)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
+            let t = clock.time(tl.date)
             Canvas { ctx, size in
                 for i in 0..<count {
                     let r1 = BiomeParticles.rand(i, 7), r2 = BiomeParticles.rand(i, 8), r3 = BiomeParticles.rand(i, 9)

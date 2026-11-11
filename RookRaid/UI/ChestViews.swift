@@ -83,6 +83,7 @@ enum SVGPath {
 /// `glow` (0…1) lässt Fuge, Schloss und Runen leuchten, `lid` (0…1) sprengt den Deckel auf und zeigt das Innere.
 struct ChestView: View, Animatable {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let rarity: ChestRarity
     var size: CGFloat = 160
     var lid: Double = 0
@@ -126,7 +127,7 @@ struct ChestView: View, Animatable {
                 .opacity(0.08 + 0.6 * glow)
             if animated {
                 TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !live)) { tl in
-                    canvas(time: tl.date.timeIntervalSinceReferenceDate)
+                    canvas(time: clock.time(tl.date))
                 }
             } else {
                 canvas(time: 0)
@@ -308,6 +309,7 @@ struct ParticleCanvas: View {
 /// Rotierende Lichtstrahlen hinter der Truhe – einfarbig oder als Regenbogen (epische Karten, legendäre Truhen).
 struct LightRays: View {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     var colors: [Color]
     var count = 14
     var speed = 0.35
@@ -329,9 +331,11 @@ struct LightRays: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: nil, paused: paused || !live)) { timeline in
+        // Höchstens 60 Bilder pro Sekunde: Die Strahlen drehen langsam, 120 auf ProMotion-Displays sieht man nicht,
+        // kostet aber doppelt (sie stehen auf Pfad, Profil, Laden und Startseite).
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: paused || !live)) { timeline in
             Canvas { ctx, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
+                let t = clock.time(timeline.date)
                 let c = CGPoint(x: size.width / 2, y: size.height / 2)
                 let r = max(size.width, size.height)
                 let step = 2 * Double.pi / Double(count)

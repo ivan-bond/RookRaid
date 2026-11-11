@@ -341,6 +341,7 @@ struct TutorialSpotlight: ViewModifier {
 /// Pulsierendes Leuchten (zeitgesteuert – keine Endlos-Animation, die andere Ansichten mitreißt).
 struct PulseGlow: ViewModifier {
     @Environment(\.liveAnimations) private var live
+    @Environment(\.animationClock) private var clock
     let color: Color
     let active: Bool
     var strength: Double = 1
@@ -348,7 +349,7 @@ struct PulseGlow: ViewModifier {
     func body(content: Content) -> some View {
         // Langsames Pulsieren (Periode ≈ 1,8 s): 20 Bilder pro Sekunde reichen – jeder Schattenwechsel kostet einen Weichzeichner-Durchgang.
         TimelineView(.animation(minimumInterval: 1.0 / 20, paused: !active || !live)) { ctx in
-            let phase = active ? (sin(ctx.date.timeIntervalSinceReferenceDate * 3.5) + 1) / 2 : 0
+            let phase = active ? (sin(clock.time(ctx.date) * 3.5) + 1) / 2 : 0
             content.shadow(color: color.opacity(active ? (0.35 + 0.6 * phase) * strength : 0), radius: active ? (5 + 9 * phase) * strength : 0)
         }
     }
