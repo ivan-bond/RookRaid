@@ -1,13 +1,13 @@
-// ProfileViews.swift, ProfileExtras.swift, ProfileFun.swift: profile tab, achievements and the wardrobe.
-import { useState } from 'react'
+// ProfileViews.swift (redesign V2), ProfileExtras.swift: profile tab, achievements and the wardrobe.
+import { useEffect, useState } from 'react'
 import { avatarImage, pieceImage } from '../art'
 import {
-  AVATARS, BOARD_COLORS, BOARD_NAMES, BOARD_PRICE, BOARD_THEMES, BOTS, CARDS, CARD_IDS, COSMETIC_RARITY, FRAMES, FRAME_IDS, ULT_IDS,
+  AVATARS, BOARD_COLORS, BOARD_NAMES, BOARD_PRICE, BOARD_THEMES, BOTS, CARDS, COSMETIC_RARITY, FRAMES, FRAME_IDS,
   avatarPrice, botRecordName, isCollectibleBoard, type AvatarId, type BoardTheme, type FrameId,
 } from '../game/catalog'
 import * as S from '../game/store'
 import { useI18n } from '../i18n'
-import { closeSheet, openOverlay, openSheet, setTab } from '../nav'
+import { closeSheet, openOverlay, openSheet, run, setTab } from '../nav'
 import { Icon } from '../ui/Icon'
 import { Dialog, PlayerAvatar, Progress, Sheet, ShardIcon, useToast } from '../ui/kit'
 import { GoogleG, securedText } from './Login'
@@ -15,7 +15,9 @@ import { CHEST_TITLES, SHOP_FRAMES, SHOP_FRAME_PRICE, rankFor } from '../game/ca
 import { haptic, sound } from '../game/feedback'
 import { BotPortrait } from './Game'
 import * as Online from '../online'
-import { FriendsCard } from './Friends'
+import * as F from '../friends'
+import { shareInvite } from './Friends'
+import { DSProgress, IconTile, ListGroup, ListRow, PrimaryButton, PrimaryDock, ScreenHeader, SectionLabel } from '../ui/ds'
 
 export function ProfileScreen() {
   const p = S.useProfile()
@@ -24,148 +26,91 @@ export function ProfileScreen() {
   const all = S.achievements(p)
   const done = all.filter(S.isUnlockedAchievement)
   const claimable = S.claimableAchievements(p)
-  const next = all.filter(a => !S.isUnlockedAchievement(a)).sort((a, b) => b.progress / b.goal - a.progress / a.goal).slice(0, 3)
   const games = p.wins + p.losses + p.draws
   const rate = games ? Math.round((p.wins / games) * 100) : 0
   const acc = Online.useAccount()
-  const form = p.history.filter(h => h.opponent !== 'Zu zweit').slice(0, 8).reverse()
-  const frames = S.unlockedFrames(p)
-  return (
-    <div className="page">
-      <div className="page-glow" style={{ background: 'linear-gradient(#6B4FD855, transparent)' }} />
-      <div className="page-inner">
-        <div className="hdr">
-          <Icon name="person" size={24} color="var(--blue-light)" />
-          <h1 className="title-xl grow">{t('Profil')}</h1>
-          <span className="capsule chip num"><ShardIcon size={13} />{p.shards}</span>
-          <button className="icon-btn" onClick={() => openSheet('settings')} aria-label={t('Einstellungen')}><Icon name="gear" size={22} /></button>
-        </div>
-        <div className="profile-grid">
-          <div className="col" style={{ gap: 14 }}>
-            <button className="card hero-profile press" onClick={() => openSheet('style')} aria-label={t('Avatar, Rahmen und Titel ändern')}>
-              <PlayerAvatar avatar={S.activeAvatar(p)} frame={S.activeFrame(p)} size={92} />
-              <div className="col grow" style={{ gap: 4, textAlign: 'left' }}>
-                <b className="r" style={{ fontSize: 24 }}>{S.shownName(p.name, t)}</b>
-                <span className="kicker" style={{ color: 'var(--blue-light)' }}>{t(S.activeTitle(p)).toUpperCase()}</span>
-                <span className="dim" style={{ fontSize: 12 }}>{t('Level {0} · noch {1} XP bis Level {2}', lp.level, lp.remaining, lp.level + 1)}</span>
-                <Progress value={lp.fraction} kind="mana" />
-                <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                  <span className="capsule chip gold"><Icon name="trophy" size={10} />{p.trophies} · {t('Rekord {0}', p.bestTrophies)}</span>
-                  <span className="capsule chip"><Icon name="flame" size={10} color="#FF7A2F" />{S.currentStreak(p)} · {t('Rekord {0}', p.bestStreak)}</span>
-                  <span className="capsule chip">{t('Arena {0}', S.arena(p).n)}</span>
-                  {acc.status === 'secured' && <span className="capsule chip">{acc.provider === 'google' ? <GoogleG size={10} /> : <Icon name="apple" size={10} />}{securedText(acc.provider, t)}</span>}
-                </span>
-              </div>
-              <Icon name="pencilCircle" size={22} color="var(--blue-light)" />
-            </button>
-
-            <FriendsCard />
-
-            <div className="card col">
-              <span className="row section-h" style={{ gap: 6 }}><Icon name="columns" size={13} />{t('Ruhmeshalle')}</span>
-              <div className="fame-grid">
-                <Fame icon="crown" color="var(--gold)" value={p.wins} label={t('Siege')} sub={games ? t('{0} % Siegquote', rate) : t('Noch keine Partien')} />
-                <Fame icon="puzzle" color="var(--mana-light, #8FB6FF)" value={p.solvedPuzzles.length} label={t('Puzzles gelöst')} sub={t('Zum Puzzle-Tab')} onClick={() => setTab('puzzles')} />
-                <Fame icon="medal" color="#F0B07A" value={done.length} label={t('Erfolge')} sub={t('von {0}', all.length)} onClick={() => openSheet('achievements')} />
-                <Fame icon="calendar" color="#FF7A2F" value={p.activeDays.length} label={t('Aktive Tage')} sub={t('Rekordflamme {0}', p.bestStreak)} onClick={() => openSheet('flame')} />
-              </div>
-            </div>
-
-            <div className="card col">
-              <div className="row"><span className="section-h">{t('Bot-Bezwinger')}</span><span className="spacer" /><span className="dim num" style={{ fontSize: 12 }}>{p.ladderBeaten}/12</span></div>
-              <div className="bot-wall">
-                {BOTS.map(b => {
-                  const beat = S.isLadderBeaten(b, p) || p.history.some(h => h.opponent === botRecordName(b) && h.result === 'win')
-                  return <span key={b.id} className={beat ? '' : 'dimmed'} title={t(b.name)}>{beat ? <BotPortrait id={b.id} size={40} /> : <span className="bot-unknown"><Icon name="question" size={16} /></span>}</span>
-                })}
-              </div>
-              <span className="muted" style={{ fontSize: 12 }}>{p.ladderBeaten >= 12 ? t('Alle zwölf bezwungen – du bist eine Legende!') : t('Nächster Gegner: {0}, {1}', t(BOTS[p.ladderBeaten].name), t(BOTS[p.ladderBeaten].title))}</span>
-              <button className="ghost" onClick={() => openSheet('ladder')}>{t('Zur Leiter')}</button>
-            </div>
-          </div>
-
-          <div className="col" style={{ gap: 14 }}>
-            <div className="card col">
-              {(() => {
-                const rings = [
-                  [CARD_IDS.filter(c => S.isCardUnlocked(c, p)).length, CARD_IDS.length, 'Karten', 'var(--blue-light)'],
-                  [ULT_IDS.filter(u => S.isUltUnlocked(u, p)).length, ULT_IDS.length, 'Ultimates', 'var(--gold)'],
-                  [AVATARS.filter(a => S.isAvatarOwned(a.id, p)).length, AVATARS.length, 'Avatare', 'var(--red-light)'],
-                  [frames.length, FRAME_IDS.length, 'Rahmen', '#8FB6FF'],
-                  [BOARD_THEMES.filter(b => S.isBoardOwned(b, p)).length, BOARD_THEMES.length, 'Bretter', '#7FE3FF'],
-                  [BOTS.filter(b => S.isSkinUnlocked(b, p)).length + 1, BOTS.length + 1, 'Figuren', '#F0B07A'],
-                ] as const
-                const have = rings.reduce((s, r) => s + r[0], 0), total = rings.reduce((s, r) => s + r[1], 0)
-                return <>
-                  <div className="row"><span className="section-h">{t('Sammlung')}</span><span className="spacer" /><span className="dim" style={{ fontSize: 12 }}>{t('{0} % gesammelt', Math.round((have / Math.max(1, total)) * 100))}</span></div>
-                  <div className="rings six">{rings.map(([v, m, l, c]) => <Ring key={l} value={v} max={m} label={t(l)} color={c} />)}</div>
-                </>
-              })()}
-            </div>
-
-            <div className="card col">
-              <div className="row">
-                <span className="section-h">{t('Erfolge')}</span>
-                <span className="dim num" style={{ fontSize: 12, marginLeft: 8 }}>{done.length}/{all.length}</span>
-                <span className="spacer" />
-                <button className="ghost" style={{ width: 'auto' }} onClick={() => openSheet('achievements')}>{t('Alle')} <Icon name="chevronRight" size={12} /></button>
-              </div>
-              {claimable.length > 0 && (
-                <button className="chunky gold sm pulse-gold" onClick={() => { for (const a of S.claimableAchievements()) S.claimAchievement(a) }}>
-                  <ShardIcon size={16} />{t('Erfolg abholen')} ({claimable.length})
-                </button>
-              )}
-              {done.length > 0 && <div className="medals shelf">{done.map(a => <Medal key={a.id} a={a} />)}</div>}
-              {next.length === 0 && <span className="muted" style={{ fontSize: 12 }}>{t('Alle Erfolge geschafft – Respekt!')}</span>}
-              {next.map(a => {
-                const tArgs = (a.titleArgs ?? []).map(x => t(String(x)))
-                const dArgs = (a.detailArgs ?? []).map(x => (typeof x === 'string' ? t(x) : x))
-                return (
-                  <div key={a.id} className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-                    <Medal a={a} />
-                    <div className="col grow" style={{ gap: 3, minWidth: 0 }}>
-                      <div className="row"><b className="grow clip1" style={{ fontSize: 13 }}>{t(a.title, ...tArgs)}</b><span className="muted num" style={{ fontSize: 11 }}>{Math.min(a.progress, a.goal)}/{a.goal}</span></div>
-                      <Progress value={a.progress / a.goal} height={6} />
-                      <span className="muted" style={{ fontSize: 11 }}>{t(a.detail, ...dArgs)} · {t('{0} Splitter', a.shards)}</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <button className="card row press stats-link" onClick={() => openSheet('stats')}>
-              <span className="stats-ico"><Icon name="chart" size={18} /></span>
-              <span className="col grow" style={{ gap: 4, textAlign: 'left' }}>
-                <b>{t('Statistik & Verlauf')}</b>
-                <span className="dim" style={{ fontSize: 12 }}>{games === 0 ? t('Noch keine Partien') : t('{0} S · {1} N · {2} R · {3} % Siege', p.wins, p.losses, p.draws, rate)}</span>
-                {form.length > 0 && <span className="form-dots">{form.map(h => <i key={h.id} className={h.result} />)}</span>}
-              </span>
-              <Icon name="chevronRight" size={14} color="var(--muted)" />
-            </button>
-
-            <button className="card row press fb-link" onClick={() => openSheet('feedback')}>
-              <span className="fb-link-ico"><Icon name="envelope" size={18} /></span>
-              <span className="col grow" style={{ gap: 4, textAlign: 'left' }}>
-                <b>{t('Feedback senden')}</b>
-                <span className="dim" style={{ fontSize: 12 }}>{t('Bugs, Balance, Ideen – Rook Raid ist in der Beta.')}</span>
-              </span>
-              <Icon name="chevronRight" size={14} color="var(--muted)" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Fame({ icon, color, value, label, sub, onClick }: { icon: string; color: string; value: number; label: string; sub: string; onClick?: () => void }) {
-  return (
-    <button className="fame press" onClick={onClick} disabled={!onClick} style={{ ['--c' as string]: color }}>
-      <span className="fame-ico"><Icon name={icon} size={16} /></span>
-      <b className="r num">{value}</b>
-      <span className="fame-l">{label}</span>
-      <span className="fame-s">{sub}</span>
+  const fr = F.useFriends()
+  const [toast, showToast] = useToast()
+  const friends = fr.players.filter(x => x.relation === 'friend')
+  const requests = fr.players.filter(x => x.relation === 'incoming').length
+  const friendsOn = Online.isConfigured()
+  useEffect(() => { if (Online.hasAccount()) void F.refreshFriends() }, [acc.status])
+  const stat = (title: string, icon: string, color: string, hint: string | null, value: number | string, onClick: () => void) => (
+    <button className="pf-stat" onClick={onClick} aria-label={[title, String(value), hint].filter(Boolean).join(', ')}>
+      <span className="ds-ico"><Icon name={icon} size={19} color={color} /></span>
+      <span className="pf-stat-t">{title}</span>
+      {hint && <span className="pf-stat-h">{hint}</span>}
+      <b className="pf-stat-v num">{value}</b>
     </button>
+  )
+  return (
+    <div className="page ds-page">
+      <div className="ds-inner">
+        <ScreenHeader title={t('Profil')} gear />
+        <div className="pf-hero">
+          <button className="pf-avatar press" onClick={() => openSheet('style')} aria-label={t('Avatar {0}. Tippen zum Ändern', t(AVATARS.find(a => a.id === S.activeAvatar(p))?.name ?? ''))}>
+            <img src={avatarImage(S.activeAvatar(p))} alt="" />
+          </button>
+          <div className="grow col" style={{ gap: 4, minWidth: 0 }}>
+            <b className="pf-name clip1">{S.shownName(p.name, t)}</b>
+            <span className="pf-rank clip1">{t('{0} · Level {1}', t(S.activeTitle(p)), lp.level)}</span>
+            <DSProgress value={lp.fraction} color="var(--ds-purple)" />
+            <span className="num clip1" style={{ fontSize: 13, color: 'var(--ds-muted)', fontWeight: 600 }}>{t('noch {0} XP bis Level {1}', lp.remaining, lp.level + 1)}</span>
+            {acc.status === 'secured' && <span className="row" style={{ gap: 5, fontSize: 12, color: 'var(--ds-muted)' }}>{acc.provider === 'google' ? <GoogleG size={11} /> : <Icon name="apple" size={11} />}{securedText(acc.provider, t)}</span>}
+          </div>
+        </div>
+        {/* Order: friends · extras · stats */}
+        {friendsOn && <>
+          <SectionLabel text={friends.length ? t('Freunde · {0}', friends.length) : t('Freunde')} action={{ label: t('Alle'), onClick: () => openSheet('friends') }} />
+          <button className="pf-friends" onClick={() => openSheet('friends')}>
+            {friends.length === 0 ? <IconTile icon="person2" color="var(--ds-gem)" /> : (
+              <span className="pf-faces">
+                {friends.slice(0, 2).map(f => <span key={f.userId}><img src={avatarImage(f.avatar)} alt="" /></span>)}
+                {friends.length > 2 && <span>+{friends.length - 2}</span>}
+              </span>
+            )}
+            <span className="grow" style={{ fontSize: 15, fontWeight: 600 }}>
+              {friends.length === 0 ? t('Lade deine Freunde ein – zu zweit macht Rook Raid doppelt Spaß!')
+                : friends.length === 1 ? friends[0].name : t('{0} und {1} weitere', friends[0].name, friends.length - 1)}
+            </span>
+            {requests > 0 && <span className="pf-claim">{requests === 1 ? t('1 Anfrage') : t('{0} Anfragen', requests)}</span>}
+          </button>
+          <div style={{ height: 20 }} />
+        </>}
+        <SectionLabel text={t('Extras')} />
+        <ListGroup>
+          <ListRow icon={<IconTile icon="chart" color="var(--ds-gem)" />} title={t('Statistik & Verlauf')}
+            sub={games === 0 ? t('Noch keine Partien') : t('Letzte Partien und Wiederholungen')} onClick={() => openSheet('stats')} />
+          <ListRow icon={<IconTile icon="palette" color="var(--ds-purple)" />} title={t('Stil & Sammlung')} sub={t('Avatare, Rahmen, Bretter und Figuren')} onClick={() => openSheet('style')} />
+          <ListRow icon={<IconTile icon="graduation" />} title={t('Erste Schlacht erneut spielen')} onClick={() => run('startTutorial')} />
+          <ListRow icon={<IconTile icon="envelope" color="var(--ds-flame)" />} title={t('Feedback senden')} sub={t('Bugs, Balance, Ideen – Rook Raid ist in der Beta.')} onClick={() => openSheet('feedback')} />
+        </ListGroup>
+        <div style={{ height: 20 }} />
+        <SectionLabel text={t('Statistik')} />
+        <ListGroup>
+          {stat(t('Trophäen'), 'trophy', 'var(--ds-gold)', t('Bestwert {0}', p.bestTrophies), p.trophies, () => openSheet('road'))}
+          {stat(t('Arena'), 'columns', 'var(--ds-text)', t(S.arena(p).name), S.arena(p).n, () => openSheet('road'))}
+          {stat(t('Siege'), 'crown', 'var(--ds-gold)', t('{0} % Siegquote', rate), p.wins, () => openSheet('stats'))}
+          {stat(t('Gelöste Puzzles'), 'puzzle', 'var(--ds-purple)', p.rushBest > 0 ? t('Rausch-Bestwert {0}', p.rushBest) : null, p.solvedPuzzles.length, () => setTab('puzzles'))}
+          {stat(t('Flamme'), 'flame', 'var(--ds-flame)', t('Rekord {0}', p.bestStreak), S.currentStreak(p), () => openSheet('flame'))}
+          <button className="pf-stat" onClick={() => openSheet('achievements')}
+            aria-label={t('Erfolge, {0} von {1}', done.length, all.length) + (claimable.length ? ', ' + t('{0} abholen', claimable.length) : '')}>
+            <span className="ds-ico"><Icon name="medal" size={19} /></span>
+            <span className="pf-stat-t">{t('Erfolge')}</span>
+            {claimable.length > 0 && <span className="pf-claim">{claimable.length === 1 ? t('1 abholen') : t('{0} abholen', claimable.length)}</span>}
+            <b className="pf-stat-v num">{done.length}<small style={{ fontSize: 14, color: 'var(--ds-muted)' }}>/{all.length}</small></b>
+            <Icon name="chevronRight" size={14} color="var(--ds-chevron)" />
+          </button>
+        </ListGroup>
+      </div>
+      {friendsOn && (
+        <PrimaryDock>
+          <PrimaryButton title={t('Freund einladen')} icon="personPlus"
+            onClick={() => { if (fr.code) void shareInvite(fr.code, t, showToast); else openSheet('friends') }} />
+        </PrimaryDock>
+      )}
+      {toast}
+    </div>
   )
 }
 

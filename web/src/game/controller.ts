@@ -34,29 +34,29 @@ type Step = {
 }
 export const TUTORIAL_HAND: CardId[] = ['lightning', 'shield', 'sprint', 'freeze']
 export const tutorialSteps = (): Step[] => [
-  { expect: { kind: 'move', from: 'e2', to: 'e4' }, icon: 'handPoint', title: 'Willkommen in der Arena!',
-    text: 'Schach mit Karten und Superkräften. Zieh deinen Bauern von e2 nach e4.', praise: 'Starker Auftakt!', reply: 'e7e5' },
-  { expect: { kind: 'move', from: 'g1', to: 'f3' }, icon: 'drop', title: 'Jeder Zug lädt Mana',
-    text: '+1 Mana pro Zug, gute Züge +1 extra – unten siehst du deine Leiste. Springer nach f3: g1 → f3.', praise: 'Mana geladen!', reply: 'b8c6', highlight: true },
-  { expect: { kind: 'move', from: 'f1', to: 'c4' }, icon: 'scope', title: 'Ziel: f7',
-    text: 'f7 ist Milas schwächster Punkt – nur der König deckt ihn. Läufer nach c4, er zielt genau dorthin.', praise: 'Im Visier!', reply: 'g8f6' },
-  { expect: { kind: 'move', from: 'f3', to: 'g5' }, icon: 'arrowUpRight', title: 'Doppelter Druck',
-    text: 'Springer nach g5: Jetzt greifen Läufer und Springer f7 gemeinsam an.', praise: 'Mila muss reagieren!', reply: 'd7d5' },
-  { expect: { kind: 'move', from: 'e4', to: 'd5' }, icon: 'burst', title: 'Schlag zu!',
-    text: 'Mila sperrt deinen Läufer mit d5. Schlag den Bauern – Schlagen lädt extra Mana.', praise: 'Treffer!', reply: 'f6d5' },
-  { expect: { kind: 'card', card: 'shield', target: 'g5' }, icon: 'shield', title: 'Achtung – Angriff!',
-    text: 'Milas Dame bedroht deinen Springer g5. Tippe auf Schild, dann auf g5.', praise: 'Abgewehrt!',
+  { expect: { kind: 'move', from: 'e2', to: 'e4' }, icon: 'handPoint', title: 'Bauer nach vorn',
+    text: 'Macht Platz für deine Figuren.', praise: 'Starker Auftakt!', reply: 'e7e5' },
+  { expect: { kind: 'move', from: 'g1', to: 'f3' }, icon: 'drop', title: 'Springer nach f3',
+    text: 'Jeder Zug füllt deine Mana-Leiste.', praise: 'Mana geladen!', reply: 'b8c6', highlight: true },
+  { expect: { kind: 'move', from: 'f1', to: 'c4' }, icon: 'scope', title: 'Läufer auf c4',
+    text: 'Er zielt auf f7, Milas Schwachstelle.', praise: 'Im Visier!', reply: 'g8f6' },
+  { expect: { kind: 'move', from: 'f3', to: 'g5' }, icon: 'arrowUpRight', title: 'Springer auf g5',
+    text: 'Zweiter Angriff auf f7.', praise: 'Mila muss reagieren!', reply: 'd7d5' },
+  { expect: { kind: 'move', from: 'e4', to: 'd5' }, icon: 'burst', title: 'Schlag den Bauern',
+    text: 'Schlagen gibt +1 Mana extra.', praise: 'Treffer!', reply: 'f6d5' },
+  { expect: { kind: 'card', card: 'shield', target: 'g5' }, icon: 'shield', title: 'Schild auf den Springer',
+    text: 'Milas Dame greift ihn an.', praise: 'Abgewehrt!',
     reward: { icon: 'shield', text: 'Springer geschützt', tint: 'territory' } },
-  { expect: { kind: 'move', from: 'd1', to: 'f3' }, icon: 'walk', title: 'Bonuszug!',
-    text: 'Schild kostet keinen Zug – zieh gleich noch: Dame nach f3. Sie droht, auf f7 Matt zu setzen.', praise: 'Verteidigt und angegriffen!', reply: 'c8e6' },
-  { expect: { kind: 'ult', target: 'h8' }, icon: 'flame', title: 'Ultimate geladen!',
-    text: 'Volle Leiste! Meteor vernichtet jede Figur außer König und Dame. Tippe auf Meteor, dann auf den Turm h8.', praise: 'METEOR!', reply: 'c6d4', fillMana: true,
+  { expect: { kind: 'move', from: 'd1', to: 'f3' }, icon: 'walk', title: 'Dame nach f3',
+    text: 'Der Schild war gratis – du ziehst nochmal.', praise: 'Verteidigt und angegriffen!', reply: 'c8e6' },
+  { expect: { kind: 'ult', target: 'h8' }, icon: 'flame', title: 'Meteor auf den Turm',
+    text: 'Deine Leiste ist voll.', praise: 'METEOR!', reply: 'c6d4', fillMana: true,
     reward: { icon: 'flame', text: 'Turm zerstört', tint: 'gold' } },
-  { expect: { kind: 'card', card: 'freeze', target: 'e6' }, icon: 'snowflake', title: 'Frost auf den Verteidiger',
-    text: 'Nur Milas Läufer e6 deckt f7. Tippe auf Frost, dann auf e6 – eingefroren kann er nicht schlagen.', praise: 'Eingefroren!', fillMana: true,
+  { expect: { kind: 'card', card: 'freeze', target: 'e6' }, icon: 'snowflake', title: 'Frost auf den Läufer',
+    text: 'Er ist der letzte Wächter von f7.', praise: 'Eingefroren!', fillMana: true,
     reward: { icon: 'snowflake', text: 'Läufer eingefroren', tint: 'territory' } },
-  { expect: { kind: 'move', from: 'f3', to: 'f7' }, icon: 'crown', title: 'Das Finale',
-    text: 'Frost kostet keinen Zug. Dame schlägt f7, der Springer deckt sie – Schachmatt!', praise: 'SCHACHMATT!' },
+  { expect: { kind: 'move', from: 'f3', to: 'f7' }, icon: 'crown', title: 'Dame schlägt f7',
+    text: 'Der Springer deckt sie: Schachmatt!', praise: 'SCHACHMATT!' },
 ]
 
 const TACTIC: Record<string, { title: string; short: string; icon: string }> = {
@@ -122,7 +122,6 @@ export class GameController {
   // Tutorial
   coach: Coach | null = null
   tutorialIndex = 0
-  tutorialSquares: number[] = []
   tutorialCard: string | null = null
   tutorialUlt = false
   tutorialHighlight = false
@@ -168,7 +167,7 @@ export class GameController {
     } else if (opts.online) {
       this.online = opts.online
       this.human = opts.online.youWhite ? 'w' : 'b'
-      this.timeControl = 'blitz5'
+      this.timeControl = opts.online.timeControl ?? 'blitz5'
       this.decks = { w: opts.online.decks.white, b: opts.online.decks.black }
       this.ults = { w: opts.online.ultimates.white, b: opts.online.ultimates.black }
     } else {
@@ -904,6 +903,7 @@ export class GameController {
       const opp = this.opponentCard ? this.opponentCard.trophies : bot ? botRating(bot) : mine
       const expected = S.trophyDelta(mine, opp, result)
       this.optimisticDelta = expected
+      Online.noteLocalTrophyChange()
       S.update(p => {
         p.trophies = Math.max(0, p.trophies + expected)
         p.bestTrophies = Math.max(p.bestTrophies, p.trophies)
@@ -969,6 +969,7 @@ export class GameController {
   private noteServerDelta(d: number) {
     const shown = this.optimisticDelta
     this.optimisticDelta = 0
+    Online.noteLocalTrophyChange()
     S.update(p => {
       p.trophies = Math.max(0, p.trophies + d - shown)
       p.bestTrophies = Math.max(p.bestTrophies, p.trophies)
@@ -1150,12 +1151,36 @@ export class GameController {
   // MARK: Tutorial
 
   currentStep() { return tutorialSteps()[this.tutorialIndex] }
+  /** Tutorial: the one square to tap now – the piece first, then its target. Cards and the ultimate: only once tapped
+   *  (before that the card itself glows). Like `tutorialFocus` in the app. */
+  get tutorialFocus(): number | null {
+    if (this.mode.kind !== 'tutorial' || !this.coach || this.coach.done) return null
+    const e = this.currentStep()?.expect
+    if (!e) return null
+    if (e.kind === 'move') return this.selected === sqIndex(e.from) ? sqIndex(e.to) : sqIndex(e.from)
+    if (e.kind === 'card') return this.pendingCard === e.card && e.target ? sqIndex(e.target) : null
+    return this.pendingUlt && e.target ? sqIndex(e.target) : null
+  }
+  /** Tutorial: squares that stay bright while the rest of the board is dimmed. */
+  get tutorialSpots(): number[] {
+    if (this.mode.kind !== 'tutorial' || !this.coach || this.coach.done) return []
+    const e = this.currentStep()?.expect
+    if (!e) return []
+    if (e.kind === 'move') return [sqIndex(e.from), sqIndex(e.to)]
+    return e.target ? [sqIndex(e.target)] : []
+  }
+  /** Tutorial: arrow from the piece to its target. */
+  get tutorialArrow(): [number, number] | null {
+    const e = this.currentStep()?.expect
+    if (this.mode.kind !== 'tutorial' || !this.coach || this.coach.done || e?.kind !== 'move') return null
+    return [sqIndex(e.from), sqIndex(e.to)]
+  }
   private tutorialAllows(a: { kind: 'move'; from: string; to: string }) {
     const exp = this.currentStep()?.expect
     return !!exp && exp.kind === 'move' && exp.from === a.from && exp.to === a.to
   }
   private tutorialNudge() {
-    const nudges = ['Fast! Folge dem goldenen Leuchten.', 'Nicht ganz – schau auf die goldenen Felder.', "Probier's mit dem leuchtenden Ziel!"]
+    const nudges = ['Tippe aufs goldene Leuchten.', 'Folge der Hand.', "Fast! Tippe aufs Leuchten."]
     haptic('invalid')
     this.questNudge++
     this.questNudgeText = t(nudges[this.questNudge % nudges.length])
@@ -1173,13 +1198,11 @@ export class GameController {
       if (10 > before) this.showManaFloat('w', 10 - before, t('Bonus'))
       sound('summon')
     }
-    this.tutorialSquares = []
     this.tutorialCard = null
     this.tutorialUlt = false
     const e = step.expect
-    if (e.kind === 'move') this.tutorialSquares = [sqIndex(e.from), sqIndex(e.to)]
-    if (e.kind === 'card') { this.tutorialCard = e.card; this.tutorialSquares = e.target ? [sqIndex(e.target)] : [] }
-    if (e.kind === 'ult') { this.tutorialUlt = true; this.tutorialSquares = e.target ? [sqIndex(e.target)] : [] }
+    if (e.kind === 'card') this.tutorialCard = e.card
+    if (e.kind === 'ult') this.tutorialUlt = true
     this.tutorialHighlight = !!step.highlight
     this.hint = null
     this.questNudgeText = null
@@ -1198,7 +1221,6 @@ export class GameController {
     if (side === 'w') {
       const step = this.currentStep()
       if (!step || !this.coach) return
-      this.tutorialSquares = []
       this.tutorialCard = null
       this.tutorialUlt = false
       this.tutorialHighlight = false
@@ -1231,7 +1253,6 @@ export class GameController {
     S.grantTutorialChest()
     S.addXP(50)
     const lit = S.registerActivity()
-    this.tutorialSquares = []
     this.tutorialHighlight = false
     const last = tutorialSteps()[tutorialSteps().length - 1]
     if (this.coach) {

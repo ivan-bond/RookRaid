@@ -17,6 +17,9 @@ struct RookRaidApp: App {
 extension Notification.Name {
     static let startTutorial = Notification.Name("RookRaidStartTutorial")
     static let showTrophyRoad = Notification.Name("RookRaidShowTrophyRoad")
+    /// Flammen-Fenster bzw. Splitter-Laden öffnen (Pillen oben rechts, Profil). RootView zeigt sie.
+    static let showFlame = Notification.Name("RookRaidShowFlame")
+    static let showShardShop = Notification.Name("RookRaidShowShardShop")
     /// Zum Puzzle-Tab wechseln (z. B. „Flamme entzünden“)
     static let showPuzzles = Notification.Name("RookRaidShowPuzzles")
     static let startPractice = Notification.Name("RookRaidStartPractice")
@@ -75,13 +78,20 @@ struct GameHost: View {
     }
 }
 
+/// Main tabs (redesign V2): Puzzles · Play · Deck · Profile. The trophy road (formerly the Path tab) opens as a sheet.
 enum RootTab: Hashable {
-    case play, puzzles, deck, arena, profile
+    case play, puzzles, deck, profile
+}
+
+/// Sheets der Pillen oben rechts – eine einzige Stelle zeigt sie (RootView).
+enum RootSheet: String, Identifiable {
+    case flame, shop, road
+    var id: String { rawValue }
 }
 
 struct RootView: View {
     @ObservedObject private var store = ProfileStore.shared
-    @State private var tab: RootTab = .play
+    @State private var tab: RootTab = RootView.startTab
     @State private var session: GameSession?
     @State private var puzzleSession: PuzzleSession?
     /// Interaktive Einführung vor der ersten Schlacht – beim Schließen startet die Tutorial-Partie.
@@ -105,7 +115,23 @@ struct RootView: View {
     @ObservedObject private var friends = FriendsStore.shared
     /// Freundesliste als Sheet; der Code kommt aus einem Einladungslink.
     @State private var friendsSheet: FriendsInvite?
+    /// Trophy road as a sheet (the Path tab is gone; the Magic Chest bar on Play opens it).
+    @State private var rootSheet: RootSheet?
     @Environment(\.scenePhase) private var scenePhase
+
+    /// Debug builds only: start on a given tab for screenshots (`xcrun simctl launch <device> com.ivan.rookraid -RRStartTab deck`).
+    private static var startTab: RootTab {
+        #if DEBUG
+        switch UserDefaults.standard.string(forKey: "RRStartTab") {
+        case "puzzles": return .puzzles
+        case "deck": return .deck
+        case "profile": return .profile
+        default: return .play
+        }
+        #else
+        return .play
+        #endif
+    }
 
     /// Nur der gewählte Tab animiert. Beim Wechsel hält der alte sofort an und der neue läuft sofort los –
     /// es zeichnet also nie mehr als eine Seite, und die neue gleitet schon lebendig herein (statt erst danach
@@ -122,22 +148,24 @@ struct RootView: View {
             .id(store.profile.settings.language)
             .environment(\.liveAnimations, live)
             .environment(\.animationClock, clocks.clock(t, live: live))
-            .tag(t)
     }
 
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
                 // Seiten-Container: Zwischen den Tabs lässt sich mit dem Finger wischen.
-                // Reihenfolge wie die Tab-Leiste: Pfad · Puzzle · Spielen (Mitte, Start) · Deck · Profil
-                TabView(selection: $tab) {
-                    page(.arena, TrophyRoadView())
-                    page(.puzzles, PuzzleHubView(session: $puzzleSession))
-                    page(.play, HomeView(session: $session, puzzleSession: $puzzleSession, tab: $tab))
-                    page(.deck, DeckView())
-                    page(.profile, ProfileView())
+                // Reihenfolge wie die Tab-Leiste: Puzzle · Spielen (Start) · Deck · Profil
+                // Eigener Pager statt TabView(.page): Der UIKit-Seitenwechsler zeigte nach Sprüngen über mehrere Tabs
+                // oder nach dem Schließen einer Partie manchmal eine leere Seite, und Seiten außerhalb seines
+                // Fensters konnten keine Fenster öffnen (Pillen ohne Wirkung).
+                TabPager(tab: $tab, pages: [.puzzles, .play, .deck, .profile]) { t in
+                    switch t {
+                    case .puzzles: page(.puzzles, PuzzleHubView(session: $puzzleSession))
+                    case .play: page(.play, HomeView(session: $session, puzzleSession: $puzzleSession, tab: $tab))
+                    case .deck: page(.deck, DeckView())
+                    case .profile: page(.profile, ProfileView())
+                    }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
                 .background(Theme.background.ignoresSafeArea())
 
                 RootTabBar(tab: $tab)
@@ -272,11 +300,7 @@ struct RootView: View {
         .modifier(FriendMatchLinks(center: FriendMatchCenter.shared, friendsSheet: $friendsSheet, tab: $tab,
                                    quiet: showSplash || session != nil || puzzleSession != nil))
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in showSettings = true }
-        .onReceive(NotificationCenter.default.publisher(for: .showPuzzles)) { _ in tab = .puzzles }
-        .onReceive(NotificationCenter.default.publisher(for: .showTrophyRoad)) { _ in tab = .arena }
-        .onReceive(NotificationCenter.default.publisher(for: .showDeck)) { _ in tab = .deck }
-        .onReceive(NotificationCenter.default.publisher(for: .showLadder)) { _ in tab = .play }
-        .onReceive(NotificationCenter.default.publisher(for: .startQuickBattle)) { _ in tab = .play }
+        .modifier(RootSheets(sheet: $rootSheet, tab: $tab))
         // Rockys Einladung: nach jeder geschlossenen Partie bzw. sobald alle Truhen offen sind
         .onChange(of: session?.id) { id in
             if id == nil {
@@ -325,6 +349,17 @@ struct RootView: View {
                 await CardArtImage.preload()
                 await PreparedImages.preload()
             }
+            #if DEBUG
+            // Screenshots: straight into the first battle (`-RRTutorialStep n` plays the first n tasks by itself).
+            if UserDefaults.standard.object(forKey: "RRTutorialStep") != nil {
+                let vm = GameViewModel(mode: .tutorial, humanColor: .white, timeControl: .none)
+                session = GameSession(vm: vm)
+                let steps = UserDefaults.standard.integer(forKey: "RRTutorialStep")
+                let select = UserDefaults.standard.bool(forKey: "RRTutorialSelect")
+                Task { @MainActor in await vm.debugAutoplayTutorial(steps: steps, select: select) }
+                return
+            }
+            #endif
             if !store.profile.tutorialSeen {
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 showIntro = true
@@ -368,6 +403,31 @@ struct RootView: View {
             guard account.consumeApplePrompt() else { return }
             withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) { showAppleSecure = true }
         }
+    }
+}
+
+/// Flamme, Splitter-Laden und Trophäenpfad zentral als Sheet (die Knöpfe oben posten nur eine Notification) und
+/// die Tab-Sprünge per Notification – eigener Modifier, damit RootView.body für den Compiler überschaubar bleibt.
+private struct RootSheets: ViewModifier {
+    @Binding var sheet: RootSheet?
+    @Binding var tab: RootTab
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .showPuzzles)) { _ in tab = .puzzles }
+            .onReceive(NotificationCenter.default.publisher(for: .showDeck)) { _ in tab = .deck }
+            .onReceive(NotificationCenter.default.publisher(for: .showLadder)) { _ in tab = .play }
+            .onReceive(NotificationCenter.default.publisher(for: .startQuickBattle)) { _ in tab = .play }
+            .onReceive(NotificationCenter.default.publisher(for: .showTrophyRoad)) { _ in sheet = .road }
+            .onReceive(NotificationCenter.default.publisher(for: .showFlame)) { _ in sheet = .flame }
+            .onReceive(NotificationCenter.default.publisher(for: .showShardShop)) { _ in sheet = .shop }
+            .sheet(item: $sheet) { which in
+                switch which {
+                case .flame: FlameSheet()
+                case .shop: ShardShopSheet()
+                case .road: TrophyRoadSheet()
+                }
+            }
     }
 }
 
@@ -415,16 +475,14 @@ struct RootTabBar: View {
     /// Zahl oder Punkt am Tab: wartende Truhen, Tagespuzzle, neue Karten, abholbare Pfad-Belohnungen.
     private func badge(_ t: RootTab) -> (count: Int, dot: Bool) {
         switch t {
-        case .play: return (store.pendingChests.count + (store.dailyChestReady ? 1 : 0), false)
+        case .play: return (store.pendingChests.count + (store.dailyChestReady ? 1 : 0) + store.claimableRoadSteps.count, false)
         case .puzzles: return (0, store.dailyBonusAvailable)
         case .deck: return (store.newCardCount, store.profile.tutorialSeen && !store.deckIsFull)
-        case .arena: return (store.claimableRoadSteps.count, false)
         case .profile: return (store.claimableAchievements.count + friends.incoming.count, false)
         }
     }
 
     private let items: [(RootTab, String, String)] = [
-        (.arena, L("Pfad"), "trophy.fill"),
         (.puzzles, L("Puzzles"), "puzzlepiece.fill"),
         (.play, L("Spielen"), "bolt.fill"),
         (.deck, L("Deck"), "rectangle.stack.fill"),
@@ -439,8 +497,8 @@ struct RootTabBar: View {
         .padding(.top, 8)
         .padding(.bottom, 4)
         .background(
-            Theme.backgroundDeep
-                .overlay(Rectangle().fill(Theme.panelHighlight).frame(height: 1), alignment: .top)
+            DS.tabBar
+                .overlay(Rectangle().fill(DS.divider).frame(height: 1), alignment: .top)
                 .ignoresSafeArea(edges: .bottom)
         )
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: tab)
@@ -459,23 +517,25 @@ struct RootTabBar: View {
                 ZStack {
                     // Jede Kapsel leuchtet für sich (kein wanderndes Element, das hängen bleiben kann)
                     Capsule()
-                        .fill(Theme.blue)
-                        .frame(width: 52, height: 30)
-                        .shadow(color: Theme.blue.opacity(0.6), radius: 8)
+                        .fill(DS.tabPill)
+                        .frame(width: 58, height: 32)
+                        .shadow(color: DS.tabPill.opacity(0.6), radius: 8)
                         .opacity(active ? 1 : 0)
                         .scaleEffect(active ? 1 : 0.6)
                     Image(systemName: item.2)
-                        .font(.system(size: active ? 18 : 17, weight: .bold))
-                        .foregroundColor(active ? .white : Theme.textMuted)
+                        .font(.system(size: active ? 19 : 18, weight: .bold))
+                        .foregroundColor(active ? .white : DS.tabInactive)
                         .scaleEffect(active ? 1.08 : 1)
                 }
-                .frame(height: 30)
+                .frame(height: 32)
                 .overlay(alignment: .topTrailing) { badgeView(badge(item.0)) }
                 Text(item.1)
-                    .font(.system(size: 10, weight: active ? .heavy : .semibold))
-                    .foregroundColor(active ? Theme.textPrimary : Theme.textMuted)
+                    .font(.system(size: 13, weight: active ? .heavy : .semibold))
+                    .foregroundColor(active ? .white : DS.tabInactive)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Capsule()
-                    .fill(Theme.blueLight)
+                    .fill(DS.tabUnderline)
                     .frame(width: active ? 20 : 0, height: 3)
                     .opacity(active ? 1 : 0)
             }
@@ -541,26 +601,17 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                // Oben schimmert die Farbe deiner Arena
-                LinearGradient(colors: [ArenaPalette.colors(store.arena.number)[1].opacity(0.6), .clear],
-                               startPoint: .top, endPoint: .center)
-                    .ignoresSafeArea()
-                // Alles auf einen Bildschirm (v0.9.24). Seit v0.9.25 ohne ViewThatFits: Das hielt drei Fassungen samt
-                // Animationen gleichzeitig im Speicher. Jetzt entscheidet die verfügbare Höhe über groß oder kompakt;
-                // der ScrollView springt nur an, wenn selbst die kompakte Fassung nicht passt (z. B. iPhone SE).
-                GeometryReader { geo in
-                    let compact = geo.size.height < (store.hasSavedGame ? 780 : 705)
-                    // Große iPhones (v0.9.28): Avatar und Deck größer; übriger Platz geht in die Kampf-Bühne statt in eine Lücke.
-                    let large = geo.size.height >= (store.hasSavedGame ? 860 : 785)
+            GeometryReader { geo in
+                ZStack(alignment: .top) {
+                    DS.bg.ignoresSafeArea()
+                    PlayArenaArt(arena: store.arena.number)
                     ScrollView(showsIndicators: false) {
-                        page(compact: compact, large: large)
-                            .frame(minHeight: geo.size.height, alignment: .top)
+                        playContent(height: geo.size.height)
                     }
                     .modifier(BounceOnlyIfNeeded())
                 }
             }
+            .primaryAction { fightButton }
             .navigationBarHidden(true)
             .onReceive(NotificationCenter.default.publisher(for: .showLadder)) { _ in
                 afterSheet { showLadder = true }
@@ -657,54 +708,245 @@ struct HomeView: View {
         }
     }
 
-    private func page(compact: Bool, large: Bool = false) -> some View {
-        VStack(spacing: compact ? 10 : 14) {
-            header
-            if canContinue {
-                ContinueBanner(compact: compact) { resume() }
+    // MARK: Play screen (redesign V2)
+
+    /// Header, arena with the trophy-road bar, deck strip, list rows and the slim bot-ladder row.
+    /// The gap above the arena block grows on tall phones so the art shows; on an iPhone SE it shrinks and the page scrolls.
+    private func playContent(height: CGFloat) -> some View {
+        let gap = min(130, max(20, height - 560))
+        return VStack(alignment: .leading, spacing: 0) {
+            playHeader
+            Color.clear.frame(height: gap)
+            arenaBlock
+                .padding(.bottom, 18)
+            deckStrip
+                .padding(.bottom, 16)
+            ListGroup {
+                if canContinue {
+                    Button { resume() } label: {
+                        ListRow(title: L("Partie fortsetzen"), subtitle: L("Dein Gegner wartet auf deinen Zug")) {
+                            IconTile(symbol: "play.fill", tint: DS.gold)
+                        }
+                    }
+                    .buttonStyle(RowButtonStyle())
+                }
+                if OnlineAccount.shared.status != .unavailable {
+                    Button {
+                        NotificationCenter.default.post(name: .showFriends, object: nil)
+                    } label: {
+                        ListRow(title: L("Gegen Freunde spielen"), subtitle: friendsSubtitle) {
+                            IconTile(symbol: "person.2.fill", tint: DS.gem)
+                        }
+                    }
+                    .buttonStyle(RowButtonStyle())
+                }
+                Button { showDaily = true } label: {
+                    ListRow(title: L("Truhen & Tagesziele"), subtitle: chestsSubtitle,
+                            trailing: chestsWaiting > 0 ? .value("\(chestsWaiting)") : .chevron, showsDivider: false) {
+                        IconTile(symbol: "shippingbox.fill", tint: DS.gold)
+                    }
+                }
+                .buttonStyle(RowButtonStyle())
             }
-            BattleHeroCard(compact: compact, large: large,
-                           onBattle: quickBattle,
-                           onChests: { showDaily = true },
-                           onDeck: { tab = .deck },
-                           onArena: { tab = .arena })
-            LadderTile(compact: compact) { showLadder = true }
+            .padding(.bottom, 10)
+            ladderRow
         }
-        .padding(.horizontal, 16)
-        .padding(.top, compact ? 4 : 8)
-        .padding(.bottom, compact ? 10 : 16)
+        .padding(.bottom, 12)
+        .frame(minHeight: height, alignment: .top)
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            LevelBadge(level: store.level, progress: store.levelProgress.fraction)
+    private var playHeader: some View {
+        HStack(spacing: 10) {
+            Button { tab = .profile } label: {
+                AvatarPortrait(avatar: store.activeAvatar, pieceColor: .white)
+                    .frame(width: 52, height: 52)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L("Profil"))
             VStack(alignment: .leading, spacing: 1) {
-                Text(L("Level {0}", store.level))
+                Text(store.profile.name)
+                    .font(DS.heading(20))
+                    .foregroundColor(DS.text)
                     .lineLimit(1)
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                Text(L("noch {0} XP", store.levelProgress.remaining))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Theme.textMuted)
+                    .minimumScaleFactor(0.6)
+                Text(L("{0} · Level {1}", store.activeTitle ?? ProfileStore.rank(for: store.level), store.level))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(DS.textMuted)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
             }
+            .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
             .layoutPriority(-1)
-            Spacer(minLength: 8)
-            FlameBadge()
-            ShardPill()
-            HStack(spacing: 4) {
-                Image(systemName: "trophy.fill").foregroundColor(Theme.gold)
-                Text("\(store.profile.trophies)")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundColor(.white)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(Theme.panelRaised))
-            .onTapGesture { tab = .arena }
+            Spacer(minLength: 4)
+            ResourcePills(onArt: true)
         }
+        .padding(.horizontal, DS.side)
+        .padding(.top, 8)
+    }
+
+    /// Arena name and the bar to the next trophy-road reward. Tap → trophy road sheet (all rewards stay reachable).
+    private var arenaBlock: some View {
+        let arena = store.arena
+        let ready = store.claimableRoadSteps.count
+        let next = store.nextRoadStep
+        let prev = next.flatMap { n in ProfileStore.road.last { $0.trophies < n.trophies }?.trophies } ?? 0
+        let progress: Double = {
+            guard let next else { return 1 }
+            return Double(store.roadTrophies - prev) / Double(max(1, next.trophies - prev))
+        }()
+        let label: String = {
+            if ready > 0 { return ready == 1 ? L("Belohnung abholen") : L("{0} Belohnungen abholen", ready) }
+            return next?.reward.title ?? L("Pfad geschafft")
+        }()
+        let rarity: ChestRarity = {
+            switch next?.reward {
+            case .chest(let r)?, .arena(_, let r)?: return r
+            default: return .magic
+            }
+        }()
+        return Button {
+            Haptics.shared.play(.select)
+            NotificationCenter.default.post(name: .showTrophyRoad, object: nil)
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(L("ARENA {0}", arena.number))
+                        .font(.system(size: 12, weight: .heavy))
+                        .tracking(1.4)
+                        .foregroundColor(DS.text.opacity(0.85))
+                    Text(arena.name)
+                        .font(DS.heading(26, .black))
+                        .foregroundColor(DS.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+                .shadow(color: .black.opacity(0.7), radius: 4, y: 1)
+                HStack(spacing: 12) {
+                    ChestView(rarity: rarity, size: 30, glow: ready > 0 ? 0.6 : 0)
+                        .frame(width: 34, height: 34)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(label)
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundColor(ready > 0 ? DS.gold : DS.text)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            Spacer(minLength: 6)
+                            if let next, ready == 0 {
+                                Text("\(store.roadTrophies) / \(next.trophies)")
+                                    .font(.system(size: 14, weight: .heavy, design: .rounded).monospacedDigit())
+                                    .foregroundColor(DS.text)
+                                    .fixedSize()
+                            }
+                        }
+                        DSProgressBar(fraction: ready > 0 ? 1 : progress, tint: DS.gold)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 11 / 255, green: 18 / 255, blue: 32 / 255).opacity(0.7)))
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, DS.side)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("Arena {0}, {1}. {2}. Trophäenpfad öffnen", arena.number, arena.name, label))
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// Battle deck: four cards and the ultimate (gold edge). "Edit" and every card open the Deck tab.
+    private var deckStrip: some View {
+        let cards = store.activeDeck
+        let avg = cards.isEmpty ? 0 : Double(cards.map(\.cost).reduce(0, +)) / Double(cards.count)
+        return VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(L("Dein Deck · Ø {0} Mana", String(format: "%.1f", avg)), actionTitle: L("Bearbeiten")) { tab = .deck }
+            Button { tab = .deck } label: {
+                HStack(spacing: 8) {
+                    ForEach(0..<PlayerDeck.size, id: \.self) { i in
+                        if i < cards.count {
+                            DeckThumb(art: "art-card-\(cards[i].rawValue)")
+                        } else {
+                            DeckThumb(art: nil)
+                        }
+                    }
+                    DeckThumb(art: "art-ult-\(store.activeUltimate.rawValue)", gold: true)
+                }
+            }
+            .buttonStyle(PressScaleStyle())
+            .padding(.horizontal, DS.side)
+            .accessibilityLabel(L("Dein Deck: {0}, ", store.activeUltimate.name) + cards.map(\.name).joined(separator: ", ") + L(". Tippen zum Ändern"))
+        }
+    }
+
+    /// Slim bot-ladder row (36 pt).
+    private var ladderRow: some View {
+        let next = store.ladderNext
+        let beaten = store.profile.ladderBeaten
+        let total = BotLevel.allCases.count
+        return Button { showLadder = true } label: {
+            HStack(spacing: 10) {
+                if let next {
+                    BotAvatar(level: next, size: 24)
+                } else {
+                    Image(systemName: "crown.fill").foregroundColor(DS.gold).frame(width: 24, height: 24)
+                }
+                (Text(L("Bot-Leiter")).font(.system(size: 15, weight: .heavy, design: .rounded)).foregroundColor(DS.text)
+                 + Text(next.map { L(" · nächster: {0} · {1}/{2}", $0.displayName, beaten, total) } ?? L(" · alle besiegt"))
+                    .font(.system(size: 13, weight: .semibold)).foregroundColor(DS.textMuted))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(DS.chevron)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 36)
+            .background(RoundedRectangle(cornerRadius: 12).fill(DS.group))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(DS.divider, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, DS.side)
+    }
+
+    /// The one gold button: Fight (5 | 0, ranked). Without a full deck it leads to the Deck tab; offline it is disabled.
+    @ViewBuilder
+    private var fightButton: some View {
+        VStack(spacing: 6) {
+            if store.deckIsFull, !NetworkMonitor.shared.isOnline {
+                Label(L("Keine Internetverbindung. Kampf ist gerade nicht möglich."), systemImage: "wifi.slash")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(DS.gold)
+                    .multilineTextAlignment(.center)
+            } else if store.deckIsFull, OnlineConfig.isLive, let notice = OnlineRules.shared.lock.title {
+                Label(notice, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(DS.gold)
+            }
+            if store.deckIsFull {
+                PrimaryButton(title: L("Kampf"), subtitle: L("5 Min · gewertet"), icon: "bolt.fill",
+                              enabled: NetworkMonitor.shared.isOnline) { quickBattle() }
+            } else {
+                PrimaryButton(title: store.activeDeck.isEmpty ? L("Deck bauen") : L("Deck fertig bauen"),
+                              subtitle: L("{0}/{1} Karten", store.activeDeck.count, PlayerDeck.size),
+                              icon: "rectangle.stack.badge.plus") { tab = .deck }
+            }
+        }
+    }
+
+    private var chestsWaiting: Int { store.pendingChests.count + (store.dailyChestReady ? 1 : 0) }
+
+    private var chestsSubtitle: String {
+        if chestsWaiting > 0 { return chestsWaiting == 1 ? L("1 Truhe wartet") : L("{0} Truhen warten", chestsWaiting) }
+        let goals = store.dailyGoals
+        return L("Tagesziele {0}/{1}", goals.filter(\.done).count, goals.count)
+    }
+
+    private var friendsSubtitle: String {
+        let n = FriendsStore.shared.friends.count
+        return n == 0 ? L("Freunde einladen und herausfordern") : (n == 1 ? L("Herausfordern oder Revanche · 1 Freund") : L("Herausfordern oder Revanche · {0} Freunde", n))
     }
 
     /// Ein Tipp auf „Kampf!“ startet sofort: Gegner passend zu den Trophäen (alle 200 eine Stufe).
@@ -789,7 +1031,7 @@ struct HomeView: View {
                                  ultimate: found.botUltimate, rated: found.rated)
         session = GameSession(vm: GameViewModel(mode: .bot(level),
                                                 humanColor: found.youAreWhite ? .white : .black,
-                                                timeControl: OnlineConfig.timeControl,
+                                                timeControl: found.timeControl,
                                                 onlineBotPlay: play))
     }
 
@@ -813,7 +1055,7 @@ struct HomeView: View {
                                youAreWhite: mine == .white, matchId: id,
                                botDeck: info.record.decks[mine.opponent.rawValue]?.compactMap(CardType.init(rawValue:)),
                                botUltimate: info.record.ultimates[mine.opponent.rawValue].flatMap(Ultimate.init(rawValue:)),
-                               rated: info.rated)
+                               rated: info.rated, timeControl: info.timeControl)
         startFoundMatch(found)
     }
 
@@ -934,412 +1176,58 @@ struct BounceOnlyIfNeeded: ViewModifier {
     }
 }
 
-/// Level-Zahl im Kreis mit XP-Ring. Die Zahl selbst ist das Zeichen, ohne Logo.
-struct LevelBadge: View {
-    let level: Int
-    let progress: Double
+/// Painted art of the current arena behind the top of the Play screen, fading into the background
+/// (transparent fade from ~35 %, solid at the bottom).
+struct PlayArenaArt: View {
+    let arena: Int
+
+    var body: some View {
+        Image(ArenaArt.imageName(arena))
+            .resizable()
+            .scaledToFill()
+            .frame(height: 530)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .overlay(
+                LinearGradient(stops: [.init(color: DS.bg.opacity(0.15), location: 0),
+                                       .init(color: DS.bg.opacity(0), location: 0.12),
+                                       .init(color: DS.bg.opacity(0.35), location: 0.35),
+                                       .init(color: DS.bg.opacity(0.85), location: 0.75),
+                                       .init(color: DS.bg, location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+            )
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// One card of the deck strip (art only, 4:5). `nil` = free slot; `gold` = the ultimate.
+struct DeckThumb: View {
+    let art: String?
+    var gold = false
 
     var body: some View {
         ZStack {
-            Circle().fill(Theme.panelRaised)
-            Circle().stroke(Theme.panelHighlight, lineWidth: 3.5)
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(Theme.manaLight, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            Text("\(level)")
-                .font(.system(size: 18, weight: .black, design: .rounded))
-                .foregroundColor(.white)
-                .minimumScaleFactor(0.6)
-        }
-        .frame(width: 40, height: 40)
-        .accessibilityLabel(L("Level {0}", level))
-    }
-}
-
-/// Laufende Partie – golden umrandet, mit pulsierendem Play-Symbol.
-struct ContinueBanner: View {
-    var compact = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: "play.fill")
+            if let art {
+                CardArtImage(name: art, thumb: true)
+                    .aspectRatio(0.8, contentMode: .fill)
+            } else {
+                RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.3))
+                Image(systemName: "plus")
                     .font(.system(size: 16, weight: .black))
-                    .foregroundColor(Theme.navy)
-                    .frame(width: compact ? 30 : 38, height: compact ? 30 : 38)
-                    .background(Circle().fill(Theme.gold))
-                    .modifier(PulseGlow(color: Theme.gold, active: true))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(L("Partie fortsetzen"))
-                        .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    Text(L("Dein Gegner wartet auf deinen Zug"))
-                        .font(.system(size: 12))
-                        .foregroundColor(Theme.textSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").foregroundColor(Theme.textMuted)
+                    .foregroundColor(DS.textMuted)
             }
-            .padding(compact ? 8 : 12)
         }
-        .buttonStyle(PanelButtonStyle())
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.gold.opacity(0.8), lineWidth: 1.5))
-    }
-}
-
-/// Das Herzstück der Startseite: eine Bühne in der Landschaft deiner Arena. Oben der Weg zur nächsten Belohnung,
-/// darunter du und dein Deck untereinander, dann der große Kampf-Knopf. Die Truhen sitzen klein in der Ecke.
-/// Seit v0.9.24 ohne festen Gegner („vs Bot …“): Gegner werden nach Trophäen gesucht – bereit für Online-Kämpfe.
-struct BattleHeroCard: View {
-    @Environment(\.liveAnimations) private var live
-    @ObservedObject var store = ProfileStore.shared
-    @ObservedObject private var rules = OnlineRules.shared
-    @ObservedObject private var network = NetworkMonitor.shared
-    var compact = false
-    /// Viel Platz: größerer Avatar und größere Karten, die Bühne wächst mit
-    var large = false
-    let onBattle: () -> Void
-    let onChests: () -> Void
-    let onDeck: () -> Void
-    let onArena: () -> Void
-
-    var body: some View {
-        let arena = store.arena
-        let colors = ArenaPalette.colors(arena.number)
-        VStack(spacing: compact ? 12 : 16) {
-            arenaRow
-            stage(colors: colors)
-                .frame(maxHeight: .infinity)
-            battleButton
-            matchRow
-        }
-        .padding(compact ? 12 : 16)
-        .frame(maxHeight: .infinity)
-        .background(
-            ZStack {
-                LinearGradient(colors: [Theme.blueDark, Theme.panelRaised, Color(hex: 0x3A1C2A)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                BiomeBackdrop(arena: arena.number, colors: colors, reached: true, animated: true, scrim: 0.42)
-            }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(0.8, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(gold ? DS.gold : (art == nil ? DS.textMuted.opacity(0.6) : Color.white.opacity(0.12)),
+                              style: StrokeStyle(lineWidth: gold ? 2 : 1, dash: art == nil ? [4, 3] : []))
         )
-        .clipShape(RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(colors[0].opacity(0.55), lineWidth: 1.5))
-    }
-
-    // MARK: Bühne
-
-    /// Du auf dem Podest, darunter das Deck – der leere Platz in der Bühne wird dafür genutzt.
-    private func stage(colors: [Color]) -> some View {
-        let avatarSize: CGFloat = compact ? 92 : (large ? 128 : 112)
-        return ZStack(alignment: .topTrailing) {
-            VStack(spacing: compact ? 14 : 18) {
-                Spacer(minLength: 0)
-                VStack(spacing: 6) {
-                    ZStack(alignment: .bottom) {
-                        Ellipse()
-                            .fill(RadialGradient(colors: [colors[0].opacity(0.75), colors[0].opacity(0)], center: .center,
-                                                 startRadius: 2, endRadius: avatarSize * 0.7))
-                            .frame(width: avatarSize * 1.5, height: avatarSize * 0.36)
-                            .offset(y: avatarSize * 0.1)
-                        PlayerAvatar(size: avatarSize)
-                            .modifier(RoadBob(active: true, amplitude: 3, speed: 2.2))
-                            .padding(.bottom, avatarSize * 0.06)
-                    }
-                    Text(store.profile.name)
-                        .font(.system(size: compact ? 18 : 22, weight: .heavy, design: .rounded))
-                        .foregroundColor(Theme.textPrimary)
-                        .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    Text((store.activeTitle ?? ProfileStore.rank(for: store.level)).uppercased())
-                        .font(.system(size: compact ? 11 : 13, weight: .black, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundColor(Theme.blueLight)
-                        .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                }
-                .accessibilityElement(children: .combine)
-                deckFan
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            chestButton
-        }
-    }
-
-    /// Kleines Truhen-Symbol in der Bühne, nicht in der Kopfzeile.
-    private var chestButton: some View {
-        let waiting = store.pendingChests.count + (store.dailyChestReady ? 1 : 0)
-        return Button {
-            Haptics.shared.play(.select)
-            onChests()
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(waiting > 0 ? Theme.gold : Theme.textSecondary)
-                    .frame(width: 40, height: 36)
-                    .background(Capsule().fill(Color.black.opacity(0.35)))
-                    .overlay(Capsule().strokeBorder(Theme.gold.opacity(waiting > 0 ? 0.7 : 0.25), lineWidth: 1))
-                if waiting > 0 {
-                    Text("\(min(waiting, 9))")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
-                        .frame(width: 16, height: 16)
-                        .background(Circle().fill(Theme.red))
-                        .offset(x: 4, y: -4)
-                }
-            }
-            .modifier(Jiggle(active: waiting > 0, amplitude: 3, period: 1.4))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(L("Truhen"))
-    }
-
-    // MARK: Deck
-
-    /// Dein Deck als aufgefächerte Hand mit den gemalten Kartenbildern (Tipp → Deck-Tab).
-    private var deckFan: some View {
-        // Freie Deckplätze erscheinen als gestrichelte Platzhalter (leerer Name) – v0.9.31
-        let cards = store.activeDeck
-        let deck: [(String, Color)] = [("art-ult-\(store.activeUltimate.rawValue)", CardStyle.ultimate)]
-            + cards.map { ("art-card-\($0.rawValue)", Color(hex: $0.tier.colorHex)) }
-            + Array(repeating: ("", Theme.gold), count: max(0, PlayerDeck.size - cards.count))
-        let mid = Double(deck.count - 1) / 2
-        let avgMana = store.activeDeck.isEmpty ? 0 : Double(store.activeDeck.map(\.cost).reduce(0, +)) / Double(store.activeDeck.count)
-        return Button(action: onDeck) {
-            VStack(spacing: compact ? 4 : 6) {
-                HStack(spacing: 5) {
-                    Text(L("DEIN DECK"))
-                        .font(.system(size: compact ? 11 : 13, weight: .black, design: .rounded))
-                        .tracking(1.4)
-                        .foregroundColor(Theme.gold)
-                    Image(systemName: "pencil.circle.fill")
-                        .font(.system(size: compact ? 14 : 16, weight: .bold))
-                        .foregroundColor(Theme.blueLight)
-                }
-                HStack(spacing: compact ? -16 : -14) {
-                    ForEach(Array(deck.enumerated()), id: \.offset) { i, item in
-                        let k = Double(i) - mid
-                        let w: CGFloat = compact ? 48 : (large ? 68 : 60)
-                        Group {
-                            if item.0.isEmpty {
-                                RoundedRectangle(cornerRadius: w * 0.2)
-                                    .fill(Color.black.opacity(0.35))
-                                    .overlay(RoundedRectangle(cornerRadius: w * 0.2)
-                                        .strokeBorder(Theme.gold.opacity(0.75), style: StrokeStyle(lineWidth: 1.2, dash: [4, 3])))
-                                    .overlay(Image(systemName: "plus").font(.system(size: w * 0.32, weight: .black)).foregroundColor(Theme.gold))
-                                    .frame(width: w, height: w / 0.8)
-                            } else {
-                                CardArtThumb(art: item.0, width: w, border: item.1)
-                            }
-                        }
-                            .shadow(color: .black.opacity(0.45), radius: 3, y: 2)
-                            .rotationEffect(.degrees(k * 8), anchor: .bottom)
-                            .offset(y: CGFloat(k * k) * 2.5)
-                            .zIndex(-abs(k))
-                    }
-                }
-                .padding(.bottom, 6)
-                HStack(spacing: 4) {
-                    SettingChip(icon: "sparkles", text: store.activeUltimate.name, gold: true)
-                    if cards.count < PlayerDeck.size {
-                        SettingChip(icon: "plus.circle.fill", text: cards.isEmpty ? L("Deck bauen") : L("{0}/{1} Karten", cards.count, PlayerDeck.size), gold: true)
-                            .modifier(Jiggle(active: cards.isEmpty, amplitude: 4, period: 1.4))
-                    } else {
-                        SettingChip(icon: "drop.fill", text: String(format: "Ø %.1f", avgMana))
-                    }
-                }
-            }
-        }
-        .buttonStyle(PressScaleStyle())
-        .accessibilityLabel(L("Dein Deck: {0}, ", store.activeUltimate.name) + store.activeDeck.map(\.name).joined(separator: ", ") + L(". Tippen zum Ändern"))
-    }
-
-    // MARK: Gegnersuche
-
-    /// Unter dem Kampf-Knopf: feste Zeit 5 | 0 und wie der Gegner gesucht wird.
-    private var matchRow: some View {
-        HStack(spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 11, weight: .black))
-                Text(L("Gegner mit ähnlich vielen Trophäen"))
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .foregroundColor(Theme.textSecondary)
-            .layoutPriority(-1)
-            Spacer(minLength: 4)
-            if OnlineConfig.isLive, let notice = rules.lock.title {
-                SettingChip(icon: "exclamationmark.triangle.fill", text: notice, gold: true)
-            } else {
-                SettingChip(icon: "timer", text: TimeControl.blitz5.name, gold: true)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    // MARK: Kampf-Knopf
-
-    @ViewBuilder
-    private var battleButton: some View {
-        VStack(spacing: 8) {
-            if store.deckIsFull {
-                fightButton
-            } else {
-                buildDeckButton
-            }
-            if store.deckIsFull, !network.isOnline {
-                Label(L("Keine Internetverbindung. Kampf ist gerade nicht möglich."), systemImage: "wifi.slash")
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.gold)
-                    .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    /// Deck unvollständig: statt „KAMPF!“ ein blauer Knopf zum Deck – mit Platzanzeige (v0.9.31).
-    private var buildDeckButton: some View {
-        let n = store.activeDeck.count
-        return Button(action: onDeck) {
-            HStack(spacing: 8) {
-                Image(systemName: "rectangle.stack.badge.plus")
-                    .modifier(Jiggle(active: true, amplitude: 6, period: 1.2))
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(n == 0 ? L("DECK BAUEN") : L("DECK FERTIG BAUEN"))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Text(L("Für Kämpfe brauchst du 4 Karten"))
-                        .font(.system(size: 11, weight: .bold))
-                        .opacity(0.85)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                HStack(spacing: 3) {
-                    ForEach(0..<PlayerDeck.size, id: \.self) { i in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(i < n ? Color.white : Color.white.opacity(0.25))
-                            .frame(width: 8, height: 12)
-                    }
-                }
-                .padding(.horizontal, 6)
-                .frame(height: 22)
-                .background(Capsule().fill(Color.black.opacity(0.2)))
-            }
-        }
-        .buttonStyle(ChunkyButtonStyle(color: Theme.blue, shadow: Theme.blueDark, height: compact ? 54 : (large ? 66 : 62), textColor: .white))
-        .modifier(PulseGlow(color: Theme.blueLight, active: true, strength: 0.8))
-        .accessibilityLabel(L("Deck fertig bauen: {0} von {1} Karten", n, PlayerDeck.size))
-    }
-
-    private var fightButton: some View {
-        let offline = !network.isOnline
-        return Button(action: onBattle) {
-            HStack(spacing: 8) {
-                Image(systemName: offline ? "wifi.slash" : "bolt.fill")
-                    .modifier(Jiggle(active: !offline, amplitude: 8, period: 0.9))
-                Text(L("KAMPF!"))
-                Image(systemName: "trophy.fill")
-                    .font(.system(size: 14, weight: .black))
-            }
-        }
-        .buttonStyle(ChunkyButtonStyle(color: offline ? Theme.panelHighlight : Theme.gold,
-                                       shadow: offline ? Theme.panel : CardStyle.ultimateDeep,
-                                       height: compact ? 54 : (large ? 66 : 62),
-                                       textColor: offline ? Theme.textMuted : Theme.navy))
-        .overlay(ShineSweep().clipShape(RoundedRectangle(cornerRadius: 12)).allowsHitTesting(false).opacity(offline ? 0 : 1))
-        .modifier(PulseGlow(color: Theme.gold, active: !offline, strength: 0.9))
-        .disabled(offline)
-        .accessibilityLabel(offline ? L("Keine Internetverbindung. Kampf ist gerade nicht möglich.") : L("KAMPF!"))
-        .overlay(alignment: .topTrailing) {
-            // Was der nächste Sieg bringt
-            if store.winChestsLeftToday > 0 {
-                HStack(spacing: 3) {
-                    ChestView(rarity: .wood, size: 18)
-                    Text("+1").font(.system(size: 11, weight: .black, design: .rounded))
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 6)
-                .frame(height: 22)
-                .background(Capsule().fill(Theme.red))
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.7), lineWidth: 1))
-                .modifier(RoadBob(active: true, amplitude: 2, speed: 4))
-                .offset(x: 6, y: -10)
-                .allowsHitTesting(false)
-            }
-        }
-    }
-
-    // MARK: Arena-Leiste
-
-    /// Fortschritt zur nächsten Belohnung auf dem Trophäenpfad – oder „Abholen“, wenn schon etwas wartet.
-    private var arenaRow: some View {
-        let arena = store.arena
-        let colors = ArenaPalette.colors(arena.number)
-        let ready = store.claimableRoadSteps.count
-        let next = store.nextRoadStep
-        let prev = next.flatMap { n in ProfileStore.road.last { $0.trophies < n.trophies }?.trophies } ?? 0
-        let progress: Double = {
-            guard let next else { return 1 }
-            return min(1, max(0, Double(store.roadTrophies - prev) / Double(max(1, next.trophies - prev))))
-        }()
-        return Button(action: onArena) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle().fill(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom))
-                    Circle().strokeBorder(Color.white.opacity(0.85), lineWidth: 2)
-                    Image(systemName: arena.icon)
-                        .font(.system(size: 15, weight: .black))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 36, height: 36)
-                .shadow(color: colors[0].opacity(0.7), radius: 6)
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Text(L("ARENA {0} · {1}", arena.number, arena.name.uppercased()))
-                            .font(.system(size: 11, weight: .black, design: .rounded))
-                            .tracking(1)
-                            .foregroundColor(Theme.gold)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Spacer()
-                        if ready > 0 {
-                            Text(ready == 1 ? L("BELOHNUNG ABHOLEN") : L("{0} BELOHNUNGEN", ready))
-                                .font(.system(size: 10, weight: .black, design: .rounded))
-                                .foregroundColor(Theme.navy)
-                                .padding(.horizontal, 8)
-                                .frame(height: 20)
-                                .background(Capsule().fill(Theme.gold))
-                                .modifier(PulseGlow(color: Theme.gold, active: true))
-                        } else if let next {
-                            Text(L("{0} bei {1}", next.reward.title, next.trophies))
-                                .font(.system(size: 11, weight: .bold).monospacedDigit())
-                                .foregroundColor(Theme.textSecondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                    }
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.black.opacity(0.35))
-                            Capsule()
-                                .fill(LinearGradient(colors: [Theme.gold, Color(hex: 0xFFA000)], startPoint: .leading, endPoint: .trailing))
-                                .frame(width: max(6, geo.size.width * (ready > 0 ? 1 : progress)))
-                                .overlay(ShineSweep().clipShape(Capsule()))
-                        }
-                    }
-                    .frame(height: 7)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(ready > 0 ? L("Trophäenpfad: {0} Belohnungen abholen", ready) : L("Trophäenpfad öffnen"))
+        .accessibilityHidden(true)
     }
 }
 

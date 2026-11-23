@@ -1,4 +1,4 @@
-// CollectionViews.swift (tab "Deck") with Rocky's deck workshop (DeckTour.swift), presets and the ultimate picker.
+// CollectionViews.swift (tab "Deck", redesign V2) with Rocky's deck workshop (DeckTour.swift), presets and the ultimate picker.
 import { useEffect, useState } from 'react'
 import { rockyFace } from '../art'
 import { ARENAS, CARDS, CARD_IDS, DECK_SIZE, PRESETS, ROLES, TIERS, ULTS, ULT_IDS, cardCost, ultCost, type CardId, type Role } from '../game/catalog'
@@ -8,8 +8,8 @@ import { useI18n } from '../i18n'
 import { closeSheet, openOverlay, openSheet, run } from '../nav'
 import { Icon } from '../ui/Icon'
 import { CardThumb, CardView, Confetti, Dialog, ManaDrop, Sheet, ShardIcon, UltimateCard, tierColor, useToast } from '../ui/kit'
+import { DeckThumb, ListGroup, ListRow, ScreenHeader, SectionLabel, Segmented } from '../ui/ds'
 import { CardDetail } from './Rules'
-import { ShardPill } from './Home'
 import { LAB_ITEMS } from './Lab'
 import { DeckCheck, RockyTourPanel, TOUR_REWARD, useDeckTour } from './DeckTour'
 
@@ -80,98 +80,80 @@ export function DeckScreen() {
   const cards = CARD_IDS.filter(c => !filter || CARDS[c].role === filter)
     .sort((a, b) => (S.isCardUnlocked(b) ? 1 : 0) - (S.isCardUnlocked(a) ? 1 : 0) || cardCost(a) - cardCost(b))
 
+  const slotTour = step === 'hello' || step === 'check' || step === 'recheck'
+  const filters: Array<[Role | null, string]> = [[null, t('Alle')], ...(Object.keys(ROLES) as Role[]).filter(r => CARD_IDS.some(c => CARDS[c].role === r)).map(r => [r, t(ROLES[r].name)] as [Role, string])]
   return (
-    <div className="page">
-      <div className="page-glow" style={{ background: 'linear-gradient(#1C3F8680, transparent)' }} />
-      <div className={`page-inner deck-page${tour.active ? ' touring' : ''}`}>
-        <div className="hdr">
-          <span style={{ transform: 'rotate(-10deg)', display: 'inline-flex' }}><Icon name="stack" size={24} color="var(--blue-light)" /></span>
-          <h1 className="title-xl">{t('Deck')}</h1>
+    <div className="page ds-page">
+      <div className={`ds-inner deck-page${tour.active ? ' touring' : ''}`}>
+        <ScreenHeader title={t('Deck')}>
           <button className="rocky-btn press" onClick={() => tour.start(false)} aria-label={t('Rocky erklärt dir das Deck')}><img src={rockyFace} alt="" /></button>
-          <span className="spacer" />
-          <ShardPill />
-        </div>
-        <div className="deck-layout">
-          <div className="deck-sticky">
-            <div className="deck-box">
-              <div className="row" style={{ gap: 8 }}>
-                <span className="kicker" style={{ color: 'var(--gold)' }}>{t('DEIN KAMPFDECK')}</span>
-                <span className="spacer" />
-                <span className="capsule chip num">{t('Ø {0} Mana', check.avg.toFixed(1))}</span>
-                <span className="capsule chip">{deck.length}/{DECK_SIZE}</span>
-              </div>
-              <div className="deck-slots">
-                <div style={{ width: '17%', flex: 'none' }} className={step === 'ultimate' || step === 'ultimates' ? 'tour-spot' : ''} onClick={() => openSheet('ultimates')}>
-                  <UltimateCard ult={ult} mana={99} />
+        </ScreenHeader>
+        <div className="dk-sticky">
+          <div className="row">
+            <span className="ds-section-t grow">{t('KAMPFDECK')}</span>
+            <span className="ds-section-tr num">{t('Ø {0} Mana', check.avg.toFixed(1))}</span>
+          </div>
+          <div className="dk-slots">
+            {Array.from({ length: DECK_SIZE }, (_, i) => {
+              const c = deck[i]
+              return (
+                <div key={i} className={`dk-slot${incoming ? ' swap' : ''}${c && nudged === c ? ' jiggle' : ''}${slotTour ? ' tour-spot' : ''}${c && c === tour.suggestedOut ? ' tour-out' : ''}`}
+                  onClick={() => tapSlot(i)} role="button" aria-label={c ? t('Deckplatz {0}: {1}', i + 1, t(CARDS[c].name)) : t('Deckplatz {0}: frei', i + 1)}>
+                  <DeckThumb art={c ? `art-card-${c}` : undefined} />
+                  {c && incoming && <span className="swap-badge"><Icon name="swap" size={12} /></span>}
+                  <span>{c ? t(CARDS[c].name) : '\u00a0'}</span>
                 </div>
-                <i className="vsep tall" />
-                {Array.from({ length: DECK_SIZE }, (_, i) => {
-                  const c = deck[i]
-                  return (
-                    <div key={i} className={`deck-slot${incoming ? ' swap' : ''}${c && nudged === c ? ' jiggle' : ''}${step === 'hello' || step === 'check' || step === 'recheck' ? ' tour-spot' : ''}${c && c === tour.suggestedOut ? ' tour-out' : ''}`} onClick={() => tapSlot(i)}>
-                      {c ? <CardView card={c} /> : <div className="empty-slot plus"><Icon name="plus" size={18} /><span>{t('Platz {0}', i + 1)}</span></div>}
-                      {c && incoming && <span className="swap-badge"><Icon name="swap" size={12} /></span>}
-                    </div>
-                  )
-                })}
-              </div>
-              {deck.length < DECK_SIZE && (
-                <div className="deck-banner">{deck.length === 0 ? t('Stell dein erstes Deck zusammen: Tippe unten 4 Karten an – erst dann kannst du kämpfen.')
-                  : DECK_SIZE - deck.length === 1 ? t('Noch 1 Karte – dann kannst du kämpfen.') : t('Noch {0} Karten – dann kannst du kämpfen.', DECK_SIZE - deck.length)}</div>
-              )}
-              {incoming && <div className="deck-banner gold">{t('Jetzt unten die Karte antippen, die an diesen Platz soll.').replace(t('unten'), t('oben'))} <button className="ghost" onClick={() => setIncoming(null)}>{t('Abbrechen')}</button></div>}
-              <div className="deck-buttons">
-                <button className="deck-btn" onClick={() => openSheet('presets')}><Icon name="stack3d" size={13} />{t('Vorlagen')}</button>
-                <button className="deck-btn school" onClick={() => openOverlay({ kind: 'lab', key: LAB_ITEMS.find(i => !p.labDone.includes(i.key))?.key ?? LAB_ITEMS[0].key })}>
-                  <Icon name="graduation" size={13} />{t('Schule')}<span className="num" style={{ opacity: 0.7, fontSize: 10 }}>{labDone}/{LAB_ITEMS.length}</span>
-                </button>
-                <button className="deck-btn" onClick={test}><Icon name="play" size={13} />{t('Testen')}</button>
-              </div>
+              )
+            })}
+            <div className={`dk-slot ult${step === 'ultimate' || step === 'ultimates' ? ' tour-spot' : ''}`} onClick={() => openSheet('ultimates')} role="button"
+              aria-label={t('Ultimate {0}, tippen zum Ändern', t(ULTS[ult].name))}>
+              <DeckThumb art={`art-ult-${ult}`} gold />
+              <span>{t(ULTS[ult].name)}</span>
             </div>
           </div>
-          <div className="collection">
-            <div className="row" style={{ gap: 8 }}>
-              <span className="section-h">{t('Sammlung')}</span>
-              <span className="muted num" style={{ fontSize: 12 }}>{S.unlockedCards(p).length}/{CARD_IDS.length}</span>
-            </div>
-            <div className="role-filter">
-              <button className={filter === null ? 'on' : ''} onClick={() => setFilter(null)}>{t('Alle')}</button>
-              {(Object.keys(ROLES) as Role[]).map(r => (
-                <button key={r} className={filter === r ? 'on' : ''} onClick={() => setFilter(r)} style={{ ['--tint' as string]: ROLES[r].color }}>
-                  <Icon name={ROLES[r].icon} size={11} color={ROLES[r].color} />{t(ROLES[r].name)}
-                </button>
-              ))}
-            </div>
-            <div className="coll-grid">
-              {cards.map(c => {
-                const unlocked = S.isCardUnlocked(c, p)
-                const inDeck = deck.includes(c)
-                const price = TIERS[CARDS[c].tier].price
-                return (
-                  <div key={c} className={`coll-card${inDeck ? ' in' : ''}${!unlocked ? ' locked' : ''}${incoming === c ? ' incoming' : ''}${(step === 'pick' || step === 'fill') && unlocked && !inDeck ? ' glow' : ''}${tour.suggestedIn === c ? ' tour-in' : ''}`}>
-                    <div onClick={() => tapCollection(c)} onContextMenu={e => { e.preventDefault(); setDetail(c) }}>
-                      <CardView card={c} showName={false} />
-                    </div>
-                    <button className="coll-info" onClick={() => setDetail(c)}>
-                      <b className="clip1">{t(CARDS[c].name)}</b>
-                      <span className="clip1">{t(CARDS[c].short)}</span>
-                    </button>
-                    {tour.suggestedIn === c && <span className="tour-hand"><Icon name="handDown" size={22} /></span>}
-                    {inDeck && <span className="in-deck">{t('IM DECK')}</span>}
-                    {S.isNewCard(c, p) && <span className="new-sticker">{t('NEU')}</span>}
-                    {!unlocked && (
-                      <span className="lock-tag">
-                        <Icon name="lock" size={11} />
-                        {S.level() >= TIERS[CARDS[c].tier].gate ? <><ShardIcon size={11} />{price}</> : t('ab Level {0}', TIERS[CARDS[c].tier].gate)}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            <p className="muted" style={{ fontSize: 12, textAlign: 'center' }}>{t('Lange drücken zeigt eine Karte groß mit allen Details.')}</p>
-          </div>
+          {incoming ? (
+            <div className="dk-note"><Icon name="swap" size={13} /><span className="grow">{t('Dein Deck ist voll – welche Karte soll raus? Tippe sie oben an.')}</span>
+              <button className="ds-link" onClick={() => setIncoming(null)}>{t('Abbrechen')}</button></div>
+          ) : deck.length < DECK_SIZE && (
+            <div className="dk-note"><Icon name="plusCircle" size={13} />{deck.length === 0 ? t('Stell dein erstes Deck zusammen: Tippe unten 4 Karten an – erst dann kannst du kämpfen.')
+              : DECK_SIZE - deck.length === 1 ? t('Noch 1 Karte – dann kannst du kämpfen.') : t('Noch {0} Karten – dann kannst du kämpfen.', DECK_SIZE - deck.length)}</div>
+          )}
         </div>
+        <div style={{ margin: '14px 0 22px' }}>
+          <ListGroup>
+            <ListRow compact icon={<span className="ds-ico"><Icon name="stack3d" size={19} /></span>} title={t('Vorlagen')} onClick={() => openSheet('presets')} />
+            <ListRow compact icon={<span className="ds-ico"><Icon name={S.deckIsFull(p) ? 'play' : 'lock'} size={18} color={S.deckIsFull(p) ? undefined : 'var(--ds-muted)'} /></span>}
+              title={t('Deck gegen Bot testen')} sub={S.deckIsFull(p) ? undefined : t('Für Kämpfe brauchst du 4 Karten')} onClick={test} />
+            <ListRow compact icon={<span className="ds-ico"><Icon name="graduation" size={19} color="var(--ds-gold)" /></span>} title={t('Kartenschule')}
+              trailing={{ kind: 'value', value: `${labDone}/${LAB_ITEMS.length}` }} label={t('Kartenschule, {0} von {1} geschafft', labDone, LAB_ITEMS.length)}
+              onClick={() => openOverlay({ kind: 'lab', key: LAB_ITEMS.find(i => !p.labDone.includes(i.key))?.key ?? LAB_ITEMS[0].key })} />
+          </ListGroup>
+        </div>
+        <SectionLabel text={t('Sammlung')} trailing={t('{0} von {1}', S.unlockedCards(p).length, CARD_IDS.length)} trailingColor="var(--ds-muted)" />
+        <div style={{ marginBottom: 12 }}><Segmented items={filters} value={filter} onChange={setFilter} /></div>
+        <div className="dk-grid">
+          {cards.map(c => {
+            const unlocked = S.isCardUnlocked(c, p)
+            const inDeck = deck.includes(c)
+            const tier = TIERS[CARDS[c].tier]
+            return (
+              <div key={c} role="button" className={`dk-card${incoming === c ? ' incoming' : ''}${(step === 'pick' || step === 'fill') && unlocked && !inDeck ? ' glow' : ''}${tour.suggestedIn === c ? ' tour-in' : ''}`}
+                onClick={() => tapCollection(c)} onContextMenu={e => { e.preventDefault(); setDetail(c) }}
+                aria-label={t('{0}, {1} Mana, {2}', t(CARDS[c].name), cardCost(c), t(tier.name)) + (inDeck ? t(', im Deck') : '') + (unlocked ? '' : t(', gesperrt, {0} Splitter', tier.price))}>
+                <DeckThumb art={`art-card-${c}`} dim={!unlocked}
+                  badge={inDeck ? <Icon name="check" size={14} color="var(--ds-green)" /> : !unlocked ? <Icon name="lock" size={13} color="var(--ds-text)" /> : undefined} />
+                <b style={{ color: unlocked ? undefined : 'var(--ds-muted)' }}>{t(CARDS[c].name)}</b>
+                {inDeck ? <span style={{ color: 'var(--ds-muted)' }}>{t('Im Deck')}</span>
+                  : unlocked ? <span style={{ color: 'var(--ds-purple)' }}>{t('{0} Mana', cardCost(c))}</span>
+                  : S.level() < tier.gate ? <span style={{ color: 'var(--ds-muted)' }}>{t('Ab Level {0}', tier.gate)}</span>
+                  : <span className="row" style={{ gap: 3, color: S.canBuyCard(c) ? 'var(--ds-gem)' : 'var(--ds-muted)' }}><ShardIcon size={11} />{tier.price}</span>}
+                {tour.suggestedIn === c && <span className="tour-hand"><Icon name="handDown" size={22} /></span>}
+                {S.isNewCard(c, p) && <span className="new-sticker">{t('NEU')}</span>}
+              </div>
+            )
+          })}
+        </div>
+        <p className="muted" style={{ fontSize: 12, textAlign: 'center', padding: '0 16px' }}>{t('Lange drücken zeigt eine Karte groß mit allen Details.')}</p>
       </div>
       {toast}
       {detail && <CardDetail id={detail} onClose={() => setDetail(null)} allowLab />}

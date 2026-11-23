@@ -105,7 +105,7 @@ export function Welcome({ onDone }: { onDone: (hello: Hello) => void }) {
         <div className="intro-card" key="c0">
           <span className="intro-kicker">{t('Willkommen')}</span>
           <b className="intro-title">{t('Willkommen in Rook Raid!')}</b>
-          <p className="intro-text">{t('Auf dem Schachbrett ist Chaos ausgebrochen: Die Figuren haben Superkräfte entdeckt. Führe deine eigene Armee an, sammle Karten und steig in der Arena bis an die Spitze auf.')}</p>
+          <p className="intro-text">{t('Schach mit Superkräften. Sammle Karten, steig in der Arena auf.')}</p>
           <button className="chunky gold pulse-gold intro-next" onClick={() => go(1)}>
             {t("Los geht's")}<Icon name="chevronRight" size={16} /><span className="shine" />
           </button>
@@ -130,7 +130,7 @@ export function Welcome({ onDone }: { onDone: (hello: Hello) => void }) {
         <form className="intro-card" key="c1" onSubmit={e => { e.preventDefault(); saveIdentity() }}>
           <span className="intro-kicker">{t('Dein Held')}</span>
           <b className="intro-title">{t('Wer bist du?')}</b>
-          <p className="intro-text">{t('Such dir einen Namen und ein Bild aus. Beides kannst du später im Profil ändern.')}</p>
+          <p className="intro-text">{t('Später im Profil änderbar.')}</p>
           <div className="welcome-name">
             <input className="field" value={name} maxLength={16} onChange={e => setName(e.target.value)} placeholder={t('Spielername')}
               autoComplete="off" autoCapitalize="off" spellCheck={false} />

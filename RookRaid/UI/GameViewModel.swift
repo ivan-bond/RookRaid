@@ -152,7 +152,6 @@ final class GameViewModel: ObservableObject {
 
     // Geführte erste Partie
     @Published private(set) var coach: CoachState?
-    @Published private(set) var tutorialSquares: [Square] = []
     @Published private(set) var tutorialCard: CardType?
     @Published private(set) var tutorialUltimate = false
     @Published private(set) var tutorialHighlightTerritory = false
@@ -1328,6 +1327,7 @@ final class GameViewModel: ObservableObject {
             let opponent = opponentCard?.trophies ?? botLevel?.rating ?? store.profile.trophies
             let expected = TrophyStake.delta(mine: store.profile.trophies, opponent: opponent, result: result)
             optimisticDelta = expected
+            OnlineAccount.shared.noteLocalTrophyChange()
             store.profile.trophies = max(0, store.profile.trophies + expected)
             store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
             if expected != 0, !store.profile.history.isEmpty, store.profile.history[0].trophyDelta == 0 {
@@ -1687,6 +1687,7 @@ final class GameViewModel: ObservableObject {
     private func settleServerDelta(_ delta: Int) {
         let shown = optimisticDelta
         optimisticDelta = 0
+        OnlineAccount.shared.noteLocalTrophyChange()
         store.profile.trophies = max(0, store.profile.trophies + delta - shown)
         store.profile.bestTrophies = max(store.profile.bestTrophies, store.profile.trophies)
         // Erst nach Spielende steht die Partie oben im Verlauf (die Server-Zahl kann schon vorher eintreffen).
@@ -1745,6 +1746,37 @@ final class GameViewModel: ObservableObject {
         TutorialScript.steps.indices.contains(tutorialIndex) ? TutorialScript.steps[tutorialIndex].expect : nil
     }
 
+    /// Tutorial: das eine Feld, das jetzt angetippt werden soll – erst die Figur, dann ihr Ziel.
+    /// Bei Karte und Ultimate erst, wenn sie angetippt ist (vorher leuchtet die Karte selbst).
+    var tutorialFocus: Square? {
+        guard mode == .tutorial, coach?.done == false, let expect = currentTutorialExpect else { return nil }
+        switch expect {
+        case .move(let from, let to):
+            let f = Square(name: from)
+            return selected != nil && selected == f ? Square(name: to) : f
+        case .card(let card, let target):
+            return pendingCard == card ? target.flatMap { Square(name: $0) } : nil
+        case .ultimate(let target):
+            return pendingIsUltimate ? target.flatMap { Square(name: $0) } : nil
+        }
+    }
+
+    /// Tutorial: Felder, die hell bleiben, während der Rest des Bretts abgedunkelt ist (Figur und Ziel bzw. Kartenziel).
+    var tutorialSpots: [Square] {
+        guard mode == .tutorial, coach?.done == false, let expect = currentTutorialExpect else { return [] }
+        switch expect {
+        case .move(let from, let to): return [from, to].compactMap { Square(name: $0) }
+        case .card(_, let target), .ultimate(let target): return target.flatMap { Square(name: $0) }.map { [$0] } ?? []
+        }
+    }
+
+    /// Tutorial: Pfeil von der Figur zu ihrem Ziel.
+    var tutorialArrow: (from: Square, to: Square)? {
+        guard mode == .tutorial, coach?.done == false, case .move(let from, let to)? = currentTutorialExpect,
+              let f = Square(name: from), let t = Square(name: to) else { return nil }
+        return (f, t)
+    }
+
     private func tutorialAllows(_ action: ReplayAction) -> Bool {
         guard let expect = currentTutorialExpect else { return false }
         switch (expect, action) {
@@ -1756,9 +1788,9 @@ final class GameViewModel: ObservableObject {
     }
 
     private static var nudges: [String] { [
-        L("Fast! Folge dem goldenen Leuchten."),
-        L("Nicht ganz – schau auf die goldenen Felder."),
-        L("Probier's mit dem leuchtenden Ziel!")
+        L("Tippe aufs goldene Leuchten."),
+        L("Folge der Hand."),
+        L("Fast! Tippe aufs Leuchten.")
     ] }
 
     private func tutorialNudge() {
@@ -1784,18 +1816,12 @@ final class GameViewModel: ObservableObject {
             refresh()
             Feedback.play(.summon, .summon)
         }
-        tutorialSquares = []
         tutorialCard = nil
         tutorialUltimate = false
         switch step.expect {
-        case .move(let from, let to):
-            tutorialSquares = [from, to].compactMap { Square(name: $0) }
-        case .card(let card, let target):
-            tutorialCard = card
-            tutorialSquares = target.flatMap { Square(name: $0) }.map { [$0] } ?? []
-        case .ultimate(let target):
-            tutorialUltimate = true
-            tutorialSquares = target.flatMap { Square(name: $0) }.map { [$0] } ?? []
+        case .move: break
+        case .card(let card, _): tutorialCard = card
+        case .ultimate: tutorialUltimate = true
         }
         tutorialHighlightTerritory = step.highlightTerritory
         hint = nil
@@ -1807,6 +1833,43 @@ final class GameViewModel: ObservableObject {
                                title: step.title, text: step.text)
         }
     }
+
+    #if DEBUG
+    /// Debug builds only (screenshots): plays the first `steps` tutorial tasks by itself; `select` then taps the
+    /// piece or card of the next task, so its target phase shows. Launch with `-RRTutorialStep 3 -RRTutorialSelect YES`.
+    func debugAutoplayTutorial(steps: Int, select: Bool) async {
+        func waitReady(_ i: Int) async {
+            while !(tutorialIndex == i && canInteract && coach?.done == false) {
+                guard (try? await Task.sleep(nanoseconds: 150_000_000)) != nil else { return }
+            }
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
+        func first(_ expect: TutorialStep.Expect) {
+            switch expect {
+            case .move(let from, _): if let sq = Square(name: from) { tap(sq) }
+            case .card(let card, _):
+                if let i = state.decks[humanColor]?.hand.firstIndex(of: card) { tapCard(i) }
+            case .ultimate: tapUltimate()
+            }
+        }
+        func second(_ expect: TutorialStep.Expect) {
+            switch expect {
+            case .move(_, let to): if let sq = Square(name: to) { tap(sq) }
+            case .card(_, let target), .ultimate(let target): if let sq = target.flatMap({ Square(name: $0) }) { tap(sq) }
+            }
+        }
+        for i in 0..<min(steps, TutorialScript.steps.count) {
+            await waitReady(i)
+            first(TutorialScript.steps[i].expect)
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            second(TutorialScript.steps[i].expect)
+        }
+        if select, TutorialScript.steps.indices.contains(steps) {
+            await waitReady(steps)
+            first(TutorialScript.steps[steps].expect)
+        }
+    }
+    #endif
 
     func skipTutorial() {
         store.profile.tutorialSeen = true
@@ -1833,7 +1896,6 @@ final class GameViewModel: ObservableObject {
     private func tutorialAfterAction(by color: PlayerColor) {
         if color == humanColor {
             guard let step = TutorialScript.steps[safe: tutorialIndex], var done = coach else { return }
-            tutorialSquares = []
             tutorialCard = nil
             tutorialUltimate = false
             tutorialHighlightTerritory = false
@@ -1879,7 +1941,6 @@ final class GameViewModel: ObservableObject {
         store.grantTutorialChest()   // zuerst: Die Erste Truhe wird als erste geöffnet
         store.addXP(50)              // Level 2 → Level-Truhe mit Ritterschlag
         let lit = store.registerActivity()
-        tutorialSquares = []
         tutorialHighlightTerritory = false
         if var done = coach, let step = TutorialScript.steps.last {
             done.done = true

@@ -34,8 +34,8 @@ Status as of 2026-11-09. Based on the code and project files; the Supabase dashb
   (Smart App Banner in iPhone Safari).
 
 ### 3. Supabase settings
-- [ ] Authentication → URL configuration: set the site URL to the real web domain and add it to the redirect URLs.
-- [ ] Authentication → Apple: the client IDs contain both the bundle ID `com.ivan.rookraid` and the web Services ID.
+- [x] Authentication → URL configuration: set the site URL to the real web domain and add it to the redirect URLs.
+- [x] Authentication → Apple: the client IDs contain both the bundle ID `com.ivan.rookraid` and the web Services ID.
 - [x] Edge function secrets: `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (set 2026-11-09, key 8MCBW4F2BH, file in `~/RookRaid-Secrets/`). Without them, deleting an account doesn't revoke Sign in with Apple, which Apple requires.
 - [x] Deploy the new `push-dispatch`.
 - [x] Deploy `delete-account` again (version 8, 2026-11-09, with the Apple secrets).
@@ -45,7 +45,7 @@ Status as of 2026-11-09. Based on the code and project files; the Supabase dashb
 - [x] Apply `20261109120000_bot_players.sql` (bot players, online status, friendly matches). The cron jobs `rookraid-bot-players` and `rookraid-bot-drift` run.
 - [x] Redeploy `push-dispatch` with `--no-verify-jwt`, set `CRON_SECRET`, and add the Vault secrets `rookraid_project_url` and `rookraid_cron_secret`.
 - [x] Apply `20261110120000_friend_history.sql` (games against a friend in the friend profile): `supabase db push`.
-- [ ] Sign in with Google (iPhone and web), see `Backend/README.md` → "Sign in with Google":
+- [x] Sign in with Google (iPhone and web), see `Backend/README.md` → "Sign in with Google":
   - Google Cloud Console: OAuth consent screen (app name Rook Raid, support email, privacy URL `https://rookraid.com/privacy`),
     then an OAuth client of type **Web application** with the redirect URI `https://kjmlaxbpblndbybzvdbd.supabase.co/auth/v1/callback`.
   - Supabase → Authentication → Sign In / Providers → Google: turn it on, paste client ID and secret.
@@ -53,17 +53,17 @@ Status as of 2026-11-09. Based on the code and project files; the Supabase dashb
   - Supabase → Authentication → Sign In / Providers: turn on **Allow manual linking**. "Mit Google sichern" and "Mit Apple sichern"
     on the iPhone link the sign-in to the existing anonymous account; without this setting linking fails.
   - Test: anonymous player → "Mit Google sichern" → the profile shows "Mit Google gesichert"; sign out, "Mit Google anmelden" → same account.
-- [ ] Database → Cron jobs: check that `rookraid-maintain` is running. The 45-second rule and timeouts depend on it.
+- [x] Database → Cron jobs: check that `rookraid-maintain` is running. The 45-second rule and timeouts depend on it.
 
 ### 4. Apple Developer portal
-- [ ] Services ID for web sign-in: verify the real domain and add its return URL (`https://your-domain/`).
-- [ ] App ID `com.ivan.rookraid`: turn on the Push Notifications and Associated Domains capabilities, and create an APNs key.
-- [ ] Before the store build, set `aps-environment` in `Config/RookRaid.entitlements` to `production` (or let Xcode's distribution signing do it).
+- [x] Services ID for web sign-in: verify the real domain and add its return URL (`https://your-domain/`).
+- [x] App ID `com.ivan.rookraid`: turn on the Push Notifications and Associated Domains capabilities, and create an APNs key.
+- [x] Before the store build, set `aps-environment` in `Config/RookRaid.entitlements` to `production` (or let Xcode's distribution signing do it).
 
 ### 5. iPhone build
-- [ ] Move Xcode back from `/Users/Shared/Previously Relocated Items 10/…` to `/Applications`, then run `sudo xcode-select -s /Applications/Xcode.app`.
-- [ ] Version: still 0.9.36 (build 47). Change it to 1.0.0 for the store.
-- [ ] Product → Archive → upload to App Store Connect.
+- [x] Move Xcode back from `/Users/Shared/Previously Relocated Items 10/…` to `/Applications`, then run `sudo xcode-select -s /Applications/Xcode.app`.
+- [x] Version 1.0.0 (build 48).
+- [x] Product → Archive → upload to App Store Connect (build 48 uploaded 2026-11-11).
 
 ### 6. App Store Connect listing
 - [ ] Screenshots: at least the 6.9″ iPhone size (the app is iPhone-only, so no iPad).

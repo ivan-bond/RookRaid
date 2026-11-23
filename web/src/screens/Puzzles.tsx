@@ -1,4 +1,4 @@
-// PuzzleViews.swift: hub, puzzle player and the 3-minute puzzle rush.
+// PuzzleViews.swift: hub (redesign V2), adventure sheet, puzzle player and the 3-minute puzzle rush.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { pieceImage } from '../art'
 import { BOARD_COLORS, CARDS, KEEPS_TURN, ULTS, PUZZLES_PER_CHEST, cardCost, ultCost, type CardId, type UltId } from '../game/catalog'
@@ -6,10 +6,11 @@ import { apply, E, fromFEN, isFrozen, isShielded, sqIndex, type MatchState, type
 import { haptic, sound } from '../game/feedback'
 import * as S from '../game/store'
 import { useI18n } from '../i18n'
-import { closeOverlay, openChests, openOverlay } from '../nav'
+import { closeOverlay, closeSheet, openChests, openOverlay, openSheet } from '../nav'
 import { Icon } from '../ui/Icon'
-import { CardView, Confetti, LevelBadge, ManaDrop, Progress, UltimateCard } from '../ui/kit'
-import { FlameBadge, ShardPill } from './Home'
+import { CardView, ChestView, Confetti, ManaDrop, Sheet, UltimateCard } from '../ui/kit'
+import { FlameBadge } from './Home'
+import { DSProgress, IconTile, ListGroup, ListRow, PrimaryButton, PrimaryDock, ScreenHeader, SectionLabel } from '../ui/ds'
 
 const GROUPS: Array<{ key: string; title: string; sub: string; color: string; filter: (p: S.Puzzle) => boolean }> = [
   { key: 'rr', title: 'Karten-Matts', sub: 'Erst die Karte, dann das Matt', color: '#6E9BF0', filter: p => S.isRookRaidPuzzle(p) },
@@ -18,7 +19,7 @@ const GROUPS: Array<{ key: string; title: string; sub: string; color: string; fi
   { key: '3', title: 'Schwer', sub: 'Klassisch · 35 XP', color: '#E0413A', filter: p => !S.isRookRaidPuzzle(p) && p.difficulty >= 3 },
 ]
 
-const goalTitle = (p: S.Puzzle, t: (k: string, ...a: Array<string | number>) => string) =>
+export const goalTitle = (p: S.Puzzle, t: (k: string, ...a: Array<string | number>) => string) =>
   p.goal === 'mate' ? t('Matt in {0}', p.n ?? 1) : p.goal === 'material' ? t('Gewinne Material') : t('Erreiche {0} Felder', p.n ?? 0)
 const diffName = (d: number) => (d === 1 ? 'Leicht' : d === 2 ? 'Mittel' : 'Schwer')
 
@@ -27,54 +28,61 @@ export function PuzzleHub() {
   const { t } = useI18n()
   const lp = S.levelProgress(p)
   const daily = S.dailyPuzzle()
-  const solved = p.solvedPuzzles.length
-  const toChest = PUZZLES_PER_CHEST - (solved % PUZZLES_PER_CHEST)
+  const next = useMemo(() => S.nextPuzzle(), [p.solvedPuzzles.length])
+  const filled = p.solvedPuzzles.length % PUZZLES_PER_CHEST
+  const dailyOpen = S.dailyBonusAvailable(p)
+  const openNext = () => openOverlay({ kind: 'puzzle', puzzle: next, daily: false })
+  return (
+    <div className="page ds-page">
+      <div className="ds-inner">
+        <ScreenHeader title={t('Puzzles')} />
+        <div className="pz-next">
+          <button className="pz-next-board press" onClick={openNext} aria-label={t('Nächstes Puzzle: {0}', goalTitle(next, t))}><PuzzleThumb p={next} size={112} /></button>
+          <div className="grow col" style={{ gap: 4, minWidth: 0 }}>
+            <span className="pz-next-k">{t('NÄCHSTES PUZZLE')}</span>
+            <b className="pz-next-t">{goalTitle(next, t)}</b>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>
+              <span style={{ color: 'var(--ds-muted)' }}>{t(diffName(next.difficulty))}{S.isRookRaidPuzzle(next) ? ' · ' + t('mit Karten') : ''}</span>
+              {!S.isSolved(next) && <span style={{ color: 'var(--ds-purple)' }}> · {t('+{0} XP', S.puzzleXP(next))}</span>}
+            </span>
+            <span className="row" style={{ marginTop: 6 }}>
+              <b className="r grow" style={{ fontSize: 13 }}>{t('Level {0}', lp.level)}</b>
+              <span className="num" style={{ fontSize: 13, color: 'var(--ds-muted)', fontWeight: 600 }}>{t('noch {0} XP', lp.remaining)}</span>
+            </span>
+            <DSProgress value={lp.fraction} color="var(--ds-purple)" />
+          </div>
+        </div>
+        <SectionLabel text={t('Mehr Training')} />
+        <ListGroup>
+          <ListRow icon={<IconTile icon="bolt" color="var(--ds-flame)" />} title={t('Puzzle-Rausch')} sub={t('3 Minuten, 3 Leben')}
+            trailing={p.rushBest > 0 ? { kind: 'value', value: p.rushBest } : { kind: 'chevron' }} onClick={() => openOverlay({ kind: 'rush' })} />
+          <ListRow icon={<IconTile icon="calendar" color="var(--ds-gold)" />} title={t('Tagespuzzle')}
+            sub={dailyOpen ? t('+15 XP Bonus') : t('Für heute erledigt · +15 XP')} trailing={dailyOpen ? { kind: 'chevron' } : { kind: 'done' }}
+            onClick={() => openOverlay({ kind: 'puzzle', puzzle: daily, daily: true })} />
+          <ListRow icon={<IconTile icon="map" color="var(--ds-purple)" />} title={t('Abenteuer')} sub={t('Wähle dein Abenteuer')}
+            trailing={{ kind: 'value', value: `${p.solvedPuzzles.length}/${S.PUZZLES.length}` }} onClick={() => openSheet('adventure')} />
+          <ListRow icon={<span className="ds-tile"><ChestView rarity={1} size={34} glow={filled === PUZZLES_PER_CHEST - 1 ? 0.6 : 0} /></span>} title={t('Rätseltruhe')}
+            trailing={{ kind: 'value', value: `${filled}/${PUZZLES_PER_CHEST}`, chevron: false }}
+            label={PUZZLES_PER_CHEST - filled === 1 ? t('Nächstes Puzzle: Rätseltruhe!') : t('Noch {0} bis zur Rätseltruhe', PUZZLES_PER_CHEST - filled)}>
+            <span style={{ marginTop: 6 }}><DSProgress value={filled / PUZZLES_PER_CHEST} color="var(--ds-purple)" /></span>
+          </ListRow>
+        </ListGroup>
+      </div>
+      <PrimaryDock><PrimaryButton title={t('Puzzles lösen')} icon="play" onClick={openNext} /></PrimaryDock>
+    </div>
+  )
+}
+
+/** "Wähle dein Abenteuer": the four puzzle groups with their puzzles (a sheet, like the app). */
+export function AdventureSheet() {
+  const p = S.useProfile()
+  const { t } = useI18n()
   const [group, setGroup] = useState<string>('rr')
   const list = S.PUZZLES.filter(GROUPS.find(g => g.key === group)!.filter)
+  const open = (z: S.Puzzle) => { closeSheet(); openOverlay({ kind: 'puzzle', puzzle: z, daily: false }) }
   return (
-    <div className="page">
-      <div className="page-glow" style={{ background: 'linear-gradient(#5B37C255, transparent)' }} />
-      <div className="page-inner">
-        <div className="hdr">
-          <Icon name="puzzle" size={24} color="var(--gold)" />
-          <h1 className="title-xl grow">{t('Puzzles')}</h1>
-          <FlameBadge />
-          <ShardPill />
-        </div>
-        <div className="puzzle-top">
-          <div className="card level-card">
-            <LevelBadge level={lp.level} progress={lp.fraction} size={54} />
-            <div className="grow col" style={{ gap: 4 }}>
-              <b className="r" style={{ fontSize: 17 }}>{t('Level {0}', lp.level)}</b>
-              <span className="num" style={{ fontSize: 11, fontWeight: 700, color: 'var(--mana-light)' }}>{t('{0} XP · noch {1}', p.xp, lp.remaining)}</span>
-              <Progress value={lp.fraction} kind="mana" />
-              <span className="muted num" style={{ fontSize: 11 }}>{t('{0} von {1} gelöst', solved, S.PUZZLES.length)} · {toChest === PUZZLES_PER_CHEST && solved > 0 ? '' : t('Noch {0} bis zur Rätseltruhe', toChest)}</span>
-            </div>
-            {p.puzzleStreak > 1 && <span className="capsule chip gold"><Icon name="flame" size={10} />{t('{0} in Folge', p.puzzleStreak)}</span>}
-          </div>
-          <NextPuzzleCard />
-          <button className="card daily-card press" onClick={() => openOverlay({ kind: 'puzzle', puzzle: daily, daily: true })}>
-            <PuzzleThumb p={daily} size={86} />
-            <div className="grow col" style={{ gap: 3, textAlign: 'left' }}>
-              <span className="kicker" style={{ color: 'var(--gold)' }}>{t('Tagespuzzle')}</span>
-              <b className="r" style={{ fontSize: 17 }}>{t(daily.title)}</b>
-              <span className="dim" style={{ fontSize: 12 }}>{goalTitle(daily, t)} · {t(diffName(daily.difficulty))}</span>
-              {S.dailyBonusAvailable(p) ? <span className="capsule" style={{ background: 'var(--gold)', color: 'var(--navy)', fontWeight: 900, alignSelf: 'flex-start' }}>{t('+15 XP Bonus')}</span>
-                : <span className="capsule chip" style={{ alignSelf: 'flex-start' }}>{t('Erledigt ✓')}</span>}
-            </div>
-            <Icon name="chevronRight" size={16} color="var(--muted)" />
-          </button>
-          <button className="card rush-card press" onClick={() => openOverlay({ kind: 'rush' })}>
-            <span className="rush-icon"><Icon name="boltCircle" size={34} /></span>
-            <div className="grow col" style={{ gap: 3, textAlign: 'left' }}>
-              <b className="r" style={{ fontSize: 17 }}>{t('Puzzle-Rausch')}</b>
-              <span className="dim" style={{ fontSize: 12 }}>{t('3 Minuten, 3 Leben')}</span>
-              <span className="capsule chip gold" style={{ alignSelf: 'flex-start' }}>{t('Bestwert {0}', p.rushBest)}</span>
-            </div>
-            <Icon name="chevronRight" size={16} color="var(--muted)" />
-          </button>
-        </div>
-        <span className="section-h">{t('Wähle dein Abenteuer')}</span>
+    <Sheet title={t('Wähle dein Abenteuer')} onClose={closeSheet} wide tall>
+      <div className="col" style={{ gap: 14, padding: '4px 16px 20px' }}>
         <div className="group-tabs">
           {GROUPS.map(g => {
             const all = S.PUZZLES.filter(g.filter)
@@ -92,7 +100,7 @@ export function PuzzleHub() {
           {list.map((z, i) => {
             const done = p.solvedPuzzles.includes(z.id)
             return (
-              <button key={z.id} className={`puzzle-tile press${done ? ' done' : ''}`} onClick={() => openOverlay({ kind: 'puzzle', puzzle: z, daily: false })}
+              <button key={z.id} className={`puzzle-tile press${done ? ' done' : ''}`} onClick={() => open(z)}
                 aria-label={t('Puzzle {0}, {1}{2}', i + 1, goalTitle(z, t), done ? t(', gelöst') : '')}>
                 <PuzzleThumb p={z} size={120} />
                 <span className="pt-info">
@@ -106,37 +114,7 @@ export function PuzzleHub() {
           })}
         </div>
       </div>
-    </div>
-  )
-}
-
-/** The big "Nächstes Puzzle" card of the app's puzzle hub (heroCard in PuzzleViews.swift). */
-function NextPuzzleCard() {
-  const p = S.useProfile()
-  const { t } = useI18n()
-  const next = useMemo(() => S.nextPuzzle(), [p.solvedPuzzles.length])
-  return (
-    <div className="card next-puzzle">
-      <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
-        {next && <PuzzleThumb p={next} size={118} />}
-        <div className="col grow" style={{ gap: 6, minWidth: 0 }}>
-          <span className="kicker" style={{ color: '#C9B8FF' }}>{t('NÄCHSTES PUZZLE')}</span>
-          <b className="r clip1" style={{ fontSize: 24, fontWeight: 900 }}>{next ? goalTitle(next, t) : t('Alles gelöst!')}</b>
-          {next && <span className="row" style={{ gap: 2 }}>
-            {[1, 2, 3].map(i => <Icon key={i} name="star" size={13} color={i <= next.difficulty ? 'var(--gold)' : 'var(--muted)'} />)}
-            <span className="dim" style={{ fontSize: 11, fontWeight: 700, marginLeft: 4 }}>{t(diffName(next.difficulty))}</span>
-          </span>}
-          {next && <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-            {S.isRookRaidPuzzle(next) && <span className="capsule chip" style={{ color: 'var(--blue-light)' }}><Icon name="stack" size={9} />{t('mit Karten')}</span>}
-            {!S.isSolved(next) && <span className="capsule chip" style={{ color: 'var(--mana-light)' }}><Icon name="sparkles" size={9} />{t('+{0} XP', S.puzzleXP(next))}</span>}
-          </span>}
-          {p.puzzleStreak > 0 && <span className="capsule chip" style={{ color: '#FFB547', alignSelf: 'flex-start' }}><Icon name="flame" size={9} />{t('{0} in Folge', p.puzzleStreak)}</span>}
-        </div>
-      </div>
-      <button className="chunky purple" disabled={!next} onClick={() => next && openOverlay({ kind: 'puzzle', puzzle: next, daily: false })}>
-        <Icon name="play" size={18} />{t("LOS GEHT'S")}<span className="shine" />
-      </button>
-    </div>
+    </Sheet>
   )
 }
 

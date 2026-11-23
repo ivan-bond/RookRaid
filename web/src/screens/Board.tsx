@@ -1,5 +1,5 @@
 // BoardView.swift: squares with territory tint, markers, pieces (shield, frost, lock), legal-move dots, effects, finisher.
-import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactElement } from 'react'
 import { pieceImage } from '../art'
 import { BOARD_COLORS } from '../game/catalog'
 import type { GameController } from '../game/controller'
@@ -125,17 +125,55 @@ export function Board({ c }: { c: GameController }) {
       <div className="board-zoom">
         {squares}
         {checked !== null && checked >= 0 && <i className="check-glow" style={{ left: `${pos(checked).x}%`, top: `${pos(checked).y}%` }} />}
-        {c.tutorialSquares.map(sq => <i key={'t' + sq} className="tut-pulse" style={{ left: `${pos(sq).x}%`, top: `${pos(sq).y}%` }} />)}
         {c.cardTargets.map(sq => <i key={'c' + sq} className="card-target" style={{ left: `${pos(sq).x}%`, top: `${pos(sq).y}%` }} />)}
         {pieces}
         {c.legal.map((m, k) => (
           <i key={'d' + k} className={s.b[m.t] || m.epc ? 'dot ring' : 'dot'} style={{ left: `${pos(m.t).x}%`, top: `${pos(m.t).y}%` }} />
         ))}
+        <TutorialGuide c={c} pos={pos} />
         {c.effects.map(e => <Effect key={e.id} kind={e.kind} x={pos(e.sq).x} y={pos(e.sq).y} duration={e.duration} />)}
         {finisher && kingFx === 'gone' && <Burst x={pos(finisher.sq).x} y={pos(finisher.sq).y} />}
       </div>
       {finisher && <i className="vignette" />}
     </div>
+  )
+}
+
+/** First battle: the rest of the board goes dark, an arrow shows the move and a hand taps the next square –
+ *  always exactly one place to tap (BoardView.tutorialLayer in the app). */
+function TutorialGuide({ c, pos }: { c: GameController; pos: (i: number) => { x: number; y: number } }) {
+  const spots = c.tutorialSpots
+  if (!spots.length) return null
+  const focus = c.tutorialFocus
+  const arrow = c.tutorialArrow
+  // pos() gives the top-left corner in percent; the SVG works in squares (0…8).
+  const cell = (i: number) => ({ x: pos(i).x / 12.5, y: pos(i).y / 12.5 })
+  const holes = spots.map(i => { const p = cell(i); return `M${p.x + 0.12},${p.y}h0.76a0.12,0.12 0 0 1 0.12,0.12v0.76a0.12,0.12 0 0 1 -0.12,0.12h-0.76a0.12,0.12 0 0 1 -0.12,-0.12v-0.76a0.12,0.12 0 0 1 0.12,-0.12z` }).join('')
+  let line: ReactElement | null = null
+  if (arrow) {
+    const a = cell(arrow[0]), b = cell(arrow[1])
+    const ax = a.x + 0.5, ay = a.y + 0.5, bx = b.x + 0.5, by = b.y + 0.5
+    const len = Math.hypot(bx - ax, by - ay) || 1, ux = (bx - ax) / len, uy = (by - ay) / len
+    const sx = ax + ux * 0.3, sy = ay + uy * 0.3, tx = bx - ux * 0.3, ty = by - uy * 0.3
+    const hx = tx - ux * 0.3, hy = ty - uy * 0.3
+    line = (
+      <g className="tut-arrow">
+        <line x1={sx} y1={sy} x2={hx} y2={hy} />
+        <path d={`M${tx},${ty}L${hx - uy * 0.21},${hy + ux * 0.21}L${hx + uy * 0.21},${hy - ux * 0.21}Z`} />
+      </g>
+    )
+  }
+  return (
+    <>
+      <svg className="tut-guide" viewBox="0 0 8 8" preserveAspectRatio="none" aria-hidden="true">
+        <path d={`M0,0H8V8H0Z${holes}`} fillRule="evenodd" fill={focus === null ? '#0000009e' : '#0000008c'} />
+        {line}
+      </svg>
+      {focus !== null && <>
+        <i className="tut-pulse" style={{ left: `${pos(focus).x}%`, top: `${pos(focus).y}%` }} />
+        <span className="tut-hand" style={{ left: `${pos(focus).x + 8}%`, top: `${pos(focus).y + 9}%` }}><Icon name="handPoint" size={30} /></span>
+      </>}
+    </>
   )
 }
 

@@ -135,7 +135,7 @@ extension Chest {
         case .arena:
             if let label { return L("Neue Arena: {0}!", Chest.localizedLabel(label)) }
             return L("Neue Arena!")
-        case .welcome: return L("Willkommen in der Arena!")
+        case .welcome: return L("Bauer nach vorn")
         case .road:
             if let n = labelNumber { return L("{0} Trophäen erreicht!", n) }
             return L("Trophäenpfad!")

@@ -20,15 +20,15 @@ type SceneProps = { onDone: () => void; done: boolean; signal: number; hello: He
 type Step = { kicker: string; title: string; text: string; task?: string; praise?: string; waits?: boolean; Scene: (p: SceneProps) => ReactNode }
 
 const STEPS: Step[] = [
-  { kicker: 'Willkommen', title: 'Schach mit Superkräften', text: 'Alles zieht wie im Schach, und wer den König mattsetzt, gewinnt. Dazu kommen Mana, Karten und eine Ultimate.',
+  { kicker: 'Willkommen', title: 'Schach mit Superkräften', text: 'Matt gewinnt – wie immer.',
     waits: true, Scene: RockyScene },
-  { kicker: 'Mana', title: 'Jeder Zug lädt Mana', text: 'Jeder eigene Zug bringt +1 Mana. Schlagen oder Schach geben +1 extra. Höchstens 10.',
+  { kicker: 'Mana', title: 'Jeder Zug lädt Mana', text: '+1 pro Zug. Schlagen oder Schach: +1 extra.',
     Scene: ManaScene },
-  { kicker: 'Karten', title: 'Karten: deine Tricks', text: 'Du hast 4 Karten auf der Hand. Karte antippen, dann das Ziel – das kostet Mana. Danach lädt die Karte ein paar Züge nach.',
-    task: 'Tippe auf Blitz, dann auf den schwarzen Bauern!', praise: 'Zack! Bauer weg.', Scene: CardsScene },
-  { kicker: 'Ultimate', title: 'Deine stärkste Waffe', text: 'Mana lädt auch deine Ultimate auf. Ist sie voll, kannst du sie zünden: Der Meteor zerstört eine Figur – nur König und Dame nicht.',
-    task: 'Tippe auf den Meteor, dann auf eine schwarze Figur!', praise: 'Volltreffer!', Scene: MeteorScene },
-  { kicker: 'Erste Schlacht', title: 'Bereit für Mila?', text: 'Setz Mila matt – dafür gibt es deine erste Truhe!',
+  { kicker: 'Karten', title: 'Karten kosten Mana', text: '',
+    task: 'Tippe Blitz, dann den Bauern.', praise: 'Zack! Bauer weg.', Scene: CardsScene },
+  { kicker: 'Ultimate', title: 'Volle Leiste: Ultimate!', text: '',
+    task: 'Tippe Meteor, dann eine Figur.', praise: 'Volltreffer!', Scene: MeteorScene },
+  { kicker: 'Erste Schlacht', title: 'Bereit für Mila?', text: 'Setz sie matt – ich zeige dir jeden Zug.',
     Scene: BattleScene },
 ]
 
@@ -77,7 +77,7 @@ function IntroSteps({ hello }: { hello: Hello | null }) {
       <div className="intro-card" key={'c' + i}>
         <span className="intro-kicker">{t(step.kicker)} · {i + 1}/{STEPS.length}</span>
         <b className="intro-title">{t(step.title)}</b>
-        <p className="intro-text">{t(step.text)}</p>
+        {step.text && <p className="intro-text">{t(step.text)}</p>}
         {done
           ? <>
               {step.praise && <span className="intro-praise"><Icon name="checkCircle" size={16} />{t(step.praise)}</span>}
@@ -145,21 +145,20 @@ function RockyBubble({ text, hop, big, typed, footer }: { text: string; hop: num
 // MARK: 1 · Rocky
 
 const LINES = [
-  'Hi, ich bin Rocky! Ein Turm. Ich kann nur geradeaus – um die Ecke denken überlasse ich den Springern.',
-  "Normales Schach? Das ist mir zu langweilig. Hier gibt's Superkräfte! Der König hat sich beschwert – aber auf den hört eh keiner.",
-  'Du sammelst Mana, spielst Karten und lässt Meteore regnen. Die Bauern hassen diesen Trick!',
+  'Hi, ich bin Rocky – ein Turm!',
+  "Hier hat Schach Superkräfte:",
 ]
 /** Rocky talks line by line (typewriter). The player taps for the next line; „Weiter“ comes after the last. */
 /** After the welcome Rocky greets the player by name and answers the chess question (WelcomeView.swift: same lines). */
 const LEVEL_LINES: Record<ChessLevel, string> = {
-  new: 'Neu im Schach? Kein Problem – in der ersten Schlacht zeige ich dir jeden Zug.',
-  rules: 'Du kennst die Regeln? Super – dann zeige ich dir nur die Superkräfte.',
-  pro: 'Ein Profi! Dann pass gut auf – hier wird dich einiges überraschen.',
+  new: 'Neu im Schach? Ich zeige dir jeden Zug.',
+  rules: 'Du kennst die Regeln? Dann nur die Superkräfte.',
+  pro: "Ein Profi? Hier wird's trotzdem wild.",
 }
 function rockyLines(hello: Hello | null, t: (k: string, ...a: Array<string | number>) => string): string[] {
   const lines = LINES.map(l => t(l))
   const name = S.getProfile().name
-  if (hello?.named && !S.isDefaultName(name)) lines[0] = t('Hi {0}, ich bin Rocky! Ein Turm. Ich kann nur geradeaus – um die Ecke denken überlasse ich den Springern.', name)
+  if (hello?.named && !S.isDefaultName(name)) lines[0] = t('Hi {0}, ich bin Rocky – ein Turm!', name)
   if (hello?.level) lines.splice(1, 0, t(LEVEL_LINES[hello.level]))
   return lines
 }
@@ -194,7 +193,7 @@ function RockyScene({ onDone, signal, hello }: SceneProps) {
           {typed && !lastLine && <span className="intro-more"><Icon name="chevronRight" size={14} /></span>}
         </span>} />
       <div className="intro-powers">
-        {line >= lines.length - 2 && <span className="intro-power"><img src={pieceImage('w', 'k')} alt="" /><span>{t('Schach')}</span></span>}
+        {line === lines.length - 1 && <span className="intro-power"><img src={pieceImage('w', 'k')} alt="" /><span>{t('Schach')}</span></span>}
         {lastLine && <>
           <b className="intro-plus">+</b>
           {powers.map(([icon, label, color], k) => (
@@ -286,7 +285,7 @@ function CardsScene({ onDone, done }: SceneProps) {
       <div className="intro-cardinfo" key={shown ?? 'none'}>
         {shown
           ? <><b>{t(CARDS[shown].name)} · <span className="num" style={{ color: '#8FB6FF' }}>{cardCost(shown)} {t('Mana')}</span></b><span>{t(CARDS[shown].short)}</span></>
-          : <span className="muted">{t('Tippe eine Karte an, um zu sehen, was sie kann.')}</span>}
+          : <span className="muted">{t('Tippe eine Karte an.')}</span>}
       </div>
     </div>
   )
@@ -348,7 +347,7 @@ function BattleScene() {
           <b>{t('Mila')}</b><small>{t('die Magierin')}</small>
         </div>
       </div>
-      <RockyBubble text={t('Keine Sorge: Ich bin die ganze Zeit dabei und zeige dir jeden Zug.')} hop={0} />
+      <RockyBubble text={t('Ich bin die ganze Zeit dabei!')} hop={0} />
     </div>
   )
 }

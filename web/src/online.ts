@@ -1,7 +1,7 @@
 // Online play and the account, against the same Supabase project as the iPhone app.
 // Snapshot format and RPC names follow Services/Online.swift and SupabaseAccountService.swift.
 import { useSyncExternalStore } from 'react'
-import { BOARD_THEMES, botForTrophies, botRating, botRecordName, CARD_IDS, ULT_IDS, type BoardTheme, type CardId, type ChestRarity, type ChestSource, type UltId } from './game/catalog'
+import { BOARD_THEMES, botForTrophies, botRating, botRecordName, CARD_IDS, TIME_CONTROLS, ULT_IDS, type BoardTheme, type CardId, type ChestRarity, type ChestSource, type TimeControl, type UltId } from './game/catalog'
 import * as S from './game/store'
 import { RULES_VERSION } from './engine'
 import { appleClientId, appleIdToken, sessionClient, supabase } from './supabase'
@@ -16,6 +16,8 @@ export type OnlineStart = {
   clockWhiteMs: number; clockBlackMs: number; startedAt: number
   /** false = friendly match (no trophies) */
   rated: boolean
+  /** Ranked games are always 5 | 0; friendly matches use the time control the inviter chose. */
+  timeControl: TimeControl
 }
 type ServerProgress = {
   trophies: number; best_trophies: number; snapshot: Record<string, unknown> | null; snapshot_rev?: number
@@ -159,7 +161,7 @@ export function mergeHistory(a: S.GameRecord[], b: S.GameRecord[]): S.GameRecord
 
 /** Take over the progress saved on the account. The server is the truth: trophies, name and the whole save come from it.
  *  Only the game history is merged (games from this browser that the server does not know yet stay). */
-export function restoreFrom(progress: ServerProgress) {
+export function restoreFrom(progress: ServerProgress, takeTrophies = true) {
   const s = (progress.snapshot ?? {}) as Record<string, unknown>
   const arr = (k: string) => (Array.isArray(s[k]) ? (s[k] as unknown[]).filter((x): x is string => typeof x === 'string') : null)
   const num = (k: string) => (typeof s[k] === 'number' ? s[k] as number : null)
@@ -167,8 +169,8 @@ export function restoreFrom(progress: ServerProgress) {
     // The account name is the one on the server (profiles.display_name); the save only fills in without an account name.
     if (account.name) p.name = account.name
     else if (typeof s.name === 'string' && s.name) p.name = s.name
-    p.trophies = progress.trophies
-    p.bestTrophies = Math.max(progress.best_trophies, num('bestTrophies') ?? 0, progress.trophies)
+    if (takeTrophies) p.trophies = progress.trophies
+    p.bestTrophies = Math.max(progress.best_trophies, num('bestTrophies') ?? 0, p.trophies)
     for (const k of ['wins', 'losses', 'draws', 'xp', 'shards', 'shardsEarned', 'streak', 'bestStreak', 'ladderBeaten',
       'levelChestsGranted', 'arenaChestsGranted', 'puzzleChestsGranted', 'streakFreezes', 'pityCounter', 'chestsOpened',
       'legendaryChests', 'winChestsToday', 'puzzleStreak', 'bestPuzzleStreak', 'rushBest', 'rushPlayed', 'ultimatesUsed', 'bonusActions',
@@ -224,8 +226,18 @@ export const dismissRestore = () => publish({ pendingRestore: null })
 
 // MARK: Account
 
+/** Counts local trophy changes (a game just ended or the server's number for it arrived). A server total read before the
+ *  latest change is older than what this browser shows and must not replace it (it would undo the trophies of a win). */
+let trophyEpoch = 0
+export function noteLocalTrophyChange() { trophyEpoch++ }
+/** Counts saves that reached the server. A save read before the latest one is older than this browser's state. */
+let savedGen = 0
+
 export async function refreshAccount() {
   if (!supabase) { publish({ status: 'unavailable' }); return }
+  // A save on its way would bump the server's version while we read it – wait for it, then read.
+  if (syncing) await syncing.catch(() => {})
+  const epoch = trophyEpoch, gen = savedGen
   const { data } = await supabase.auth.getSession()
   const user = data.session?.user
   if (!user) { publish({ status: 'guest', provider: null, userId: null, name: null, serverTrophies: null, record: null }); return }
@@ -242,26 +254,28 @@ export async function refreshAccount() {
   }
   const row = profile as { display_name: string }
   const pr = progress as (ServerProgress & { online_wins?: number; online_losses?: number; online_draws?: number }) | null
+  const fresh = epoch === trophyEpoch
   publish({
-    status: provider ? 'secured' : 'anonymous', provider, userId: user.id, name: row.display_name, serverTrophies: pr?.trophies ?? null, needsName: false,
+    status: provider ? 'secured' : 'anonymous', provider, userId: user.id, name: row.display_name,
+    serverTrophies: fresh ? pr?.trophies ?? null : S.getProfile().trophies, needsName: false,
     record: { wins: pr?.online_wins ?? 0, losses: pr?.online_losses ?? 0, draws: pr?.online_draws ?? 0 },
   })
   if (row.display_name && S.getProfile().name !== row.display_name) S.update(p => { p.name = row.display_name })
-  if (pr) await adoptServer(pr, user.id)
+  if (pr) await adoptServer(pr, user.id, { trophies: fresh, save: gen === savedGen })
   void mergeServerGames()
 }
 
 /** Bring this browser to the server's state: a newer save from another device replaces this one;
  *  if this browser has changes the server does not have yet, they are sent (and checked against the server's version). */
-async function adoptServer(pr: ServerProgress, userId: string) {
+async function adoptServer(pr: ServerProgress, userId: string, fresh = { trophies: true, save: true }) {
   const sync = syncState()
   const known = sync?.userId === userId ? sync.rev : null
   const rev = pr.snapshot_rev ?? null
-  if (pr.snapshot && (known === null || rev === null || rev !== known)) restoreFrom(pr)
+  if (pr.snapshot && fresh.save && (known === null || rev === null || rev !== known)) restoreFrom(pr, fresh.trophies)
   else if (!pr.snapshot) { setSyncRev(rev ?? 0); lastBackup = ''; await backupQuietly() }
   else if (backupTimer) { window.clearTimeout(backupTimer); backupTimer = 0; await backupQuietly() }
-  // Trophies are always the server's.
-  if (typeof pr.trophies === 'number') {
+  // Trophies are always the server's – unless this browser changed them after the server's number was read.
+  if (typeof pr.trophies === 'number' && fresh.trophies) {
     S.update(p => { p.trophies = pr.trophies; p.bestTrophies = Math.max(p.bestTrophies, pr.best_trophies, pr.trophies) })
   }
 }
@@ -556,6 +570,7 @@ export function backupQuietly(): Promise<void> {
 }
 async function syncOnce() {
   if (!supabase || !hasAccount()) return
+  const epoch = trophyEpoch
   const snap = snapshot()
   const key = JSON.stringify({ ...snap, createdAt: '' })
   if (key === lastBackup) return
@@ -574,10 +589,11 @@ async function syncOnce() {
     return
   }
   const reply = data as { status: string; rev?: number; progress?: ServerProgress } | null
-  if (reply?.status === 'saved' && typeof reply.rev === 'number') setSyncRev(reply.rev)
+  if (reply?.status === 'saved' && typeof reply.rev === 'number') { setSyncRev(reply.rev); savedGen++ }
   else if (reply?.status === 'stale' && reply.progress) {
-    restoreFrom(reply.progress)
-    S.update(p => { p.trophies = reply.progress!.trophies })
+    const fresh = epoch === trophyEpoch
+    restoreFrom(reply.progress, fresh)
+    if (fresh) S.update(p => { p.trophies = reply.progress!.trophies })
   }
 }
 /** Everything in the save goes to the account (cards, XP, chests, shards, flame, shop, achievements, games …), bundled. */
@@ -663,12 +679,12 @@ type MatchRow = {
   white: string | null; black: string | null; white_card: PlayerCard; black_card: PlayerCard; is_bot: boolean
   bot_level: string | null; rated: boolean | null
   setup: { decks: { white: string[]; black: string[] }; ultimates: { white: string; black: string } }
-  clock_white_ms: number; clock_black_ms: number; clock_started_at: string
+  clock_white_ms: number; clock_black_ms: number; clock_started_at: string; time_control: string
 }
 export async function loadMatch(id: string): Promise<OnlineStart> {
   const db = client()
   const { data, error } = await db.from('matches')
-    .select('white,black,white_card,black_card,is_bot,bot_level,rated,setup,clock_white_ms,clock_black_ms,clock_started_at').eq('id', id).single()
+    .select('white,black,white_card,black_card,is_bot,bot_level,rated,setup,clock_white_ms,clock_black_ms,clock_started_at,time_control').eq('id', id).single()
   if (error) throw error
   const row = data as MatchRow
   const uid = (await db.auth.getUser()).data.user?.id
@@ -677,6 +693,7 @@ export async function loadMatch(id: string): Promise<OnlineStart> {
     matchId: id, bot: row.is_bot, botId: row.is_bot ? row.bot_level : null, youWhite, opponent: youWhite ? row.black_card : row.white_card,
     decks: row.setup.decks, ultimates: row.setup.ultimates, clockWhiteMs: row.clock_white_ms, clockBlackMs: row.clock_black_ms,
     startedAt: Date.parse(row.clock_started_at), rated: row.rated ?? true,
+    timeControl: row.time_control in TIME_CONTROLS ? row.time_control as TimeControl : 'blitz5',
   }
 }
 

@@ -6,7 +6,7 @@ import { GameController, useController, type GameOverInfo } from '../game/contro
 import * as S from '../game/store'
 import * as FM from '../friendMatch'
 import { useI18n } from '../i18n'
-import { closeOverlay, openChests, parkGame, run, setTab } from '../nav'
+import { closeOverlay, openChests, openSheet, parkGame, run } from '../nav'
 import { roadTitle } from './Home'
 import { ROAD } from '../game/catalog'
 import { Icon } from '../ui/Icon'
@@ -282,8 +282,8 @@ function Hand({ c, onDetail }: { c: GameController; onDetail: (id: string) => vo
   const bonusActive = c.state.bonus && c.state.cur === owner && !c.over
   const lastCard = [...c.entries].reverse().find(e => e.side === c.state.cur)?.card
   const peaceful = !!c.state.peace
-  const anyTarget = !!c.tutorialCard || c.tutorialUlt
-  const dimmed = (isTarget: boolean) => anyTarget && !isTarget && !c.pendingCard && !c.pendingUlt
+  // First battle: only the task's card stays bright – during a move step all cards step back.
+  const dimmed = (isTarget: boolean) => c.mode.kind === 'tutorial' && !!c.coach && !c.coach.done && !isTarget
   const press = (fn: () => void, id: string) => {
     let timer = 0
     let long = false
@@ -404,7 +404,7 @@ function QuestBar({ c }: { c: GameController }) {
 }
 
 function TutorialComplete({ xp, streak }: { xp: number; streak: number | null }) {
-  // TutorialCompleteOverlay in the app: logo, what you learned, Rocky's pro tip, XP, flame, first chest.
+  // TutorialCompleteOverlay in the app: logo, one line on what you learned, XP, flame, first chest.
   const { t } = useI18n()
   const chest = S.pendingChests()[0]
   return (
@@ -416,8 +416,7 @@ function TutorialComplete({ xp, streak }: { xp: number; streak: number | null })
           <img src={appLogo} alt="" className="tut-logo" />
         </div>
         <h2 className="title-l">{t('Erste Schlacht gewonnen!')}</h2>
-        <p className="dim">{t('Du kennst jetzt Mana, Angriff, Verteidigung und Ultimates.')}</p>
-        <div className="tut-tip"><Icon name="bolt" size={14} color="var(--gold)" /><span>{t('Profi-Tipp: Blitz kostet 2 Mana und vernichtet einen gegnerischen Bauern, der in deine Hälfte vorgerückt ist – auch einen gedeckten. Ideal gegen Vormarsch und Sturmlauf.')}</span></div>
+        <p className="dim">{t('Mana, Karten, Ultimate – du kannst alles.')}</p>
         <b className="tut-xp num">{t('+{0} XP', xp)}</b>
         {streak !== null && <FlameLitRow streak={streak} />}
         {chest ? (<>
@@ -609,7 +608,7 @@ function GameOver({ info, onExit, onRematch, onNext }: { info: GameOverInfo; onE
           {info.roadReady !== null && (() => {
             const step = ROAD.find(x => x.trophies === info.roadReady)
             return (
-              <button className="go-road" onClick={() => { onExit(); setTab('arena') }}>
+              <button className="go-road" onClick={() => { onExit(); openSheet('road') }}>
                 <Icon name="trophy" size={16} />
                 <span className="grow"><b>{t('Trophäenpfad: {0} erreicht!', info.roadReady)}</b>
                   {step && <small>{t('{0} wartet – abholen', roadTitle(step.reward, t))}</small>}</span>

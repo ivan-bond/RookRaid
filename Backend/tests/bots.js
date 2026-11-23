@@ -189,13 +189,24 @@ const ok = (cond, msg, got) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg + 
   r = await one(A, `select friend_match_status($1) s`, [inv5]); ok(r.s.status === 'expired', 'verfallen', r);
   r = await one(B, `select answer_friend_match($1, true, $2, $3, $4, $5) m`, [inv5, 3, DECK, 'meteor', card('Mia', 600)]); ok(r.error === 'invite_gone', 'verfallen: nicht mehr annehmbar');
 
+  // Zeitkontrolle: Der Einladende wählt die Uhr, ohne Angabe bleibt es 5 | 0.
+  row = (await q(`select time_control, increment_ms from matches where id = $1`, [fm]))[0];
+  ok(row.time_control === 'blitz5' && row.increment_ms === 0, 'ohne Zeitwahl: 5 | 0 (ältere Apps)', row);
+  r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5, $6) id`, [B, ...inviteParams, 'hyper1']); ok(r.error === 'bad_time_control', 'unbekannte Uhr abgelehnt', r);
+  r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5, $6) id`, [B, ...inviteParams, 'rapid10']); const inv6 = r.id;
+  r = await one(B, `select touch_online() t`); ok(r.t.invites[0].time_control === 'rapid10', 'Eingeladener sieht die Uhr', r.t);
+  r = await one(B, `select answer_friend_match($1, true, $2, $3, $4, $5) m`, [inv6, 3, DECK, 'meteor', card('Mia', 600)]);
+  row = (await q(`select time_control, clock_white_ms, clock_black_ms, increment_ms from matches where id = $1`, [r.m]))[0];
+  ok(row.time_control === 'rapid10' && row.clock_white_ms === 600000 && row.clock_black_ms === 600000 && row.increment_ms === 5000, 'Partie mit 10 | 5', row);
+  await as('service', `select finish_match($1, 'aborted', null)`, [r.m]);
+
   // ── Freundschaftsspiel gegen Bot-Spieler ──
   const [{ user_id: lover }, { user_id: hater }] = await q(`select user_id from private.bot_players where user_id <> $1 order by user_id desc limit 2`, [yes.user_id]);
   for (const u of [lover, hater]) {
     await q(`insert into friendships (requester, addressee, status, responded_at) values ($1, $2, 'accepted', now()) on conflict do nothing`, [A, u]);
   }
   await q(`delete from push_outbox`);
-  r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5) id`, [lover, ...inviteParams]); const bi = r.id;
+  r = await one(A, `select invite_friend_match($1, $2, $3, $4, $5, $6) id`, [lover, ...inviteParams, 'blitz3']); const bi = r.id;
   ok((await q(`select * from push_outbox`)).length === 0, 'an Bot-Spieler kein Push');
   r = await one(A, `select friend_match_status($1) s`, [bi]); ok(r.s.status === 'pending', 'Bot überlegt noch (3 Sekunden)', r);
   await q(`update match_invites set created_at = now() - interval '3 seconds' where id = $1`, [bi]);
@@ -203,6 +214,7 @@ const ok = (cond, msg, got) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg + 
   ok(r.s.status === 'accepted' && r.s.match_id, 'Bot-Spieler, der gern spielt: nimmt an', r);
   row = (await q(`select * from matches where id = $1`, [r.s.match_id]))[0];
   ok(row.is_bot && !row.rated && row.bot_player === lover && (row.white === A || row.black === A), 'Partie gegen den Bot-Spieler, ungewertet', row);
+  ok(row.time_control === 'blitz3' && row.increment_ms === 2000 && row.clock_white_ms === 180000, 'Bot-Spieler übernimmt die gewählte Uhr (3 | 2)', row);
   const bt0 = (await q(`select trophies from progress where user_id = $1`, [lover]))[0].trophies;
   await as('service', `select finish_match($1, 'resigned', $2)`, [row.id, row.white === A ? 'black' : 'white']);
   ok((await q(`select trophies from progress where user_id = $1`, [lover]))[0].trophies === bt0, 'Freundschaftsspiel gegen Bot: keine Trophäen');

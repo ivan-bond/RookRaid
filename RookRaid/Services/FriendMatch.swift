@@ -2,8 +2,9 @@ import Foundation
 import Supabase
 
 /// Freundschaftsspiele (wie web/src/friendMatch.ts): einladen, annehmen, ablehnen – und das Lebenszeichen für den
-/// Online-Status. Server: Migration Backend/supabase/migrations/20261109120000_bot_players.sql.
-/// 5 | 0, ohne Trophäen, zählt für die Bilanz gegeneinander. Eine Einladung gilt 2 Minuten.
+/// Online-Status. Server: Migrationen 20261109120000_bot_players.sql und 20261123120000_friend_match_time.sql.
+/// Bedenkzeit wählt der Einladende (3 | 2, 5 | 0, 5 | 3, 10 | 5), ohne Trophäen, zählt für die Bilanz gegeneinander.
+/// Eine Einladung gilt 2 Minuten.
 struct MatchInvite: Decodable, Identifiable, Equatable {
     let id: UUID
     let userId: UUID
@@ -11,9 +12,32 @@ struct MatchInvite: Decodable, Identifiable, Equatable {
     let avatar: String
     let frame: String?
     let createdAt: Date
+    /// Vom Einladenden gewählte Bedenkzeit (ältere Server schicken keine: 5 | 0)
+    let timeControl: TimeControl
 
     enum CodingKeys: String, CodingKey {
-        case id, userId = "user_id", name = "display_name", avatar, frame, createdAt = "created_at"
+        case id, userId = "user_id", name = "display_name", avatar, frame, createdAt = "created_at", timeControl = "time_control"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        name = try c.decode(String.self, forKey: .name)
+        avatar = try c.decode(String.self, forKey: .avatar)
+        frame = try c.decodeIfPresent(String.self, forKey: .frame)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        timeControl = (try? c.decodeIfPresent(String.self, forKey: .timeControl)).flatMap { $0 }.flatMap(TimeControl.init(rawValue:)) ?? .blitz5
+    }
+}
+
+extension TimeControl {
+    /// Bedenkzeiten für Freundschaftsspiele (gleiche Werte wie tc_base_ms / tc_increment_ms auf dem Server)
+    static var friendChoices: [TimeControl] { [.blitz3, .blitz5, .rapid5, .rapid10] }
+    /// Zuletzt gewählte Bedenkzeit für Freundschaftsspiele (Standard 5 | 0)
+    static var friendDefault: TimeControl {
+        get { UserDefaults.standard.string(forKey: "RRFriendTimeControl").flatMap(TimeControl.init(rawValue:)).flatMap { friendChoices.contains($0) ? $0 : nil } ?? .blitz5 }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "RRFriendTimeControl") }
     }
 }
 
@@ -29,6 +53,7 @@ final class FriendMatchCenter: ObservableObject {
         let name: String
         let avatar: String
         let frame: String?
+        let timeControl: TimeControl
         let startedAt: Date
         var state: State
     }
@@ -41,6 +66,7 @@ final class FriendMatchCenter: ObservableObject {
         let name: String
         let avatar: String
         let frame: String?
+        let timeControl: TimeControl
     }
     private(set) var lastOpponent: Opponent?
 
@@ -89,7 +115,7 @@ final class FriendMatchCenter: ObservableObject {
     }
 
     /// Freund herausfordern. Wartet danach selbst auf die Antwort (alle 2 s).
-    func invite(_ friend: UUID, name: String, avatar: String, frame: String?) async throws {
+    func invite(_ friend: UUID, name: String, avatar: String, frame: String?, timeControl: TimeControl) async throws {
         guard let client else { throw AccountError.offline }
         guard ProfileStore.shared.deckIsFull else { throw MatchmakingError.deckIncomplete }
         struct Params: Encodable {
@@ -98,13 +124,17 @@ final class FriendMatchCenter: ObservableObject {
             let p_deck: [String]
             let p_ultimate: String
             let p_card: PlayerCard
+            let p_time_control: String
         }
         let s = mySetup
         let id: UUID = try await client.rpc("invite_friend_match", params: Params(
-            p_user: friend, p_rules_version: s.p_rules_version, p_deck: s.p_deck, p_ultimate: s.p_ultimate, p_card: s.p_card
+            p_user: friend, p_rules_version: s.p_rules_version, p_deck: s.p_deck, p_ultimate: s.p_ultimate, p_card: s.p_card,
+            p_time_control: timeControl.rawValue
         )).execute().value
+        TimeControl.friendDefault = timeControl
         Task { try? await client.functions.invoke("push-dispatch", options: .init(body: [String: String]())) }
-        outgoing = Outgoing(inviteId: id, friend: friend, name: name, avatar: avatar, frame: frame, startedAt: Date(), state: .waiting)
+        outgoing = Outgoing(inviteId: id, friend: friend, name: name, avatar: avatar, frame: frame, timeControl: timeControl,
+                            startedAt: Date(), state: .waiting)
         watch(id)
     }
 
@@ -119,7 +149,7 @@ final class FriendMatchCenter: ObservableObject {
                 guard let s: Status = try? await client.rpc("friend_match_status", params: ["p_invite": id]).execute().value else { continue }
                 switch s.status {
                 case "accepted":
-                    if let o = self.outgoing { self.lastOpponent = Opponent(id: o.friend, name: o.name, avatar: o.avatar, frame: o.frame) }
+                    if let o = self.outgoing { self.lastOpponent = Opponent(id: o.friend, name: o.name, avatar: o.avatar, frame: o.frame, timeControl: o.timeControl) }
                     self.outgoing = nil
                     if let match = s.match_id { self.readyMatch = match }
                     return
@@ -162,19 +192,19 @@ final class FriendMatchCenter: ObservableObject {
             p_invite: invite.id, p_accept: true, p_rules_version: s.p_rules_version, p_deck: s.p_deck,
             p_ultimate: s.p_ultimate, p_card: s.p_card
         )).execute().value
-        lastOpponent = Opponent(id: invite.userId, name: invite.name, avatar: invite.avatar, frame: invite.frame)
+        lastOpponent = Opponent(id: invite.userId, name: invite.name, avatar: invite.avatar, frame: invite.frame, timeControl: invite.timeControl)
         if let match { readyMatch = match }
     }
 
-    /// „Revanche“ nach einem Freundschaftsspiel: denselben Freund noch einmal herausfordern.
+    /// „Revanche“ nach einem Freundschaftsspiel: denselben Freund mit derselben Bedenkzeit noch einmal herausfordern.
     /// Klappt das nicht, zeigt das Wartefenster den Grund.
     func rematch() async {
         guard let o = lastOpponent else { return }
         do {
-            try await invite(o.id, name: o.name, avatar: o.avatar, frame: o.frame)
+            try await invite(o.id, name: o.name, avatar: o.avatar, frame: o.frame, timeControl: o.timeControl)
         } catch {
             outgoing = Outgoing(inviteId: UUID(), friend: o.id, name: o.name, avatar: o.avatar, frame: o.frame,
-                                startedAt: Date(), state: .failed(FriendError.message(error)))
+                                timeControl: o.timeControl, startedAt: Date(), state: .failed(FriendError.message(error)))
         }
     }
 

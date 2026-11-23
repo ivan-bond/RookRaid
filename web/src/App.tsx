@@ -1,4 +1,4 @@
-// RootView (HomeViews.swift): five tabs, full-screen views on top, sheets and the little celebrations.
+// RootView (HomeViews.swift): four tabs, full-screen views on top, sheets and the little celebrations.
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { appLogo, logoMark, preloadArt, rockyFace } from './art'
 import { unlockAudio } from './game/feedback'
@@ -15,6 +15,7 @@ import { AchievementsSheet, ProfileScreen, StatisticsSheet, StyleSheet } from '.
 import { FeedbackSheet } from './screens/Feedback'
 import { PuzzleHub } from './screens/Puzzles'
 import { LadderSheet, RoadGuide, RoadScreen } from './screens/Road'
+import { AdventureSheet } from './screens/Puzzles'
 import { RulesSheet } from './screens/Rules'
 import { LanguageSheet, LegalSheet, NameSheet, SettingsSheet } from './screens/Settings'
 import { ShopSheet } from './screens/Shop'
@@ -26,6 +27,7 @@ import * as Friends from './friends'
 import * as FriendMatch from './friendMatch'
 import { FriendMatchInviteBanner, FriendMatchWaiting, installFriendMatchStart } from './screens/FriendMatch'
 import { syncPush } from './push'
+import { SOCIALS } from './socials'
 
 // Full-screen views load when first opened, so the first visit and the public pages download less.
 const GameScreen = lazy(() => import('./screens/Game').then(m => ({ default: m.GameScreen })))
@@ -37,15 +39,14 @@ const ReplayViewer = lazy(() => import('./screens/Replay').then(m => ({ default:
 const Intro = lazy(() => import('./screens/Intro').then(m => ({ default: m.Intro })))
 
 const TABS: Array<[Tab, string, string]> = [
-  ['arena', 'Pfad', 'trophy'], ['puzzles', 'Puzzles', 'puzzle'], ['play', 'Spielen', 'bolt'], ['deck', 'Deck', 'stack'], ['profile', 'Profil', 'person'],
+  ['puzzles', 'Puzzles', 'puzzle'], ['play', 'Spielen', 'bolt'], ['deck', 'Deck', 'stack'], ['profile', 'Profil', 'person'],
 ]
 
 function badge(tab: Tab, p: S.Profile, requests = 0): { count: number; dot: boolean } {
   switch (tab) {
-    case 'play': return { count: p.chests.length + (S.dailyChestReady(p) ? 1 : 0), dot: false }
+    case 'play': return { count: p.chests.length + (S.dailyChestReady(p) ? 1 : 0) + S.claimableRoadSteps(p).length, dot: false }
     case 'puzzles': return { count: 0, dot: S.dailyBonusAvailable(p) }
     case 'deck': return { count: S.newCardCount(p), dot: p.tutorialSeen && !S.deckIsFull(p) }
-    case 'arena': return { count: S.claimableRoadSteps(p).length, dot: false }
     case 'profile': return { count: S.claimableAchievements(p).length + requests, dot: false }
   }
 }
@@ -125,6 +126,7 @@ export function App() {
           </button>
         ))}
         <div className="rail-sep" />
+        <button className="rail-tab" onClick={() => openSheet('road')}><Icon name="trophy" size={20} />{t('Trophäenpfad')}<Badge b={{ count: S.claimableRoadSteps(p).length, dot: false }} /></button>
         <button className="rail-tab" onClick={() => openSheet('chestHub')}><Icon name="box" size={20} />{t('Truhen')}</button>
         <button className="rail-tab" onClick={() => openSheet('shop')}><Icon name="bag" size={20} />{t('Splitter-Laden')}</button>
         <button className="rail-tab" onClick={() => openSheet('ladder')}><Icon name="stairs" size={20} />{t('Bot-Leiter')}</button>
@@ -135,13 +137,17 @@ export function App() {
           <a className="rail-link" href={LEGAL_PATHS.imprint} onClick={e => { e.preventDefault(); openSheet('legal-imprint') }}><Icon name="doc" size={16} />{t('Impressum')}</a>
           <a className="rail-link" href={LEGAL_PATHS.terms} onClick={e => { e.preventDefault(); openSheet('legal-terms') }}><Icon name="bookOpen" size={16} />{t('Nutzungsbedingungen')}</a>
           <a className="rail-link" href={LEGAL_PATHS.support} onClick={e => { e.preventDefault(); openSheet('legal-support') }}><Icon name="envelope" size={16} />{t('Hilfe & Kontakt')}</a>
+          <div className="rail-socials" aria-label={t('Folge uns')}>
+            {SOCIALS.map(so => (
+              <a key={so.id} href={so.url} target="_blank" rel="noopener noreferrer" aria-label={so.name} title={so.name}><Icon name={so.icon} size={16} /></a>
+            ))}
+          </div>
           <span className="rail-copy">© 2026 Ivan Bondarenko</span>
         </div>
       </nav>
 
       <div className="app-main">
         {nav.tab === 'play' && <HomeScreen />}
-        {nav.tab === 'arena' && <RoadScreen />}
         {nav.tab === 'puzzles' && <PuzzleHub />}
         {nav.tab === 'deck' && <DeckScreen />}
         {nav.tab === 'profile' && <ProfileScreen />}
@@ -186,6 +192,8 @@ export function App() {
       {sheet === 'onlineName' && <NameSheet online />}
       {sheet === 'language' && <LanguageSheet />}
       {sheet === 'roadGuide' && <RoadGuide />}
+      {sheet === 'road' && <div className="road-sheet"><RoadScreen onClose={closeSheet} /></div>}
+      {sheet === 'adventure' && <AdventureSheet />}
       {sheet === 'friends' && <FriendsSheet />}
       {sheet === 'friendProfile' && <FriendProfileSheet />}
       {sheet === 'legal-privacy' && <LegalSheet page="privacy" />}

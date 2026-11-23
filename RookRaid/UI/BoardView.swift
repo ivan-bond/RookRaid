@@ -33,6 +33,7 @@ struct BoardView: View {
                 markersLayer(s)
                 piecesLayer(s)
                 dotsLayer(s)
+                tutorialLayer(s)
                 effectsLayer(s)
                 mateFlourish(s)
             }
@@ -154,12 +155,6 @@ struct BoardView: View {
                     .frame(width: s, height: s)
                     .position(point(k, s))
             }
-            // Tutorial: goldene, pulsierende Markierung
-            ForEach(vm.tutorialSquares, id: \.self) { sq in
-                TutorialPulse(size: s)
-                    .frame(width: s, height: s)
-                    .position(point(sq, s))
-            }
             // Mögliche Ziele für Karte oder Ultimate: schlichter weißer Rahmen
             ForEach(Array(vm.cardTargets), id: \.self) { sq in
                 RoundedRectangle(cornerRadius: 3)
@@ -169,6 +164,42 @@ struct BoardView: View {
             }
         }
         .allowsHitTesting(false)
+    }
+
+    /// Erste Schlacht: Der Rest des Bretts wird dunkel, ein Pfeil zeigt den Zug, eine Hand das nächste Feld.
+    /// So gibt es immer genau eine Stelle zum Antippen.
+    @ViewBuilder
+    private func tutorialLayer(_ s: CGFloat) -> some View {
+        let spots = vm.tutorialSpots
+        if !spots.isEmpty {
+            let focus = vm.tutorialFocus
+            let side = s * 8
+            ZStack(alignment: .topLeading) {
+                Path { p in
+                    p.addRect(CGRect(x: 0, y: 0, width: side, height: side))
+                    for sq in spots {
+                        let c = point(sq, s)
+                        p.addRoundedRect(in: CGRect(x: c.x - s / 2, y: c.y - s / 2, width: s, height: s),
+                                         cornerSize: CGSize(width: s * 0.12, height: s * 0.12))
+                    }
+                }
+                .fill(Color.black.opacity(focus == nil ? 0.62 : 0.55), style: FillStyle(eoFill: true))
+                if let arrow = vm.tutorialArrow {
+                    TutorialArrow(from: point(arrow.from, s), to: point(arrow.to, s), size: s)
+                }
+                if let focus {
+                    TutorialPulse(size: s)
+                        .frame(width: s, height: s)
+                        .position(point(focus, s))
+                    TutorialHand(size: s)
+                        .position(x: point(focus, s).x + s * 0.32, y: point(focus, s).y + s * 0.42)
+                }
+            }
+            .frame(width: side, height: side)
+            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: focus)
+            .transition(.opacity)
+            .allowsHitTesting(false)
+        }
     }
 
     private func piecesLayer(_ s: CGFloat) -> some View {
@@ -388,6 +419,59 @@ struct LockBadge: View {
 }
 
 /// Pulsierender Goldrahmen für das Tutorial.
+/// Goldener Pfeil von der Figur zu ihrem Ziel (erste Schlacht).
+struct TutorialArrow: View {
+    let from: CGPoint
+    let to: CGPoint
+    let size: CGFloat
+
+    var body: some View {
+        let dx = to.x - from.x, dy = to.y - from.y
+        let len = max(1, sqrt(dx * dx + dy * dy))
+        let ux = dx / len, uy = dy / len
+        let start = CGPoint(x: from.x + ux * size * 0.3, y: from.y + uy * size * 0.3)
+        let tip = CGPoint(x: to.x - ux * size * 0.3, y: to.y - uy * size * 0.3)
+        let head = size * 0.3
+        let base = CGPoint(x: tip.x - ux * head, y: tip.y - uy * head)
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { tl in
+            // Nur innerhalb eines Strich-Musters wandern – ein riesiger Versatz kostet sonst bei jedem Bild viel Zeit.
+            let pattern = size * 0.34
+            let phase = (tl.date.timeIntervalSinceReferenceDate * Double(size) * 0.7).truncatingRemainder(dividingBy: Double(pattern))
+            ZStack {
+                Path { p in p.move(to: start); p.addLine(to: base) }
+                    .stroke(Theme.gold.opacity(0.9),
+                            style: StrokeStyle(lineWidth: size * 0.11, lineCap: .round, dash: [size * 0.2, size * 0.14],
+                                               dashPhase: -phase))
+                Path { p in
+                    p.move(to: tip)
+                    p.addLine(to: CGPoint(x: base.x - uy * head * 0.7, y: base.y + ux * head * 0.7))
+                    p.addLine(to: CGPoint(x: base.x + uy * head * 0.7, y: base.y - ux * head * 0.7))
+                    p.closeSubpath()
+                }
+                .fill(Theme.gold)
+            }
+            .shadow(color: .black.opacity(0.5), radius: 3)
+        }
+    }
+}
+
+/// Zeigefinger, der auf das nächste Feld tippt (erste Schlacht).
+struct TutorialHand: View {
+    let size: CGFloat
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { tl in
+            let tap = (sin(tl.date.timeIntervalSinceReferenceDate * 5) + 1) / 2
+            Image(systemName: "hand.point.up.left.fill")
+                .font(.system(size: size * 0.55, weight: .black))
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.6), radius: 3, y: 2)
+                .offset(x: -size * 0.08 * tap, y: -size * 0.12 * tap)
+                .scaleEffect(1 - 0.08 * tap)
+        }
+    }
+}
+
 struct TutorialPulse: View {
     let size: CGFloat
 

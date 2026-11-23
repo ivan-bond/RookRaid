@@ -119,21 +119,6 @@ export function PlayerAvatar({ avatar, frame = 'none', size = 34, style }: { ava
 
 // MARK: Header badges
 
-export function LevelBadge({ level, progress, size = 40 }: { level: number; progress: number; size?: number }) {
-  const r = (size - 4) / 2
-  const c = 2 * Math.PI * r
-  return (
-    <span className="level-badge" style={{ width: size, height: size }}>
-      <svg width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="var(--raised)" stroke="var(--hi)" strokeWidth={3.5} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--mana-light)" strokeWidth={3.5} strokeLinecap="round"
-          strokeDasharray={`${c * progress} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      </svg>
-      <b style={{ fontSize: size * 0.45 }}>{level}</b>
-    </span>
-  )
-}
-
 export function ShardIcon({ size = 18 }: { size?: number }) {
   const id = useId().replace(/:/g, '')
   return (

@@ -3,11 +3,12 @@ import { useSyncExternalStore } from 'react'
 import type { GameController } from './game/controller'
 import type { Chest, Puzzle } from './game/store'
 
-export type Tab = 'arena' | 'puzzles' | 'play' | 'deck' | 'profile'
+/** Main tabs (redesign V2): Puzzles · Play · Deck · Profile. The trophy road opens as the 'road' sheet. */
+export type Tab = 'puzzles' | 'play' | 'deck' | 'profile'
 export type SheetId =
   | 'settings' | 'chestHub' | 'ladder' | 'shop' | 'flame' | 'achievements' | 'style' | 'stats' | 'feedback' | 'rules' | 'presets' | 'ultimates'
   | 'name' | 'onlineName' | 'language' | 'legal-privacy' | 'legal-imprint' | 'legal-terms' | 'legal-support' | 'roadGuide'
-  | 'friends' | 'friendProfile'
+  | 'friends' | 'friendProfile' | 'road' | 'adventure'
 export type Overlay =
   | { kind: 'game'; game: GameController }
   | { kind: 'puzzle'; puzzle: Puzzle; daily: boolean }

@@ -2,48 +2,46 @@ import SwiftUI
 
 struct ProfileView: View {
     @ObservedObject var store = ProfileStore.shared
-    @State var showSettings = false
+    @ObservedObject private var friends = FriendsStore.shared
+    @ObservedObject private var account = OnlineAccount.shared
     @State var showStats = false
     @State var showStyle = false
     @State var styleTab: StyleSheet.StyleTab = .avatars
     @State var showAllAchievements = false
     @State var showFeedback = false
 
+    private var friendsAvailable: Bool { account.status != .unavailable }
+
     var body: some View {
         // Ohne eigenen NavigationStack: Das Profil schiebt keine Seiten, und ein Stack in einer TabView-Seite
         // kann nach Sheets oder einem Neuaufbau leer bleiben.
-        ZStack {
-            Theme.background.ignoresSafeArea()
-            // Leichter Blau-Rot-Schimmer oben, wie im Logo
-            LinearGradient(colors: [Theme.blueDark.opacity(0.55), Color(hex: 0x4A1E2C).opacity(0.25), .clear],
-                           startPoint: .topLeading, endPoint: .center)
-                .ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    topBar
-                    ProfileHeroCard(onAvatar: { styleTab = .avatars; showStyle = true })
-                    if OnlineAccount.shared.status != .unavailable {
-                        FriendsCard { NotificationCenter.default.post(name: .showFriends, object: nil) }
-                    }
-                    HallOfFameRow(onAchievements: { showAllAchievements = true })
-                    BotConquestCard()
-                    CollectionRingsCard(onStyle: { t in styleTab = t; showStyle = true })
-                    AchievementShowcase(onShowAll: { showAllAchievements = true })
-                    Button {
-                        Haptics.shared.play(.select)
-                        showStats = true
-                    } label: { statsRow }
-                        .buttonStyle(PressScaleStyle())
-                    Button {
-                        Haptics.shared.play(.select)
-                        showFeedback = true
-                    } label: { feedbackRow }
-                        .buttonStyle(PressScaleStyle())
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                ScreenHeader(title: L("Profil"), showsGear: true)
+                hero
+                    .padding(.bottom, 20)
+                // Reihenfolge: Freunde · Extras · Statistik
+                if friendsAvailable {
+                    SectionLabel(friends.friends.isEmpty ? L("Freunde") : L("Freunde · {0}", friends.friends.count),
+                                 actionTitle: L("Alle")) { openFriends() }
+                        .padding(.bottom, 8)
+                    friendsRow
+                        .padding(.bottom, 20)
                 }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 40)
+                SectionLabel(L("Extras"))
+                    .padding(.bottom, 8)
+                moreList
+                    .padding(.bottom, 20)
+                SectionLabel(L("Statistik"))
+                    .padding(.bottom, 8)
+                statsList
             }
+            .padding(.bottom, 16)
         }
+        .modifier(BounceOnlyIfNeeded())
+        .background(DS.bg.ignoresSafeArea())
+        .primaryAction { inviteButton }
+        .task { if friendsAvailable { await friends.refresh() } }
         .sheet(isPresented: $showStats) {
             NavigationStack { StatisticsView() }
                 .presentationDetents([.large])
@@ -57,188 +55,265 @@ struct ProfileView: View {
         }
     }
 
-    private var topBar: some View {
-        HStack(alignment: .center, spacing: 8) {
-            // Kopf im Stil von Puzzles und Deck: schräges Symbol mit Verlauf und großer Titel
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 24, weight: .black))
-                .foregroundStyle(LinearGradient(colors: [Theme.redLight, Theme.red], startPoint: .top, endPoint: .bottom))
-                .rotationEffect(.degrees(-10))
-            Text(L("Profil"))
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundColor(Theme.textPrimary)
-            Spacer()
-            ShardPill()
-            Button { NotificationCenter.default.post(name: .openSettings, object: nil) } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(Theme.textSecondary)
-                    .frame(width: 42, height: 42)
-                    .background(Circle().fill(Theme.panelRaised))
-            }
-            .accessibilityLabel(L("Einstellungen"))
-        }
-        .padding(.top, 8)
-    }
+    // MARK: Hero
 
-    /// Feedback an Ivan: Bugs, Balance, Ideen (Beta).
-    private var feedbackRow: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(LinearGradient(colors: [Color(hex: 0xFF7A5C), Color(hex: 0xB23A2A)], startPoint: .top, endPoint: .bottom))
-                Image(systemName: "envelope.fill")
-                    .font(.system(size: 17, weight: .black))
-                    .foregroundColor(.white)
+    /// Avatar (tap → avatars), name, rank and level, XP bar.
+    private var hero: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Button {
+                Haptics.shared.play(.select)
+                styleTab = .avatars
+                showStyle = true
+            } label: {
+                AvatarPortrait(avatar: store.activeAvatar, pieceColor: .white)
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
             }
-            .frame(width: 44, height: 44)
+            .buttonStyle(PressScaleStyle())
+            .accessibilityLabel(L("Avatar {0}. Tippen zum Ändern", store.activeAvatar.name))
             VStack(alignment: .leading, spacing: 4) {
-                Text(L("Feedback senden"))
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                Text(L("Bugs, Balance, Ideen – Rook Raid ist in der Beta."))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Theme.textSecondary)
+                Text(store.profile.name)
+                    .font(DS.heading(24, .black))
+                    .foregroundColor(DS.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text(L("{0} · Level {1}", store.activeTitle ?? ProfileStore.rank(for: store.level), store.level))
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .foregroundColor(DS.gold)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                DSProgressBar(fraction: store.levelProgress.fraction, tint: DS.purple)
+                    .padding(.top, 2)
+                Text(L("noch {0} XP bis Level {1}", store.levelProgress.remaining, store.level + 1))
+                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                    .foregroundColor(DS.textMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(Theme.textMuted)
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(LinearGradient(colors: [Color(hex: 0x7A2E1E).opacity(0.6), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color(hex: 0xFF8A6B).opacity(0.25), lineWidth: 1))
+        .padding(.horizontal, DS.side)
     }
 
-    /// Kurzfassung der Bilanz mit der Form der letzten Partien; die ganze Statistik liegt auf einer eigenen Seite.
-    private var statsRow: some View {
+    // MARK: Stats
+
+    private var statsList: some View {
         let p = store.profile
         let games = p.wins + p.losses + p.draws
         let rate = games == 0 ? 0 : Int((Double(p.wins) / Double(games) * 100).rounded())
-        let form = Array(p.history.filter { $0.opponent != "Zu zweit" }.prefix(8).reversed().map(\.result))
-        return HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(LinearGradient(colors: [Theme.blue, Theme.blueDark], startPoint: .top, endPoint: .bottom))
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 18, weight: .black))
-                    .foregroundColor(.white)
+        let all = store.achievements
+        let unlocked = all.filter(\.unlocked).count
+        let claimable = store.claimableAchievements.count
+        return ListGroup {
+            statRow(L("Trophäen"), icon: "trophy.fill", tint: DS.gold, hint: L("Bestwert {0}", p.bestTrophies), value: "\(p.trophies)") {
+                NotificationCenter.default.post(name: .showTrophyRoad, object: nil)
             }
-            .frame(width: 44, height: 44)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L("Statistik & Verlauf"))
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                Text(games == 0 ? L("Noch keine Partien") : L("{0} S · {1} N · {2} R · {3} % Siege", p.wins, p.losses, p.draws, rate))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Theme.textSecondary)
-                if !form.isEmpty { FormDots(results: form) }
+            statRow(L("Arena"), icon: "building.columns", tint: DS.text, hint: store.arena.name, value: "\(store.arena.number)") {
+                NotificationCenter.default.post(name: .showTrophyRoad, object: nil)
             }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(Theme.textMuted)
+            statRow(L("Siege"), icon: "crown.fill", tint: DS.gold, hint: L("{0} % Siegquote", rate), value: "\(p.wins)") {
+                showStats = true
+            }
+            statRow(L("Gelöste Puzzles"), icon: "puzzlepiece.fill", tint: DS.purple,
+                    hint: p.rushBest > 0 ? L("Rausch-Bestwert {0}", p.rushBest) : nil, value: "\(p.solvedPuzzles.count)") {
+                NotificationCenter.default.post(name: .showPuzzles, object: nil)
+            }
+            statRow(L("Flamme"), icon: "flame.fill", tint: DS.flame, hint: L("Rekord {0}", p.bestStreak), value: "\(store.currentStreak)") {
+                NotificationCenter.default.post(name: .showFlame, object: nil)
+            }
+            Button {
+                Haptics.shared.play(.select)
+                showAllAchievements = true
+            } label: {
+                HStack(spacing: 12) {
+                    statIcon("rosette", DS.text)
+                    Text(L("Erfolge"))
+                        .font(DS.rowTitle)
+                        .foregroundColor(DS.text)
+                    if claimable > 0 {
+                        Text(claimable == 1 ? L("1 abholen") : L("{0} abholen", claimable))
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .frame(height: 22)
+                            .background(Capsule().fill(Theme.red))
+                    }
+                    Spacer(minLength: 6)
+                    (Text("\(unlocked)").font(DS.number).foregroundColor(DS.text)
+                     + Text("/\(all.count)").font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(DS.textMuted))
+                        .monospacedDigit()
+                        .fixedSize()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(DS.chevron)
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: DS.compactRowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(RowButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L("Erfolge, {0} von {1}", unlocked, all.count) + (claimable > 0 ? ", " + L("{0} abholen", claimable) : ""))
+            .accessibilityAddTraits(.isButton)
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(LinearGradient(colors: [Theme.blueDark.opacity(0.6), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.blueLight.opacity(0.25), lineWidth: 1))
+    }
+
+    private func statIcon(_ symbol: String, _ tint: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(tint)
+            .frame(width: 28)
+    }
+
+    /// Label left, muted hint and bold value right (compact 52 pt row with divider).
+    private func statRow(_ title: String, icon: String, tint: Color, hint: String?, value: String,
+                         action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.shared.play(.select)
+            action()
+        } label: {
+            HStack(spacing: 12) {
+                statIcon(icon, tint)
+                Text(title)
+                    .font(DS.rowTitle)
+                    .foregroundColor(DS.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 6)
+                if let hint {
+                    Text(hint)
+                        .font(.system(size: 14))
+                        .foregroundColor(DS.textMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Text(value)
+                    .font(DS.number)
+                    .monospacedDigit()
+                    .foregroundColor(DS.text)
+                    .fixedSize()
+                    .frame(minWidth: 28, alignment: .trailing)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: DS.compactRowHeight)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) { Rectangle().fill(DS.divider).frame(height: 1).padding(.leading, 54) }
+        }
+        .buttonStyle(RowButtonStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([title, value, hint].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityAddTraits(.isButton)
+    }
+
+    // MARK: More
+
+    /// Match history & replays, style & collection, replay first battle, feedback.
+    private var moreList: some View {
+        let p = store.profile
+        let games = p.wins + p.losses + p.draws
+        return ListGroup {
+            Button { showStats = true } label: {
+                ListRow(title: L("Statistik & Verlauf"),
+                        subtitle: games == 0 ? L("Noch keine Partien") : L("Letzte Partien und Wiederholungen")) {
+                    IconTile(symbol: "chart.bar.xaxis", tint: DS.gem)
+                }
+            }
+            .buttonStyle(RowButtonStyle())
+            Button { styleTab = .avatars; showStyle = true } label: {
+                ListRow(title: L("Stil & Sammlung"), subtitle: L("Avatare, Rahmen, Bretter und Figuren")) {
+                    IconTile(symbol: "paintpalette.fill", tint: DS.purple)
+                }
+            }
+            .buttonStyle(RowButtonStyle())
+            Button {
+                NotificationCenter.default.post(name: .startTutorial, object: nil)
+            } label: {
+                ListRow(title: L("Erste Schlacht erneut spielen")) {
+                    IconTile(symbol: "graduationcap.fill", tint: DS.text)
+                }
+            }
+            .buttonStyle(RowButtonStyle())
+            Button { showFeedback = true } label: {
+                ListRow(title: L("Feedback senden"), subtitle: L("Bugs, Balance, Ideen – Rook Raid ist in der Beta."), showsDivider: false) {
+                    IconTile(symbol: "envelope.fill", tint: DS.flame)
+                }
+            }
+            .buttonStyle(RowButtonStyle())
+        }
+    }
+
+    // MARK: Friends
+
+    private var friendsRow: some View {
+        let list = friends.friends
+        let requests = friends.incoming.count
+        return Button { openFriends() } label: {
+            HStack(spacing: 12) {
+                if list.isEmpty {
+                    IconTile(symbol: "person.2.fill", tint: DS.gem)
+                } else {
+                    HStack(spacing: -10) {
+                        ForEach(Array(list.prefix(2).enumerated()), id: \.element.id) { i, f in
+                            AvatarPortrait(avatar: Avatar(rawValue: f.avatar) ?? .knight, pieceColor: .white)
+                                .frame(width: 40, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(DS.bg, lineWidth: 2))
+                                .zIndex(Double(2 - i))
+                        }
+                        if list.count > 2 {
+                            Text("+\(list.count - 2)")
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                .foregroundColor(DS.text)
+                                .frame(width: 40, height: 40)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(DS.iconTile))
+                                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(DS.bg, lineWidth: 2))
+                        }
+                    }
+                }
+                Text(list.isEmpty ? L("Lade deine Freunde ein – zu zweit macht Rook Raid doppelt Spaß!")
+                     : list.count == 1 ? list[0].name : L("{0} und {1} weitere", list[0].name, list.count - 1))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(DS.text)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                Spacer(minLength: 4)
+                if requests > 0 {
+                    Text(requests == 1 ? L("1 Anfrage") : L("{0} Anfragen", requests))
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
+                        .background(Capsule().fill(Theme.red))
+                }
+            }
+            .padding(.horizontal, DS.side)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Gold button: share the friend link (with an account), otherwise open the friends list ("create account" there).
+    @ViewBuilder
+    private var inviteButton: some View {
+        if friendsAvailable {
+            if let code = friends.code {
+                ShareLink(item: FriendCode.link(code)?.absoluteString ?? code,
+                          message: Text(L("Spiel mit mir Rook Raid! Mein Freundescode: {0}", code))) {
+                    PrimaryLabel(title: L("Freund einladen"), icon: "person.badge.plus")
+                }
+                .buttonStyle(GoldButtonStyle())
+            } else {
+                PrimaryButton(title: L("Freund einladen"), icon: "person.badge.plus") { openFriends() }
+            }
+        }
+    }
+
+    private func openFriends() {
+        NotificationCenter.default.post(name: .showFriends, object: nil)
     }
 }
 
 // MARK: - Erfolge (Vitrine)
-
-/// Die drei Erfolge, die am nächsten dran sind – mit Fortschritt und Belohnung.
-struct AchievementShowcase: View {
-    @ObservedObject var store = ProfileStore.shared
-    let onShowAll: () -> Void
-
-    var body: some View {
-        let all = store.achievements
-        let done = all.filter(\.unlocked)
-        let next = all.filter { !$0.unlocked }.sorted { $0.fraction > $1.fraction }.prefix(3)
-        let claimable = all.filter { $0.unlocked && !store.isClaimed($0) }
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                CardTitle(icon: "rosette", title: L("Erfolge"))
-                Text("\(done.count)/\(all.count)")
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
-                    .foregroundColor(Theme.gold)
-                Spacer()
-                Button(L("Alle"), action: onShowAll)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(Theme.blueLight)
-            }
-            if !claimable.isEmpty {
-                ClaimAllButton(achievements: claimable)
-            }
-            if !done.isEmpty {
-                // Vitrine: errungene Medaillen auf einem leuchtenden Regalbrett
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(done) { a in
-                            AchievementMedal(achievement: a, size: 38)
-                                .accessibilityLabel(a.title)
-                        }
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.top, 4)
-                    .padding(.bottom, 10)
-                }
-                .background(alignment: .bottom) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(LinearGradient(colors: [Color(hex: 0x8A5A2B), Color(hex: 0x5A3518)], startPoint: .top, endPoint: .bottom))
-                        .frame(height: 8)
-                        .shadow(color: Theme.gold.opacity(0.35), radius: 8, y: -2)
-                }
-            }
-            if next.isEmpty {
-                Text(L("Alle Erfolge geschafft – Respekt!"))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(Theme.gold)
-            }
-            ForEach(Array(next)) { a in
-                HStack(spacing: 12) {
-                    AchievementMedal(achievement: a, size: 40)
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(a.title)
-                                .font(.system(size: 14, weight: .heavy, design: .rounded))
-                                .foregroundColor(Theme.textPrimary)
-                            Spacer()
-                            Text("\(min(a.progress, a.goal))/\(a.goal)")
-                                .font(.system(size: 11, weight: .heavy).monospacedDigit())
-                                .foregroundColor(Theme.gold)
-                        }
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color.white.opacity(0.08))
-                                Capsule()
-                                    .fill(LinearGradient(colors: [Theme.gold, Color(hex: 0xFFB648)], startPoint: .leading, endPoint: .trailing))
-                                    .frame(width: max(4, geo.size.width * a.fraction))
-                            }
-                        }
-                        .frame(height: 6)
-                        Text("\(a.detail) · \(a.fullRewardText)")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(Theme.textMuted)
-                            .lineLimit(2)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-            }
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(LinearGradient(colors: [Color(hex: 0x3A2A12).opacity(0.7), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.gold.opacity(0.18), lineWidth: 1))
-    }
-}
 
 // MARK: - Erfolge: Liste und Abholen
 
@@ -1217,6 +1292,13 @@ struct SettingsSheet: View {
                             settingsLink(L("Erste Schlacht erneut spielen"), "graduationcap.fill", Theme.blueLight)
                         }
                         .buttonStyle(.plain)
+                    }
+
+                    settingsGroup(L("Folge uns")) {
+                        ForEach(Array(Social.all.enumerated()), id: \.element.id) { i, social in
+                            if i > 0 { divider }
+                            SocialRow(social: social)
+                        }
                     }
 
                     settingsGroup(L("Rechtliches")) {

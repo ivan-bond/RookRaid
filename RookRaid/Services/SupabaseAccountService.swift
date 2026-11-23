@@ -268,6 +268,9 @@ final class OnlineAccount: ObservableObject {
     /// Solange eine Bot-Meldung noch nicht ankam, bleibt ein höherer lokaler Trophäen-Stand stehen.
     func reload() async {
         guard let service, hasAccount else { return }
+        // Eine Sicherung unterwegs würde die Server-Version hochzählen, während wir lesen – erst abwarten.
+        await syncTask?.value
+        let epoch = trophyEpoch, generation = savedGeneration
         if var p = try? await service.fetchProgress() {
             let store = ProfileStore.shared
             // Ältere Fassungen haben abgelehnte Bot-Partien nur lokal gewertet (Taktik-Mana, das der Server nicht kennt).
@@ -283,9 +286,14 @@ final class OnlineAccount: ObservableObject {
             progress = p
             let name: String? = (try? await service.fetchDisplayName()) ?? nil
             if let name, !name.isEmpty, store.profile.name != name { store.profile.name = name }
-            await adoptServerState(p, accountName: name)
+            // Seit dem Lesen hat das Gerät Trophäen geändert (Partie gerade zu Ende) oder selbst gesichert:
+            // Dann ist sein Stand neuer als der gelesene und bleibt stehen.
+            let trophiesFresh = epoch == trophyEpoch
+            if generation == savedGeneration {
+                await adoptServerState(p, accountName: name, takeTrophies: trophiesFresh)
+            }
             let waiting = PendingBotReports.load() != nil && p.trophies < store.profile.trophies
-            if !waiting { adoptServerTrophies(p) }
+            if !waiting && trophiesFresh { adoptServerTrophies(p) }
             else { store.profile.bestTrophies = max(store.profile.bestTrophies, p.bestTrophies) }
         }
         await mergeServerGames()
@@ -308,10 +316,10 @@ final class OnlineAccount: ObservableObject {
         }
     }
 
-    private func adoptServerState(_ p: ServerProgress, accountName: String?) async {
+    private func adoptServerState(_ p: ServerProgress, accountName: String?, takeTrophies: Bool = true) async {
         let known = syncRev
         if let snap = p.snapshot, known == nil || p.snapshotRev == nil || p.snapshotRev != known {
-            restoreFromServer(p, snapshot: snap, accountName: accountName)
+            restoreFromServer(p, snapshot: snap, accountName: accountName, takeTrophies: takeTrophies)
         } else if p.snapshot == nil {
             syncRev = p.snapshotRev ?? 0
             lastBackup = nil
@@ -322,9 +330,10 @@ final class OnlineAccount: ObservableObject {
         }
     }
 
-    private func restoreFromServer(_ p: ServerProgress, snapshot: ProgressSnapshot, accountName: String?) {
+    private func restoreFromServer(_ p: ServerProgress, snapshot: ProgressSnapshot, accountName: String?, takeTrophies: Bool = true) {
         let store = ProfileStore.shared
-        store.restore(from: snapshot, serverTrophies: p.trophies, serverBest: p.bestTrophies,
+        let local = store.profile.trophies
+        store.restore(from: snapshot, serverTrophies: takeTrophies ? p.trophies : local, serverBest: p.bestTrophies,
                       accountName: accountName ?? service?.existingName)
         if let rev = p.snapshotRev { syncRev = rev }
         // Was gerade geladen wurde, ist der Server-Stand – nicht zurückschicken (außer der Verlauf bekam Partien dazu).
@@ -526,6 +535,13 @@ final class OnlineAccount: ObservableObject {
     /// Gleiche Sicherung nicht zweimal schicken (der Profil-Beobachter meldet jede Änderung).
     private var lastBackup: ProgressSnapshot?
     private var syncTask: Task<Void, Never>?
+    /// Zählt Trophäen-Änderungen auf dem Gerät (Partie zu Ende, Server-Zahl dafür angekommen). Ein Server-Stand,
+    /// der vor der letzten Änderung gelesen wurde, ist älter als die Anzeige und darf sie nicht ersetzen
+    /// (sonst verschwinden die Trophäen eines Siegs, bis die App neu lädt).
+    private var trophyEpoch = 0
+    func noteLocalTrophyChange() { trophyEpoch += 1 }
+    /// Zählt Sicherungen, die beim Server ankamen. Ein vorher gelesener Stand ist älter als der des Geräts.
+    private var savedGeneration = 0
 
     func backupQuietly() {
         guard service != nil, hasAccount else { return }
@@ -549,15 +565,19 @@ final class OnlineAccount: ObservableObject {
         key.createdAt = .distantPast
         guard key != lastBackup else { return }
         lastBackup = key
+        let epoch = trophyEpoch
         do {
             switch try await service.sync(snapshot, base: syncRev) {
-            case .saved(let rev): syncRev = rev
+            case .saved(let rev):
+                syncRev = rev
+                savedGeneration += 1
             case .unsupported: break
             case .stale(let p):
                 // Ein anderes Gerät hat inzwischen gesichert: dessen Stand gilt, neue Partien von hier bleiben im Verlauf.
                 progress = p
-                if let snap = p.snapshot { restoreFromServer(p, snapshot: snap, accountName: nil) }
-                adoptServerTrophies(p)
+                let fresh = epoch == trophyEpoch
+                if let snap = p.snapshot { restoreFromServer(p, snapshot: snap, accountName: nil, takeTrophies: fresh) }
+                if fresh { adoptServerTrophies(p) }
             }
         } catch {
             lastBackup = nil

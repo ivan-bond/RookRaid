@@ -8,7 +8,7 @@ import SwiftUI
 // Der Weg glüht golden, so weit du gekommen bist, und funkelt in deiner Arena. Die Gegner stehen als
 // Königsfigur ihres Figurensets am Weg – noch nicht erreichte nur als Schatten mit Fragezeichen.
 // Bereite Truhen wackeln und hüpfen, gesperrte verraten beim Antippen, wie viele Trophäen noch fehlen.
-// Oben zeigt eine Weltkarte alle sechs Arenen (antippen springt hin), unten rechts bringt „Zu mir“ zurück.
+// Oben zeigt eine Weltkarte alle sechs Arenen (antippen springt hin).
 //
 // Alle Dauerbewegungen laufen über Zeitleisten (TimelineView) statt über Endlos-Animationen,
 // damit nichts anderes auf dem Bildschirm mitschwingt.
@@ -24,6 +24,8 @@ struct TrophyRoadView: View {
     /// Gesperrte Belohnung, die gerade angetippt wurde (zeigt kurz „noch X“).
     @State var peek: Int?
     @State var showGuide = false
+    /// Set when the road is shown as a sheet (from the Play tab): shows a close button in the header.
+    var onClose: (() -> Void)? = nil
 
     struct RoadToast: Equatable {
         var shards = 0
@@ -77,7 +79,6 @@ struct TrophyRoadView: View {
                                 }
                                 .frame(width: geo.size.width)
                             }
-                            .overlay(alignment: .bottomTrailing) { jumpButton(proxy) }
                             .onAppear { scrollToFocus(proxy) }
                         }
                     }
@@ -295,6 +296,17 @@ struct TrophyRoadView: View {
                 Spacer(minLength: 8)
                 trophyPill
                     .fixedSize()
+                if let onClose {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .black))
+                            .foregroundColor(Theme.textPrimary)
+                            .frame(width: 32, height: 32)
+                            .background(Circle().fill(Theme.panelRaised))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L("Schließen"))
+                }
             }
             // Deine Arena als Band über der Weltkarte
             HStack(spacing: 6) {
@@ -311,8 +323,6 @@ struct TrophyRoadView: View {
             if ready > 0 {
                 claimButton(ready)
                     .transition(.scale.combined(with: .opacity))
-            } else if let next = store.nextRoadStep {
-                nextRewardBar(next)
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: ready)
@@ -383,42 +393,6 @@ struct TrophyRoadView: View {
         .modifier(PulseGlow(color: Theme.gold, active: true))
     }
 
-    private func nextRewardBar(_ next: RoadStep) -> some View {
-        let prev = ProfileStore.road.last { $0.trophies < next.trophies }?.trophies ?? 0
-        let frac = Double(store.roadTrophies - prev) / Double(max(1, next.trophies - prev))
-        return HStack(spacing: 10) {
-            rewardIcon(next.reward, size: 34)
-                .frame(width: 38, height: 38)
-                .modifier(Jiggle(active: true, amplitude: 4, period: 1.4))
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text(L("Nächste Belohnung: {0}", next.reward.title))
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Theme.textSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Spacer()
-                    Text(L("noch {0}", next.trophies - store.roadTrophies))
-                        .font(.system(size: 12, weight: .heavy).monospacedDigit())
-                        .foregroundColor(Theme.gold)
-                }
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.08))
-                        Capsule()
-                            .fill(LinearGradient(colors: [Theme.gold, Color(hex: 0xFFB648)], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: geo.size.width * min(1, max(0.04, frac)))
-                            .overlay(ShineSweep().clipShape(Capsule()))
-                    }
-                }
-                .frame(height: 10)
-            }
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.panelRaised))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.gold.opacity(0.25), lineWidth: 1))
-    }
-
     /// Rundes Arena-Wappen in den Farben der Arena (gesperrt: grau mit Schloss).
     private func arenaMedal(_ arena: Arena, reached: Bool, size: CGFloat) -> some View {
         let colors = arenaColors(arena.number)
@@ -434,29 +408,6 @@ struct TrophyRoadView: View {
                 .shadow(color: .black.opacity(0.3), radius: 0, y: 1.5)
         }
         .frame(width: size, height: size)
-    }
-
-    private func jumpButton(_ proxy: ScrollViewProxy) -> some View {
-        Button {
-            Haptics.shared.play(.select)
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.85)) { proxy.scrollTo("you", anchor: .center) }
-        } label: {
-            HStack(spacing: 6) {
-                PlayerAvatar(size: 28)
-                Text(L("Zu mir"))
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundColor(.white)
-            }
-            .padding(.leading, 4)
-            .padding(.trailing, 12)
-            .frame(height: 38)
-            .background(Capsule().fill(Theme.blue))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.6), lineWidth: 1))
-            .shadow(color: .black.opacity(0.45), radius: 8, y: 3)
-        }
-        .buttonStyle(PressScaleStyle())
-        .padding(.trailing, 14)
-        .padding(.bottom, 14)
     }
 
     // MARK: Gipfel und Start
