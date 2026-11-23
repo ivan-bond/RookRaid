@@ -28,6 +28,8 @@ struct DeckView: View {
     @State var nudged: CardType? = nil
     /// Hinweis auch während der Tour zeigen (dann oben statt unten)
     @State var hintDuringTour = false
+    /// Width of the battle-deck row: all five slots (4 cards + ultimate) get the same width.
+    @State var stripWidth: CGFloat = 0
     @Environment(\.liveAnimations) var live
 
     enum DeckPanel: String, Identifiable {
@@ -38,20 +40,18 @@ struct DeckView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.background.ignoresSafeArea()
-                LinearGradient(colors: [Theme.blueDark.opacity(0.5), .clear], startPoint: .top, endPoint: .center)
-                    .ignoresSafeArea()
+                DS.bg.ignoresSafeArea()
                 GeometryReader { geo in
                     ScrollView(.vertical, showsIndicators: false) {
                         // Das Kampfdeck ist ein angehefteter Abschnittskopf: Es bleibt beim Scrollen oben stehen,
                         // so lässt sich jede Karte tauschen, ohne zurückzuscrollen.
-                        LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
-                            header
-                                .padding(.horizontal, 14)
+                        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                            ScreenHeader(title: L("Deck")) { rockyButton }
                             Section(header: stickyDeck) {
+                                deckActions
+                                    .padding(.top, 14)
+                                    .padding(.bottom, 22)
                                 collectionSection
-                                    .padding(.horizontal, 14)
-                                    .padding(.top, 4)
                             }
                         }
                         // Während der Tour Platz für Rockys Blase lassen, damit alles erreichbar bleibt
@@ -129,60 +129,53 @@ struct DeckView: View {
         }
     }
 
-    // MARK: Kopf
+    // MARK: Deck actions (redesign V2)
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "rectangle.stack.fill")
-                .font(.system(size: 22, weight: .black))
-                .foregroundStyle(LinearGradient(colors: [Theme.blueLight, Theme.blue], startPoint: .top, endPoint: .bottom))
-                .rotationEffect(.degrees(-10))
-            Text(L("Deck"))
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundColor(Theme.textPrimary)
-                .lineLimit(1)
-            rockyButton
-            Spacer(minLength: 8)
-            ShardPill()
-        }
-        .padding(.top, 10)
-    }
-
-    /// Kartenschule (Knopf „Schule“, v0.9.33 statt „Ultimate“ unter dem Deck): jede Karte und Ultimate auf einem
-    /// kleinen Brett selbst ausprobieren. Startet bei der ersten noch offenen Lektion; die Zahl zeigt, wie viele fertig sind.
-    private var labButton: some View {
+    /// Presets · Test deck vs. bot · Card School as flat rows (no gold button on this screen).
+    private var deckActions: some View {
         let all = LabItem.all
         let done = all.filter { store.profile.labDone.contains($0.key) }.count
-        return Button {
-            Haptics.shared.play(.cardWhoosh)
-            lab = all.first { !store.profile.labDone.contains($0.key) } ?? all.first
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "graduationcap.fill")
-                    .font(.system(size: 12, weight: .black))
-                    .modifier(Jiggle(active: done == 0, amplitude: 6, period: 1.4))
-                Text(L("Schule"))
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text("\(done)/\(all.count)")
-                    .font(.system(size: 10, weight: .black, design: .rounded).monospacedDigit())
-                    .lineLimit(1)
-                    .opacity(0.7)
+        let full = store.deckIsFull
+        return ListGroup {
+            Button {
+                Haptics.shared.play(.select)
+                panel = .presets
+            } label: {
+                ListRow(title: L("Vorlagen"), compact: true) { rowIcon("square.stack.3d.up", DS.text) }
             }
-            .foregroundColor(Theme.navy)
-            .frame(maxWidth: .infinity)
-            .frame(height: 34)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(LinearGradient(colors: [Color(hex: 0xF5B83D), Color(hex: 0xB0720F)], startPoint: .top, endPoint: .bottom))
-                    .shadow(color: Color(hex: 0xB0720F).opacity(0.9), radius: 0, y: 3)
-            )
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.3), lineWidth: 1))
-            .modifier(PulseGlow(color: Theme.gold, active: done == 0 && !tour.isActive, strength: 0.6))
+            .buttonStyle(RowButtonStyle())
+            Button {
+                Haptics.shared.play(.select)
+                if full {
+                    NotificationCenter.default.post(name: .startPractice, object: nil)
+                } else {
+                    Haptics.shared.play(.invalid)
+                    showHint(L("Zum Spielen braucht dein Deck 4 Karten."))
+                }
+            } label: {
+                ListRow(title: L("Deck gegen Bot testen"), subtitle: full ? nil : L("Für Kämpfe brauchst du 4 Karten"), compact: true) {
+                    rowIcon(full ? "play.fill" : "lock.fill", full ? DS.text : DS.textMuted)
+                }
+            }
+            .buttonStyle(RowButtonStyle())
+            Button {
+                Haptics.shared.play(.cardWhoosh)
+                lab = all.first { !store.profile.labDone.contains($0.key) } ?? all.first
+            } label: {
+                ListRow(title: L("Kartenschule"), trailing: .value("\(done)/\(all.count)"), compact: true, showsDivider: false) {
+                    rowIcon("graduationcap.fill", DS.gold)
+                }
+            }
+            .buttonStyle(RowButtonStyle())
+            .accessibilityLabel(L("Kartenschule, {0} von {1} geschafft", done, all.count))
         }
-        .buttonStyle(PressScaleStyle())
-        .accessibilityLabel(L("Kartenschule, {0} von {1} geschafft", done, all.count))
+    }
+
+    private func rowIcon(_ symbol: String, _ tint: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(tint)
+            .frame(width: 28)
     }
 
     // MARK: Kampfdeck (angeheftet)
@@ -193,91 +186,72 @@ struct DeckView: View {
         let deck = store.activeDeck
         let avg = Double(deck.map(\.cost).reduce(0, +)) / Double(max(1, deck.count))
         let bonus = deck.filter(\.keepsTurn).count
-        return VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                Text(L("DEIN KAMPFDECK"))
-                    .font(.system(size: 11, weight: .black, design: .rounded))
-                    .tracking(1.3)
-                    .foregroundColor(Theme.blueLight)
+        let slotW = stripWidth > 0 ? (stripWidth - 8 * CGFloat(PlayerDeck.size)) / CGFloat(PlayerDeck.size + 1) : 60
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(L("KAMPFDECK"))
+                    .font(.system(size: 12, weight: .bold))
+                    .tracking(1.4)
+                    .foregroundColor(DS.sectionLabel)
                 Spacer()
-                // Steckbrief: Ø Mana, Bonusaktionen, Rollen als Farbpunkte
-                HStack(spacing: 6) {
-                    statChip(String(format: "Ø %.1f", avg), icon: "drop.fill", color: Theme.manaLight)
-                    statChip("\(bonus)", icon: "figure.walk", color: Theme.blueLight)
-                    HStack(spacing: 3) {
-                        ForEach(Array(deck.enumerated()), id: \.offset) { _, c in
-                            Circle().fill(Color(hex: c.role.colorHex)).frame(width: 8, height: 8)
-                        }
-                    }
-                    .padding(.horizontal, 7)
-                    .frame(height: 22)
-                    .background(Capsule().fill(Color.white.opacity(0.06)))
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(L(bonus == 1 ? "Ø {0} Mana · {1} Bonusaktion · Tippe eine Karte unten an, um zu tauschen" : "Ø {0} Mana · {1} Bonusaktionen · Tippe eine Karte unten an, um zu tauschen", String(format: "%.1f", avg), bonus))
+                Text(L("Ø {0} Mana", String(format: "%.1f", avg)))
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .foregroundColor(DS.purple)
             }
-            HStack(alignment: .bottom, spacing: 7) {
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L(bonus == 1 ? "Ø {0} Mana · {1} Bonusaktion · Tippe eine Karte unten an, um zu tauschen" : "Ø {0} Mana · {1} Bonusaktionen · Tippe eine Karte unten an, um zu tauschen", String(format: "%.1f", avg), bonus))
+            HStack(alignment: .top, spacing: 8) {
                 // Vier Plätze: belegte zeigen die Karte (antippen = herausnehmen), freie einen Platzhalter (v0.9.31)
-                HStack(alignment: .bottom, spacing: 7) {
-                ForEach(0..<PlayerDeck.size, id: \.self) { idx in
-                    if idx < deck.count {
-                        let card = deck[idx]
-                        CardView(card: card, isSelected: selectedSlot == idx)
-                            .frame(maxWidth: 66)
-                            .modifier(Jiggle(active: incoming != nil || tour.step == .swapOut, phase: Double(idx) * 1.3))
-                            .modifier(PulseGlow(color: Theme.red, active: tour.step == .swapOut && tour.suggestedOut == card, strength: 0.9))
-                            // Kurzes Wackeln, wenn man die Karte unten in der Sammlung antippt (sie ist schon im Deck)
-                            .modifier(Jiggle(active: nudged == card, amplitude: 7, period: 0.12))
-                            .scaleEffect(nudged == card ? 1.08 : 1)
-                            .overlay(alignment: .top) {
-                                // Nur beim Tauschen: goldenes Tausch-Zeichen (kein Minus mehr, v0.9.33)
-                                if incoming != nil {
-                                    Image(systemName: "arrow.triangle.2.circlepath")
-                                        .font(.system(size: 11, weight: .black))
-                                        .foregroundColor(Theme.navy)
-                                        .frame(width: 22, height: 22)
-                                        .background(Circle().fill(Theme.gold))
-                                        .overlay(Circle().strokeBorder(Theme.background, lineWidth: 1.5))
-                                        .offset(y: -10)
-                                        .transition(.scale.combined(with: .opacity))
-                                }
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(0..<PlayerDeck.size, id: \.self) { idx in
+                        if idx < deck.count {
+                            slotCard(deck[idx], idx: idx)
+                                .frame(width: slotW)
+                        } else {
+                            VStack(spacing: 5) {
+                                emptySlot(idx, highlight: deck.isEmpty || selectedSlot == idx || incoming != nil)
+                                Text(" ").font(.system(size: 12, weight: .semibold))
                             }
-                            .onTapGesture { tapSlot(idx) }
-                            .onLongPressGesture(minimumDuration: 0.35) { detail = .card(card) }
-                            .transition(.scale.combined(with: .opacity))
-                            .accessibilityLabel(L("Deckplatz {0}: {1}", idx + 1, card.name))
-                            .accessibilityHint(incoming != nil ? L("Tippen zum Tauschen") : L("Tippen zum Herausnehmen"))
-                    } else {
-                        emptySlot(idx, highlight: deck.isEmpty || selectedSlot == idx || incoming != nil)
-                            .frame(maxWidth: 66)
+                            .frame(width: slotW)
                             .onTapGesture { tapSlot(idx) }
                             .accessibilityLabel(L("Deckplatz {0}: frei", idx + 1))
+                        }
                     }
                 }
-                }
                 .anchorPreference(key: DeckTourAnchorKey.self, value: .bounds) { [.slots: $0] }
-                Rectangle()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: 1, height: 56)
-                    .padding(.bottom, 14)
-                UltimateCard(ultimate: store.activeUltimate, mana: GameState.maxMana, compact: false)
-                    .frame(width: 58)
-                    .onTapGesture { panel = .ultimate }
-                    .anchorPreference(key: DeckTourAnchorKey.self, value: .bounds) { [.ultimate: $0] }
-                    .accessibilityLabel(L("Ultimate {0}, tippen zum Ändern", store.activeUltimate.name))
+                VStack(spacing: 5) {
+                    DeckThumb(art: "art-ult-\(store.activeUltimate.rawValue)", gold: true)
+                    Text(store.activeUltimate.name)
+                        .font(.system(size: 12, weight: .heavy))
+                        .foregroundColor(DS.gold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .frame(width: slotW)
+                .contentShape(Rectangle())
+                .onTapGesture { panel = .ultimate }
+                .anchorPreference(key: DeckTourAnchorKey.self, value: .bounds) { [.ultimate: $0] }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(L("Ultimate {0}, tippen zum Ändern", store.activeUltimate.name))
+                .accessibilityAddTraits(.isButton)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(GeometryReader { g in
+                Color.clear
+                    .onAppear { stripWidth = g.size.width }
+                    .onChange(of: g.size.width) { stripWidth = $0 }
+            })
 
-            // Beim Tauschen: Anleitung und Abbrechen. Sonst: die drei Knöpfe fürs Deck.
+            // Beim Tauschen: Anleitung und Abbrechen. Sonst ggf. der Hinweis auf freie Plätze.
             if swapping {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .font(.system(size: 12, weight: .black))
-                        .foregroundColor(Theme.gold)
+                        .foregroundColor(DS.gold)
                     Text(incoming != nil ? L("Dein Deck ist voll – welche Karte soll raus? Tippe sie oben an.")
                                          : L("Jetzt unten die Karte antippen, die an diesen Platz soll."))
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Theme.gold)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(DS.gold)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
                     Spacer(minLength: 4)
@@ -290,104 +264,80 @@ struct DeckView: View {
                         Haptics.shared.play(.select)
                     } label: {
                         Text(L("Abbrechen"))
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Theme.textSecondary)
-                            .padding(.horizontal, 10)
-                            .frame(height: 28)
-                            .background(Capsule().fill(Theme.panelHighlight))
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(DS.text)
+                            .padding(.horizontal, 12)
+                            .frame(height: 30)
+                            .background(Capsule().fill(DS.iconTile))
                     }
                     .buttonStyle(.plain)
                 }
-                .frame(height: 34)
                 .transition(.opacity)
-            } else {
-                if deck.count < PlayerDeck.size {
-                    HStack(spacing: 6) {
-                        Image(systemName: deck.isEmpty ? "hand.point.down.fill" : "plus.circle.fill")
-                            .font(.system(size: 12, weight: .black))
-                            .modifier(RoadBob(active: deck.isEmpty, amplitude: 2, speed: 4))
-                        Text(deck.isEmpty ? L("Stell dein erstes Deck zusammen: Tippe unten 4 Karten an – erst dann kannst du kämpfen.")
-                                          : (PlayerDeck.size - deck.count == 1 ? L("Noch 1 Karte – dann kannst du kämpfen.")
-                                                                             : L("Noch {0} Karten – dann kannst du kämpfen.", PlayerDeck.size - deck.count)))
-                            .font(.system(size: 12, weight: .bold))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                        Spacer(minLength: 0)
-                    }
-                    .foregroundColor(Theme.gold)
-                    .transition(.opacity)
+            } else if deck.count < PlayerDeck.size {
+                HStack(spacing: 6) {
+                    Image(systemName: deck.isEmpty ? "hand.point.down.fill" : "plus.circle.fill")
+                        .font(.system(size: 12, weight: .black))
+                        .modifier(RoadBob(active: deck.isEmpty, amplitude: 2, speed: 4))
+                    Text(deck.isEmpty ? L("Stell dein erstes Deck zusammen: Tippe unten 4 Karten an – erst dann kannst du kämpfen.")
+                                      : (PlayerDeck.size - deck.count == 1 ? L("Noch 1 Karte – dann kannst du kämpfen.")
+                                                                         : L("Noch {0} Karten – dann kannst du kämpfen.", PlayerDeck.size - deck.count)))
+                        .font(.system(size: 13, weight: .bold))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
                 }
-                HStack(spacing: 8) {
-                    deckButton(L("Vorlagen"), icon: "square.stack.3d.up.fill", colors: [Color(hex: 0x3A6FE0), Color(hex: 0x23408F)], text: .white) {
-                        panel = .presets
-                    }
-                    labButton
-                    deckButton(L("Testen"), icon: deck.count < PlayerDeck.size ? "lock.fill" : "play.fill",
-                               colors: deck.count < PlayerDeck.size ? [Theme.panelHighlight, Theme.panel] : [Theme.green, Theme.greenDark], text: .white) {
-                        if store.deckIsFull {
-                            NotificationCenter.default.post(name: .startPractice, object: nil)
-                        } else {
-                            Haptics.shared.play(.invalid)
-                            showHint(L("Zum Spielen braucht dein Deck 4 Karten."))
-                        }
-                    }
-                }
-                .frame(height: 34)
+                .foregroundColor(DS.gold)
                 .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.2), value: swapping)
-        .padding(12)
+        .padding(.horizontal, DS.side)
+        .padding(.vertical, 12)
         .background(
-            // Kampfmatte: dunkles Blau mit Lichtkegel, Karten liegen darauf
-            RoundedRectangle(cornerRadius: 18)
-                .fill(RadialGradient(colors: [Color(hex: 0x24448A), Color(hex: 0x14254A)], center: .top, startRadius: 4, endRadius: 260))
-                .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(swapping ? Theme.gold.opacity(0.8) : Theme.blueLight.opacity(0.35), lineWidth: 1.5))
-        )
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
-        .background(
-            Theme.background
-                .overlay(alignment: .bottom) { Rectangle().fill(Theme.panelHighlight).frame(height: 1) }
-                .shadow(color: .black.opacity(0.35), radius: 8, y: 4)
+            DS.bg
+                .overlay(alignment: .top) { Rectangle().fill(DS.divider).frame(height: 1) }
+                .overlay(alignment: .bottom) { Rectangle().fill(DS.divider).frame(height: 1) }
         )
     }
 
-    private func deckButton(_ title: String, icon: String, colors: [Color], text: Color, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.shared.play(.select)
-            action()
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 12, weight: .black))
-                Text(title)
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .foregroundColor(text)
-            .frame(maxWidth: .infinity)
-            .frame(height: 34)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom))
-                    .shadow(color: (colors.last ?? .black).opacity(0.9), radius: 0, y: 3)
-            )
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.3), lineWidth: 1))
+    /// A card in the battle deck: art and name only (no mana or level text, so nothing wraps).
+    private func slotCard(_ card: CardType, idx: Int) -> some View {
+        VStack(spacing: 5) {
+            DeckThumb(art: "art-card-\(card.rawValue)")
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(DS.gold, lineWidth: selectedSlot == idx ? 2 : 0))
+                .overlay(alignment: .top) {
+                    // Nur beim Tauschen: goldenes Tausch-Zeichen
+                    if incoming != nil {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 11, weight: .black))
+                            .foregroundColor(DS.goldLabel)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(DS.gold))
+                            .overlay(Circle().strokeBorder(DS.bg, lineWidth: 1.5))
+                            .offset(y: -10)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+            Text(card.name)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(DS.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
-        .buttonStyle(PressScaleStyle())
-    }
-
-    private func statChip(_ text: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: icon).font(.system(size: 9, weight: .black))
-            Text(text).font(.system(size: 11, weight: .heavy, design: .rounded).monospacedDigit())
-        }
-        .foregroundColor(color)
-        .padding(.horizontal, 7)
-        .frame(height: 22)
-        .background(Capsule().fill(color.opacity(0.14)))
+        .frame(maxWidth: .infinity)
+        .modifier(Jiggle(active: incoming != nil || tour.step == .swapOut, phase: Double(idx) * 1.3))
+        .modifier(PulseGlow(color: Theme.red, active: tour.step == .swapOut && tour.suggestedOut == card, strength: 0.9))
+        // Kurzes Wackeln, wenn man die Karte unten in der Sammlung antippt (sie ist schon im Deck)
+        .modifier(Jiggle(active: nudged == card, amplitude: 7, period: 0.12))
+        .scaleEffect(nudged == card ? 1.08 : 1)
+        .contentShape(Rectangle())
+        .onTapGesture { tapSlot(idx) }
+        .onLongPressGesture(minimumDuration: 0.35) { detail = .card(card) }
+        .transition(.scale.combined(with: .opacity))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("Deckplatz {0}: {1}", idx + 1, card.name))
+        .accessibilityHint(incoming != nil ? L("Tippen zum Tauschen") : L("Tippen zum Herausnehmen"))
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: Sammlung
@@ -407,116 +357,71 @@ struct DeckView: View {
             default: return nil
             }
         }()
+        let filters: [(CardRole?, String)] = [(nil, L("Alle"))]
+            + CardRole.allCases.filter { r in CardType.allCases.contains { $0.role == r } }.map { ($0, $0.name) }
         return VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(L("Sammlung"))
-                        .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(Theme.textPrimary)
-                    Spacer()
-                    Text(L("{0} von {1} Karten", owned, total))
-                        .font(.system(size: 12, weight: .heavy).monospacedDigit())
-                        .foregroundColor(owned == total ? Theme.gold : Theme.textSecondary)
-                }
-                ShopProgressBar(fraction: Double(owned) / Double(max(1, total)), tint: owned == total ? Theme.gold : Theme.blueLight)
-                    .frame(height: 6)
-            }
-            filterBar
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 14) {
+            SectionLabel(L("Sammlung"), trailing: L("{0} von {1}", owned, total), trailingColor: DS.textMuted)
+            DSSegmented(items: filters, selection: $roleFilter)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), alignment: .leading, spacing: 16) {
                 ForEach(cards) { card in
                     collectionTile(card, pointer: card == pointer)
                 }
             }
+            .padding(.horizontal, DS.side)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: roleFilter)
             Text(L("Lange drücken zeigt eine Karte groß mit allen Details."))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Theme.textMuted)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(DS.textMuted)
                 .frame(maxWidth: .infinity)
         }
     }
 
-    private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                filterChip(nil, title: L("Alle"), icon: "square.grid.2x2.fill", color: Theme.blueLight,
-                           count: CardType.allCases.count)
-                ForEach(CardRole.allCases, id: \.self) { role in
-                    let n = CardType.allCases.filter { $0.role == role }.count
-                    if n > 0 {
-                        filterChip(role, title: role.name, icon: role.icon, color: Color(hex: role.colorHex), count: n)
-                    }
-                }
-            }
-            .padding(.vertical, 2)
-        }
-    }
-
-    private func filterChip(_ role: CardRole?, title: String, icon: String, color: Color, count: Int) -> some View {
-        let active = roleFilter == role
-        return Button {
-            Haptics.shared.play(.select)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { roleFilter = role }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 10, weight: .black))
-                Text(title).font(.system(size: 12, weight: .heavy, design: .rounded))
-                Text("\(count)")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .opacity(0.7)
-            }
-            .foregroundColor(active ? Theme.navy : color)
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .background(Capsule().fill(active ? color : color.opacity(0.14)))
-            .overlay(Capsule().strokeBorder(color.opacity(active ? 0 : 0.4), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-
+    /// Card art with name and one status line: mana cost (purple), "In deck", or how to unlock it (dimmed with a lock).
     private func collectionTile(_ card: CardType, pointer: Bool = false) -> some View {
         let unlocked = store.isUnlocked(card)
         let inDeck = store.activeDeck.contains(card)
-        return VStack(spacing: 4) {
-            ZStack(alignment: .topTrailing) {
-                CardView(card: card, isPlayable: unlocked, isSelected: incoming == card)
-                    .overlay(alignment: .topLeading) {
-                        if store.isNew(card) { NewSticker().offset(x: -6, y: -8) }
+        return VStack(alignment: .leading, spacing: 2) {
+            DeckThumb(art: "art-card-\(card.rawValue)")
+                .saturation(unlocked ? 1 : 0)
+                .brightness(unlocked ? 0 : -0.25)
+                .overlay {
+                    if inDeck || !unlocked {
+                        Image(systemName: inDeck ? "checkmark" : "lock.fill")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundColor(inDeck ? DS.green : DS.text)
+                            .frame(width: 30, height: 30)
+                            .background(Circle().fill(Color.black.opacity(0.6)))
                     }
+                }
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(DS.gold, lineWidth: incoming == card ? 2 : 0))
+                .overlay(alignment: .topLeading) {
+                    if store.isNew(card) { NewSticker().offset(x: -6, y: -8) }
+                }
+                .padding(.bottom, 4)
+            Text(card.name)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(unlocked ? DS.text : DS.textMuted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Group {
                 if inDeck {
-                    Text(L("IM DECK"))
-                        .font(.system(size: 8, weight: .black, design: .rounded))
-                        .foregroundColor(Theme.navy)
-                        .padding(.horizontal, 5)
-                        .frame(height: 15)
-                        .background(Capsule().fill(Theme.blueLight))
-                        .overlay(Capsule().strokeBorder(Theme.background, lineWidth: 1.5))
-                        .offset(x: 6, y: -6)
-                } else if !unlocked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Theme.textMuted)
-                        .padding(4)
-                        .background(Circle().fill(Theme.background))
-                        .offset(x: 4, y: -4)
+                    Text(L("Im Deck")).foregroundColor(DS.textMuted)
+                } else if unlocked {
+                    Text(L("{0} Mana", card.cost)).foregroundColor(DS.purple)
+                } else if store.level < card.tier.gateLevel {
+                    Text(L("Ab Level {0}", card.tier.gateLevel)).foregroundColor(DS.textMuted)
+                } else {
+                    HStack(spacing: 2) {
+                        Image(systemName: "diamond.fill").font(.system(size: 8, weight: .bold))
+                        Text("\(card.tier.price)").monospacedDigit()
+                    }
+                    .foregroundColor(store.canBuy(card) ? DS.gem : DS.textMuted)
                 }
             }
-            if unlocked {
-                Text(card.shortText)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(Color(hex: card.role.colorHex))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            } else {
-                HStack(spacing: 2) {
-                    Image(systemName: "diamond.fill").font(.system(size: 7, weight: .bold))
-                    Text("\(card.tier.price)")
-                        .font(.system(size: 10, weight: .heavy).monospacedDigit())
-                }
-                .foregroundColor(store.canBuy(card) ? Color(hex: 0x7FE3FF) : Theme.textMuted)
-            }
+            .font(.system(size: 12, weight: .semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
         }
-        .saturation(unlocked ? 1 : 0.25)
-        .opacity(inDeck && !swapping ? 0.75 : 1)
         .modifier(PulseGlow(color: Theme.gold, active: tourWants(card), strength: 0.8))
         .overlay(alignment: .top) {
             if pointer {
@@ -530,6 +435,7 @@ struct DeckView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
+        .contentShape(Rectangle())
         .onTapGesture {
             store.markSeen(card)
             tapCollection(card)
@@ -538,7 +444,9 @@ struct DeckView: View {
             store.markSeen(card)
             detail = .card(card)
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(L("{0}, {1} Mana, {2}", card.name, card.cost, card.tier.name) + (store.isNew(card) ? L(", neu") : "") + (inDeck ? L(", im Deck") : "") + (unlocked ? "" : L(", gesperrt, {0} Splitter", card.tier.price)))
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: Fenster: Vorlagen
@@ -641,10 +549,10 @@ struct DeckView: View {
 
     /// Freier Deckplatz: gestrichelter Rahmen mit Plus, leuchtet, solange das Deck leer ist.
     private func emptySlot(_ idx: Int, highlight: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 9)
-            .fill(Color.white.opacity(0.04))
+        RoundedRectangle(cornerRadius: 10)
+            .fill(DS.group)
             .overlay(
-                RoundedRectangle(cornerRadius: 9)
+                RoundedRectangle(cornerRadius: 10)
                     .strokeBorder(highlight ? Theme.gold.opacity(0.8) : Color.white.opacity(0.25),
                                   style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
             )

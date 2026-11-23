@@ -482,10 +482,10 @@ struct HandView: View {
         }
     }
 
-    /// Erste Schlacht: Ist eine Karte oder die Ultimate dran, treten die anderen zurück.
+    /// Erste Schlacht: Nur die Karte der Aufgabe bleibt hell – bei einem Zug treten alle zurück.
     private func dimmedInTutorial(isTarget: Bool) -> Bool {
-        let anyTarget = vm.tutorialCard != nil || vm.tutorialUltimate
-        return anyTarget && !isTarget && vm.pending == nil && !vm.pendingIsUltimate
+        guard vm.mode == .tutorial, vm.coach?.done == false else { return false }
+        return !isTarget
     }
 
     private var bonusActive: Bool {

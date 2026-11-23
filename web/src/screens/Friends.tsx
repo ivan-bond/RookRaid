@@ -2,7 +2,7 @@
 // friends ranking) and a friend's profile summary.
 import { useEffect, useState } from 'react'
 import { logoMark, rockyFace } from '../art'
-import { arenaFor } from '../game/catalog'
+import { arenaFor, TIME_CONTROLS, type TimeControl } from '../game/catalog'
 import { haptic, sound } from '../game/feedback'
 import * as S from '../game/store'
 import * as F from '../friends'
@@ -13,11 +13,12 @@ import * as Online from '../online'
 import { enablePush, pushPermission } from '../push'
 import { Icon } from '../ui/Icon'
 import { ChestView, Dialog, PlayerAvatar, Sheet, useToast } from '../ui/kit'
+import { FriendTimePicker } from './FriendMatch'
 
 type T = (key: string, ...args: Array<string | number>) => string
 
 /** Invite: the system share sheet where there is one, otherwise copy the link. */
-async function shareInvite(code: string, t: T, toast: (s: string) => void) {
+export async function shareInvite(code: string, t: T, toast: (s: string) => void) {
   const url = F.inviteLink(code)
   const text = t('Spiel mit mir Rook Raid! Mein Freundescode: {0}', code)
   haptic('select')
@@ -28,43 +29,6 @@ async function shareInvite(code: string, t: T, toast: (s: string) => void) {
 }
 
 const fmtDate = (iso: string | null, lang: string) => (iso ? new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' }) : '')
-
-// MARK: Profile card
-
-export function FriendsCard() {
-  const { t } = useI18n()
-  const acc = Online.useAccount()
-  const fr = F.useFriends()
-  const [toast, showToast] = useToast()
-  useEffect(() => { if (Online.hasAccount()) void F.refreshFriends() }, [acc.status])
-  const friends = fr.players.filter(p => p.relation === 'friend')
-  const requests = F.incomingCount(fr)
-  if (acc.status === 'unavailable') return null
-  return (
-    <div className="card friends-card">
-      <div className="row" style={{ gap: 8 }}>
-        <span className="fc-ico"><Icon name="person2" size={18} /></span>
-        <b className="r" style={{ fontSize: 19 }}>{t('Freunde')}</b>
-        {friends.length > 0 && <span className="capsule chip num">{friends.length}</span>}
-        <span className="spacer" />
-        {requests > 0 && <button className="capsule fc-req" onClick={() => openSheet('friends')}>{requests === 1 ? t('1 Anfrage') : t('{0} Anfragen', requests)}</button>}
-      </div>
-      <button className="fc-faces press" onClick={() => openSheet('friends')} aria-label={t('Alle Freunde')}>
-        {friends.length
-          ? friends.slice(0, 6).map((f, i) => <span key={f.userId} className="fc-face" style={{ zIndex: 10 - i }}><PlayerAvatar avatar={f.avatar} frame={f.frame} size={46} /></span>)
-          : [0, 1, 2].map(i => <span key={i} className="fc-face empty" style={{ animationDelay: `${i * 0.35}s` }}><Icon name="plus" size={18} /></span>)}
-        <span className="fc-line">{friends.length
-          ? (friends.length === 1 ? t('Du und {0}', friends[0].name) : t('Du, {0} und {1} weitere', friends[0].name, friends.length - 1))
-          : t('Lade deine Freunde ein – zu zweit macht Rook Raid doppelt Spaß!')}</span>
-      </button>
-      <div className="row" style={{ gap: 8 }}>
-        <button className="chunky gold sm" onClick={() => (fr.code ? shareInvite(fr.code, t, showToast) : openSheet('friends'))}><Icon name="share" size={16} />{t('Freund einladen')}</button>
-        <button className="chunky gray sm" onClick={() => openSheet('friends')}>{t('Alle Freunde')}</button>
-      </div>
-      {toast}
-    </div>
-  )
-}
 
 // MARK: Friends sheet
 
@@ -94,15 +58,24 @@ function PlayerRow({ p, onOpen, children, rank, me }: { p: { name: string; avata
 function ChallengeButton({ f, onError }: { f: F.Player; onError: (msg: string) => void }) {
   const { t } = useI18n()
   const [busy, setBusy] = useState(false)
-  return (
+  const [picking, setPicking] = useState(false)
+  const last = FM.friendTime()
+  const send = async (tc: TimeControl) => {
+    setBusy(true)
+    try { await FM.invite(f, tc); closeSheet() } catch (err) { onError(t(F.friendError(err))) } finally { setBusy(false) }
+  }
+  return <>
     <button className={`icon-btn fr-fight${f.online ? ' on' : ''}`} disabled={busy} aria-label={t('{0} herausfordern', f.name)} title={t('{0} herausfordern', f.name)}
-      onClick={async e => {
-        e.stopPropagation(); setBusy(true)
-        try { await FM.invite(f); closeSheet() } catch (err) { onError(t(F.friendError(err))) } finally { setBusy(false) }
-      }}>
+      onClick={e => { e.stopPropagation(); setPicking(true) }}>
       <Icon name="bolt" size={16} />
     </button>
-  )
+    {/* First the time control (like the action sheet in the app), then the challenge */}
+    {picking && <Dialog title={t('Bedenkzeit wählen')} message={t('Freundschaftsspiel gegen {0} · ohne Trophäen', f.name)} onClose={() => setPicking(false)}
+      actions={[
+        ...FM.FRIEND_TIMES.map(tc => ({ label: tc === last ? `${TIME_CONTROLS[tc].name} ✓` : TIME_CONTROLS[tc].name, bold: tc === last, onClick: () => void send(tc) })),
+        { label: t('Abbrechen') },
+      ]} />}
+  </>
 }
 
 function RelationButton({ p, onDone }: { p: F.Player; onDone: (msg: string) => void }) {
@@ -168,7 +141,7 @@ export function FriendsSheet() {
   const friends = fr.players.filter(x => x.relation === 'friend')
   const incoming = fr.players.filter(x => x.relation === 'incoming')
   const outgoing = fr.players.filter(x => x.relation === 'outgoing')
-  const myTrophies = acc.serverTrophies ?? p.trophies
+  const myTrophies = p.trophies
   const ranking = [...friends.map(f => ({ ...f, me: false })), { userId: 'me', name: acc.name ?? p.name, avatar: S.activeAvatar(p), frame: S.activeFrame(p), trophies: myTrophies, title: S.activeTitle(p), me: true }]
     .sort((a, b) => b.trophies - a.trophies)
   const open = (id: string) => openSheet('friendProfile', id)
@@ -286,6 +259,7 @@ export function FriendProfileSheet() {
   const [confirm, setConfirm] = useState<'remove' | 'block' | 'report' | null>(null)
   const [toast, showToast] = useToast()
   const [challenging, setChallenging] = useState(false)
+  const [timeControl, setTimeControl] = useState<TimeControl>(FM.friendTime)
   const load = () => F.profile(id).then(setFp).catch(e => setError(t(F.friendError(e))))
   useEffect(() => { void load() }, [id])
   const back = () => openSheet('friends')
@@ -315,11 +289,12 @@ export function FriendProfileSheet() {
           {fp.isBot && <span className="fp-note">{t('Das ist ein Bot-Spieler, kein Mensch.')}</span>}
         </div>
         {fp.relation === 'friend' && <>
+          <FriendTimePicker value={timeControl} onChange={setTimeControl} />
           <button className="chunky gold fp-challenge" disabled={challenging} onClick={async () => {
             setChallenging(true)
-            try { await FM.invite(fp); closeSheet() } catch (e) { showToast(t(F.friendError(e))) } finally { setChallenging(false) }
+            try { await FM.invite(fp, timeControl); closeSheet() } catch (e) { showToast(t(F.friendError(e))) } finally { setChallenging(false) }
           }}><Icon name="bolt" size={16} />{t('Freundschaftsspiel')}</button>
-          <span className="fp-note">{t('5 | 0 · ohne Trophäen · zählt für eure Bilanz')}</span>
+          <span className="fp-note">{t('Ohne Trophäen · zählt für eure Bilanz')}</span>
         </>}
         <div className="fp-grid">
           <div><Icon name="trophy" size={18} color="var(--gold)" /><b className="num">{fp.trophies}</b><span>{t('Rekord {0}', fp.bestTrophies)}</span></div>

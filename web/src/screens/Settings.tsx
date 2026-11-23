@@ -10,6 +10,7 @@ import { Dialog, Sheet, Switch } from '../ui/kit'
 import { GoogleG, securedText } from './Login'
 import { LegalBody, LEGAL_TITLES, type LegalPage } from './Legal'
 import { unlockAudio } from '../game/feedback'
+import { openSocial, SOCIALS } from '../socials'
 
 function Row({ icon, color, title, value, onClick, children }: { icon: string; color: string; title: string; value?: string; onClick?: () => void; children?: React.ReactNode }) {
   const Tag = onClick ? 'button' : 'div'
@@ -59,6 +60,11 @@ export function SettingsSheet() {
         <Row icon="crown" color="#F2C14E" title={t('Erste Schlacht erneut spielen')} onClick={() => later(() => run('startTutorial'))} />
         <Row icon="graduation" color="#B0720F" title={t('Kartenschule')} onClick={() => later(() => openOverlay({ kind: 'lab', key: 'c-shield' }))} />
         <Row icon="envelope" color="#2F6FE4" title={t('Hilfe & Kontakt')} onClick={() => openSheet('legal-support', 'settings')} />
+      </div>
+
+      <div className="list-h">{t('Folge uns')}</div>
+      <div className="list">
+        {SOCIALS.map(so => <Row key={so.id} icon={so.icon} color={so.color} title={so.name} onClick={() => openSocial(so)} />)}
       </div>
 
       <div className="list-h">{t('Rechtliches')}</div>

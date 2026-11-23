@@ -411,6 +411,8 @@ struct MatchFound: Equatable {
     var botUltimate: Ultimate? = nil
     /// false = Freundschaftsspiel (keine Trophäen)
     var rated: Bool = true
+    /// Bedenkzeit der Partie (gewertet immer 5 | 0, Freundschaftsspiele wählbar)
+    var timeControl: TimeControl = OnlineConfig.timeControl
     /// Ein Bot-Spieler mit Profil (statt des Trainingsgegners)
     var isBotPlayer: Bool { kind == .bot && opponent.bot == true }
     /// Bot-Partien zählen nicht für Bestenlisten.

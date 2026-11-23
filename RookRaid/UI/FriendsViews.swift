@@ -26,106 +26,6 @@ private func shortDate(_ date: Date?) -> String {
 private func avatarOf(_ raw: String) -> Avatar { Avatar(rawValue: raw) ?? .knight }
 private func frameOf(_ raw: String?) -> AvatarFrame { raw.flatMap(AvatarFrame.init(rawValue:)) ?? AvatarFrame.none }
 
-// MARK: - Karte im Profil
-
-struct FriendsCard: View {
-    @ObservedObject private var friends = FriendsStore.shared
-    @ObservedObject private var account = OnlineAccount.shared
-    var onOpen: () -> Void
-    @State private var bob = false
-
-    var body: some View {
-        let list = friends.friends
-        let requests = friends.incoming.count
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 15, weight: .black))
-                    .foregroundColor(.white)
-                    .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(LinearGradient(colors: [Theme.blueLight, Theme.blue], startPoint: .top, endPoint: .bottom)))
-                    .rotationEffect(.degrees(-8))
-                Text(L("Freunde"))
-                    .font(.system(size: 19, weight: .black, design: .rounded))
-                    .foregroundColor(Theme.textPrimary)
-                if !list.isEmpty {
-                    Text("\(list.count)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(Theme.textSecondary)
-                        .padding(.horizontal, 7).frame(height: 22)
-                        .background(Capsule().fill(Color.black.opacity(0.25)))
-                }
-                Spacer()
-                if requests > 0 {
-                    Button(action: onOpen) {
-                        Text(requests == 1 ? L("1 Anfrage") : L("{0} Anfragen", requests))
-                            .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 9).frame(height: 22)
-                            .background(Capsule().fill(Theme.red))
-                            .scaleEffect(bob ? 1.07 : 1)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            Button(action: onOpen) {
-                HStack(spacing: 0) {
-                    if list.isEmpty {
-                        ForEach(0..<3, id: \.self) { i in
-                            Image(systemName: "plus")
-                                .font(.system(size: 16, weight: .black))
-                                .foregroundColor(Theme.blueLight)
-                                .frame(width: 46, height: 46)
-                                .background(Circle().fill(Theme.navy.opacity(0.4)))
-                                .overlay(Circle().strokeBorder(Theme.blueLight.opacity(0.7), style: StrokeStyle(lineWidth: 2, dash: [5, 4])))
-                                .offset(y: bob && i % 2 == 0 ? -4 : 0)
-                                .padding(.trailing, -10)
-                        }
-                    } else {
-                        ForEach(Array(list.prefix(6).enumerated()), id: \.element.id) { i, f in
-                            PlayerAvatar(size: 46, frame: frameOf(f.frame), avatar: avatarOf(f.avatar))
-                                .overlay(Circle().strokeBorder(Color(hex: 0x22306A), lineWidth: 3))
-                                .zIndex(Double(10 - i))
-                                .padding(.trailing, -12)
-                        }
-                    }
-                    Text(list.isEmpty ? L("Lade deine Freunde ein – zu zweit macht Rook Raid doppelt Spaß!")
-                         : list.count == 1 ? L("Du und {0}", list[0].name) : L("Du, {0} und {1} weitere", list[0].name, list.count - 1))
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
-                        .foregroundColor(Theme.textPrimary)
-                        .multilineTextAlignment(.leading)
-                        .padding(.leading, 24)
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 4)
-            }
-            .buttonStyle(PressScaleStyle())
-            HStack(spacing: 8) {
-                if let code = friends.code {
-                    ShareLink(item: FriendCode.link(code)?.absoluteString ?? code, message: Text(inviteText(code))) {
-                        Label(L("Freund einladen"), systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: Color(hex: 0xB8892B), height: 44, textColor: Theme.navy))
-                } else {
-                    Button(action: onOpen) { Label(L("Freund einladen"), systemImage: "square.and.arrow.up") }
-                        .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: Color(hex: 0xB8892B), height: 44, textColor: Theme.navy))
-                }
-                Button(action: onOpen) { Text(L("Alle Freunde")) }
-                    .buttonStyle(ChunkyButtonStyle(color: Theme.panelHighlight, shadow: Theme.panel, height: 44, textColor: Theme.textPrimary))
-            }
-            .font(.system(size: 16, weight: .heavy, design: .rounded))
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(LinearGradient(colors: [Color(hex: 0x1D3D7A), Color(hex: 0x2A2366), Theme.panelRaised], startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
-        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Theme.blueLight.opacity(0.33), lineWidth: 1.5))
-        .task { await friends.refresh() }
-        .onAppear { withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) { bob = true } }
-    }
-}
-
 // MARK: - Freundesliste
 
 struct FriendsSheet: View {
@@ -146,6 +46,15 @@ struct FriendsSheet: View {
     @State private var blocked: [BlockedPlayer]?
     @State private var showProfile: UUID?
     @State private var nameSheet: OnlineNameSheet.Purpose?
+    /// Blitz in der Liste: erst die Bedenkzeit wählen, dann herausfordern
+    @State private var quickChallenge: QuickChallenge?
+
+    private struct QuickChallenge: Identifiable {
+        let id: UUID
+        let name: String
+        let avatar: String
+        let frame: String?
+    }
 
     var body: some View {
         NavigationStack {
@@ -320,6 +229,21 @@ struct FriendsSheet: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panelRaised))
                 } else {
                     panel { ranking }
+                        .confirmationDialog(L("Bedenkzeit wählen"), isPresented: Binding(
+                            get: { quickChallenge != nil }, set: { if !$0 { quickChallenge = nil } }
+                        ), titleVisibility: .visible, presenting: quickChallenge) { q in
+                            ForEach(TimeControl.friendChoices) { tc in
+                                Button(tc == TimeControl.friendDefault ? "\(tc.name) ✓" : tc.name) {
+                                    Task {
+                                        do { try await FriendMatchCenter.shared.invite(q.id, name: q.name, avatar: q.avatar, frame: q.frame, timeControl: tc) }
+                                        catch { flash(FriendError.message(error)) }
+                                    }
+                                }
+                            }
+                            Button(L("Abbrechen"), role: .cancel) {}
+                        } message: { q in
+                            Text(L("Freundschaftsspiel gegen {0} · ohne Trophäen", q.name))
+                        }
                 }
 
                 if !friends.outgoing.isEmpty {
@@ -425,7 +349,7 @@ struct FriendsSheet: View {
         }
         let myTitle: String? = store.activeTitle
         entries.append(RankEntry(id: nil, name: store.profile.name, avatar: store.activeAvatar, frame: store.activeFrame,
-                                 trophies: account.progress?.trophies ?? store.profile.trophies, title: myTitle))
+                                 trophies: store.profile.trophies, title: myTitle))
         return entries.sorted { $0.trophies > $1.trophies }
     }
 
@@ -459,10 +383,8 @@ struct FriendsSheet: View {
             if let id = e.id {
                 // Direkt aus der Liste herausfordern (wie der Knopf im Profil); online = hervorgehoben
                 Button {
-                    Task {
-                        do { try await FriendMatchCenter.shared.invite(id, name: e.name, avatar: e.avatar.rawValue, frame: e.frame == AvatarFrame.none ? nil : e.frame.rawValue) }
-                        catch { flash(FriendError.message(error)) }
-                    }
+                    quickChallenge = QuickChallenge(id: id, name: e.name, avatar: e.avatar.rawValue,
+                                                    frame: e.frame == AvatarFrame.none ? nil : e.frame.rawValue)
                 } label: {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 15, weight: .bold))
@@ -606,6 +528,7 @@ struct FriendProfileView: View {
     @State private var showReport = false
     @State private var toast: String?
     @State private var challenging = false
+    @State private var timeControl = TimeControl.friendDefault
 
     var body: some View {
         ZStack {
@@ -665,10 +588,11 @@ struct FriendProfileView: View {
         .padding(.bottom, 6)
 
         if p.relation == .friend {
+            FriendTimePicker(selection: $timeControl)
             Button {
                 challenging = true
                 Task {
-                    do { try await FriendMatchCenter.shared.invite(p.userId, name: p.name, avatar: p.avatar, frame: p.frame) }
+                    do { try await FriendMatchCenter.shared.invite(p.userId, name: p.name, avatar: p.avatar, frame: p.frame, timeControl: timeControl) }
                     catch { flash(FriendError.message(error)) }
                     challenging = false
                 }
@@ -678,7 +602,7 @@ struct FriendProfileView: View {
             .buttonStyle(ChunkyButtonStyle(color: Theme.gold, shadow: Color(hex: 0xB8892B), height: 48, textColor: Theme.navy))
             .font(.system(size: 17, weight: .heavy, design: .rounded))
             .disabled(challenging)
-            Text(L("5 | 0 · ohne Trophäen · zählt für eure Bilanz"))
+            Text(L("Ohne Trophäen · zählt für eure Bilanz"))
                 .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.textMuted)
         }
 

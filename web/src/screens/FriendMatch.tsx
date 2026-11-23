@@ -1,6 +1,6 @@
 // FriendMatchViews.swift: "X challenges you" at the top, and waiting for the friend's answer (at most 2 minutes).
 import { useEffect, useState } from 'react'
-import { BOTS, botForTrophies } from '../game/catalog'
+import { BOTS, botForTrophies, TIME_CONTROLS, type TimeControl } from '../game/catalog'
 import { GameController } from '../game/controller'
 import { haptic, sound } from '../game/feedback'
 import * as S from '../game/store'
@@ -68,7 +68,7 @@ export function FriendMatchInviteBanner() {
         }}>{t('Annehmen')}</button>
         <button className="chunky xs gray" style={{ maxWidth: 130 }} onClick={() => FM.decline(inv)}>{t('Ablehnen')}</button>
       </div>
-      <span className="fm-note">{t('5 | 0 · ohne Trophäen')}</span>
+      <span className="fm-note">{t('{0} · ohne Trophäen', TIME_CONTROLS[inv.timeControl].name)}</span>
     </div>
   )
 }
@@ -84,6 +84,7 @@ export function FriendMatchWaiting() {
         <PlayerAvatar avatar={out.avatar} frame={out.frame} size={88} />
         <b className="r" style={{ fontSize: 22 }}>{out.name}</b>
         <span className="friendly-tag"><Icon name="heart" size={11} /> {t('Freundschaftsspiel')}</span>
+        <span className="capsule chip gold"><Icon name="timer" size={11} />{TIME_CONTROLS[out.timeControl].name}</span>
         {out.state === 'waiting' ? <>
           <span className="fm-spin" aria-hidden="true" />
           <span className="muted">{t('Warte auf {0} …', out.name)}</span>
@@ -93,6 +94,22 @@ export function FriendMatchWaiting() {
           <span className="muted" style={{ textAlign: 'center' }}>{out.state === 'failed' ? (out.error ? t(out.error) : '') : out.state === 'declined' ? t('{0} kann gerade nicht spielen.', out.name) : t('{0} hat nicht geantwortet.', out.name)}</span>
           <button className="chunky gold sm" onClick={FM.cancelOutgoing}>{t('OK')}</button>
         </>}
+      </div>
+    </div>
+  )
+}
+
+/** Time control before a friendly match: 3 | 2 · 5 | 0 · 5 | 3 · 10 | 5 (FriendTimePicker in FriendMatchViews.swift). */
+export function FriendTimePicker({ value, onChange }: { value: TimeControl; onChange: (tc: TimeControl) => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="fm-times">
+      <span className="fm-times-h">{t('Bedenkzeit')}</span>
+      <div className="fm-times-row" role="radiogroup" aria-label={t('Bedenkzeit')}>
+        {FM.FRIEND_TIMES.map(tc => (
+          <button key={tc} role="radio" aria-checked={tc === value} className={`num${tc === value ? ' on' : ''}`}
+            onClick={() => { onChange(tc); haptic('select') }}>{TIME_CONTROLS[tc].name}</button>
+        ))}
       </div>
     </div>
   )

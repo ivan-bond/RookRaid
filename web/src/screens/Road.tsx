@@ -6,12 +6,12 @@ import * as S from '../game/store'
 import { useI18n } from '../i18n'
 import { closeSheet, openChests, openSheet } from '../nav'
 import { Icon } from '../ui/Icon'
-import { sound } from '../game/feedback'
-import { CardThumb, ChestView, Confetti, PlayerAvatar, Progress, ShardIcon, Sheet, useToast } from '../ui/kit'
+import { CardThumb, ChestView, Confetti, PlayerAvatar, ShardIcon, Sheet, useToast } from '../ui/kit'
 import { BotPortrait } from './Game'
 import { roadTitle, useStartGame, EmptyDeckDialog } from './Home'
 
-export function RoadScreen() {
+/** The trophy road, shown as a full-screen sheet from the Play tab (`onClose`: the close button). */
+export function RoadScreen({ onClose }: { onClose?: () => void } = {}) {
   const p = S.useProfile()
   const { t } = useI18n()
   const [toast, showToast] = useToast()
@@ -20,7 +20,6 @@ export function RoadScreen() {
   const arena = S.arena(p)
   const trophies = S.roadTrophies(p)
   const claimable = S.claimableRoadSteps(p)
-  const next = S.nextRoadStep(p)
 
   useEffect(() => { focus.current?.scrollIntoView({ block: 'center' }) }, [])
 
@@ -52,14 +51,12 @@ export function RoadScreen() {
             <h1 className="title-xl grow">{t('Pfad')}</h1>
             <button className="icon-btn" onClick={() => openSheet('roadGuide')} aria-label={t('So funktioniert der Pfad')}><Icon name="question" size={20} /></button>
             <span className="trophy-pill num"><Icon name="trophy" size={17} color="var(--gold)" />{p.trophies}</span>
+            {onClose && <button className="icon-btn" onClick={onClose} aria-label={t('Schließen')}><Icon name="xmark" size={18} /></button>}
           </div>
           <div className="road-summary">
             <span className="arena-medal" style={{ width: 44, height: 44, background: `linear-gradient(${ARENA_PALETTE[arena.n][0]}, ${ARENA_PALETTE[arena.n][1]})` }}><Icon name={arena.icon} size={20} color="#fff" /></span>
             <div className="grow col" style={{ gap: 4 }}>
               <span className="kicker" style={{ color: 'var(--gold)' }}>{t('ARENA {0} · {1}', arena.n, t(arena.name).toUpperCase())}</span>
-              {next ? <span className="dim num" style={{ fontSize: 12, fontWeight: 700 }}>{t('Nächste Belohnung: {0}', roadTitle(next.reward, t))} · {t('noch {0}', next.trophies - trophies)}</span>
-                : <span className="dim" style={{ fontSize: 12 }}>{t('Der Gipfel: {0} Trophäen', 2400)}</span>}
-              <Progress value={next ? trophies / next.trophies : 1} />
             </div>
             {claimable.length > 1 && <button className="chunky gold xs pulse-gold" style={{ width: 'auto' }} onClick={claimAll}>{t('ALLE {0} ABHOLEN', claimable.length)}</button>}
           </div>
@@ -148,9 +145,6 @@ export function RoadScreen() {
         <div className="road-start"><span className="kicker">{t('START')}</span></div>
       </div>
       {burst > 0 && <Confetti key={burst} count={50} />}
-      <button className="road-jump" onClick={() => { sound('select'); focus.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }}>
-        <PlayerAvatar avatar={S.activeAvatar(p)} frame={S.activeFrame(p)} size={28} />{t('Zu mir')}
-      </button>
       {toast}
     </div>
   )

@@ -34,50 +34,50 @@ enum TutorialScript {
 
     static var steps: [TutorialStep] { [
         TutorialStep(expect: .move(from: "e2", to: "e4"), icon: "hand.point.up.left.fill",
-                     title: L("Willkommen in der Arena!"),
-                     text: L("Schach mit Karten und Superkräften. Zieh deinen Bauern von e2 nach e4."),
+                     title: L("Bauer nach vorn"),
+                     text: L("Macht Platz für deine Figuren."),
                      praise: L("Starker Auftakt!"), reply: "e7e5"),
         TutorialStep(expect: .move(from: "g1", to: "f3"), icon: "drop.fill",
-                     title: L("Jeder Zug lädt Mana"),
-                     text: L("+1 Mana pro Zug, gute Züge +1 extra – unten siehst du deine Leiste. Springer nach f3: g1 → f3."),
+                     title: L("Springer nach f3"),
+                     text: L("Jeder Zug füllt deine Mana-Leiste."),
                      praise: L("Mana geladen!"), reply: "b8c6", highlightTerritory: true),
         TutorialStep(expect: .move(from: "f1", to: "c4"), icon: "scope",
-                     title: L("Ziel: f7"),
-                     text: L("f7 ist Milas schwächster Punkt – nur der König deckt ihn. Läufer nach c4, er zielt genau dorthin."),
+                     title: L("Läufer auf c4"),
+                     text: L("Er zielt auf f7, Milas Schwachstelle."),
                      praise: L("Im Visier!"), reply: "g8f6"),
         TutorialStep(expect: .move(from: "f3", to: "g5"), icon: "arrow.up.right",
-                     title: L("Doppelter Druck"),
-                     text: L("Springer nach g5: Jetzt greifen Läufer und Springer f7 gemeinsam an."),
+                     title: L("Springer auf g5"),
+                     text: L("Zweiter Angriff auf f7."),
                      praise: L("Mila muss reagieren!"), reply: "d7d5"),
         TutorialStep(expect: .move(from: "e4", to: "d5"), icon: "burst.fill",
-                     title: L("Schlag zu!"),
-                     text: L("Mila sperrt deinen Läufer mit d5. Schlag den Bauern – Schlagen lädt extra Mana."),
+                     title: L("Schlag den Bauern"),
+                     text: L("Schlagen gibt +1 Mana extra."),
                      praise: L("Treffer!"), reply: "f6d5"),
         // Verteidigung: Milas Dame sieht jetzt über e7 und f6 bis g5 – Schild rettet den Springer, ohne den Zug zu kosten.
         TutorialStep(expect: .card(.shield, target: "g5"), icon: "shield.fill",
-                     title: L("Achtung – Angriff!"),
-                     text: L("Milas Dame bedroht deinen Springer g5. Tippe auf Schild, dann auf g5."),
+                     title: L("Schild auf den Springer"),
+                     text: L("Milas Dame greift ihn an."),
                      praise: L("Abgewehrt!"),
                      reward: QuestReward(icon: "shield.fill", text: L("Springer geschützt"), tint: .territory)),
         TutorialStep(expect: .move(from: "d1", to: "f3"), icon: "figure.walk",
-                     title: L("Bonuszug!"),
-                     text: L("Schild kostet keinen Zug – zieh gleich noch: Dame nach f3. Sie droht, auf f7 Matt zu setzen."),
+                     title: L("Dame nach f3"),
+                     text: L("Der Schild war gratis – du ziehst nochmal."),
                      praise: L("Verteidigt und angegriffen!"), reply: "c8e6"),
         // Ultimate: Meteor auf den Turm h8. Der Bauer h7 daneben ist danach ungeschützt und friert zwei Züge lang ein.
         TutorialStep(expect: .ultimate(target: "h8"), icon: "flame.fill",
-                     title: L("Ultimate geladen!"),
-                     text: L("Volle Leiste! Meteor vernichtet jede Figur außer König und Dame. Tippe auf Meteor, dann auf den Turm h8."),
+                     title: L("Meteor auf den Turm"),
+                     text: L("Deine Leiste ist voll."),
                      praise: L("METEOR!"), reply: "c6d4", fillMana: true,
                      reward: QuestReward(icon: "flame.fill", text: L("Turm zerstört"), tint: .gold)),
         // Finale: Der Läufer e6 ist Milas einziger Verteidiger von f7. Frost ist eine Bonusaktion – danach folgt sofort das Matt.
         TutorialStep(expect: .card(.freeze, target: "e6"), icon: "snowflake",
-                     title: L("Frost auf den Verteidiger"),
-                     text: L("Nur Milas Läufer e6 deckt f7. Tippe auf Frost, dann auf e6 – eingefroren kann er nicht schlagen."),
+                     title: L("Frost auf den Läufer"),
+                     text: L("Er ist der letzte Wächter von f7."),
                      praise: L("Eingefroren!"), fillMana: true,
                      reward: QuestReward(icon: "snowflake", text: L("Läufer eingefroren"), tint: .territory)),
         TutorialStep(expect: .move(from: "f3", to: "f7"), icon: "crown.fill",
-                     title: L("Das Finale"),
-                     text: L("Frost kostet keinen Zug. Dame schlägt f7, der Springer deckt sie – Schachmatt!"),
+                     title: L("Dame schlägt f7"),
+                     text: L("Der Springer deckt sie: Schachmatt!"),
                      praise: L("SCHACHMATT!"))
     ] }
 }
@@ -354,21 +354,10 @@ struct TutorialCompleteOverlay: View {
                     .font(.system(size: 25, weight: .heavy, design: .rounded))
                     .foregroundColor(Theme.textPrimary)
                     .multilineTextAlignment(.center)
-                Text(L("Du kennst jetzt Mana, Angriff, Verteidigung und Ultimates."))
+                Text(L("Mana, Karten, Ultimate – du kannst alles."))
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(Theme.textSecondary)
                     .multilineTextAlignment(.center)
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(Theme.gold)
-                    Text(L("Profi-Tipp: Blitz kostet 2 Mana und vernichtet einen gegnerischen Bauern, der in deine Hälfte vorgerückt ist – auch einen gedeckten. Ideal gegen Vormarsch und Sturmlauf."))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.panelRaised))
                 Text(L("+{0} XP", shownXP))
                     .font(.system(size: 30, weight: .black, design: .rounded))
                     .foregroundColor(Theme.manaLight)

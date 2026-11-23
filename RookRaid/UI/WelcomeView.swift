@@ -241,8 +241,8 @@ struct WelcomeView: View {
                 .foregroundColor(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(L(page == 0
-                   ? "Auf dem Schachbrett ist Chaos ausgebrochen: Die Figuren haben Superkräfte entdeckt. Führe deine eigene Armee an, sammle Karten und steig in der Arena bis an die Spitze auf."
-                   : page == 1 ? "Such dir einen Namen und ein Bild aus. Beides kannst du später im Profil ändern."
+                   ? "Schach mit Superkräften. Sammle Karten, steig in der Arena auf."
+                   : page == 1 ? "Später im Profil änderbar."
                    : "Dann weiß Rocky, wie viel er dir erklären soll."))
                 .font(.system(size: 14.5, weight: .medium))
                 .foregroundColor(Theme.textSecondary)

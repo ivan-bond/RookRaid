@@ -82,7 +82,7 @@ struct FriendMatchInviteBanner: View {
                         .frame(width: 120)
                 }
                 .font(.system(size: 15, weight: .heavy, design: .rounded))
-                Text(L("5 | 0 · ohne Trophäen"))
+                Text(L("{0} · ohne Trophäen", invite.timeControl.name))
                     .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.textMuted)
             }
             .padding(12)
@@ -112,6 +112,7 @@ struct FriendMatchWaiting: View {
                 Text(outgoing.name)
                     .font(.system(size: 22, weight: .black, design: .rounded)).foregroundColor(.white)
                 FriendlyTag()
+                SettingChip(icon: "timer", text: outgoing.timeControl.name, gold: true)
                 switch outgoing.state {
                 case .waiting:
                     TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -149,6 +150,37 @@ struct FriendMatchWaiting: View {
         case .expired: return L("{0} hat nicht geantwortet.", outgoing.name)
         case .failed(let text): return text
         case .waiting: return ""
+        }
+    }
+}
+
+/// Bedenkzeit vor einem Freundschaftsspiel: 3 | 2 · 5 | 0 · 5 | 3 · 10 | 5 (wie FriendTimePicker in web/src/screens/FriendMatch.tsx).
+struct FriendTimePicker: View {
+    @Binding var selection: TimeControl
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(L("Bedenkzeit"))
+                .font(.system(size: 11, weight: .heavy, design: .rounded)).textCase(.uppercase)
+                .foregroundColor(Theme.textMuted)
+            HStack(spacing: 6) {
+                ForEach(TimeControl.friendChoices) { tc in
+                    let on = tc == selection
+                    Button {
+                        selection = tc
+                        Haptics.shared.play(.select)
+                    } label: {
+                        Text(tc.name)
+                            .font(.system(size: 14, weight: .heavy, design: .rounded)).monospacedDigit()
+                            .foregroundColor(on ? Theme.navy : Theme.textPrimary)
+                            .frame(maxWidth: .infinity).frame(height: 36)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(on ? Theme.gold : Theme.panelRaised))
+                            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(on ? Color.clear : Color.white.opacity(0.08), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
         }
     }
 }

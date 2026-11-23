@@ -25,18 +25,18 @@ struct IntroView: View {
 
     private static let steps: [Step] = [
         Step(kicker: "Willkommen", title: "Schach mit Superkräften",
-             text: "Alles zieht wie im Schach, und wer den König mattsetzt, gewinnt. Dazu kommen Mana, Karten und eine Ultimate.",
+             text: "Matt gewinnt – wie immer.",
              waits: true),
         Step(kicker: "Mana", title: "Jeder Zug lädt Mana",
-             text: "Jeder eigene Zug bringt +1 Mana. Schlagen oder Schach geben +1 extra. Höchstens 10."),
-        Step(kicker: "Karten", title: "Karten: deine Tricks",
-             text: "Du hast 4 Karten auf der Hand. Karte antippen, dann das Ziel – das kostet Mana. Danach lädt die Karte ein paar Züge nach.",
-             task: "Tippe auf Blitz, dann auf den schwarzen Bauern!", praise: "Zack! Bauer weg."),
-        Step(kicker: "Ultimate", title: "Deine stärkste Waffe",
-             text: "Mana lädt auch deine Ultimate auf. Ist sie voll, kannst du sie zünden: Der Meteor zerstört eine Figur – nur König und Dame nicht.",
-             task: "Tippe auf den Meteor, dann auf eine schwarze Figur!", praise: "Volltreffer!"),
+             text: "+1 pro Zug. Schlagen oder Schach: +1 extra."),
+        Step(kicker: "Karten", title: "Karten kosten Mana",
+             text: "",
+             task: "Tippe Blitz, dann den Bauern.", praise: "Zack! Bauer weg."),
+        Step(kicker: "Ultimate", title: "Volle Leiste: Ultimate!",
+             text: "",
+             task: "Tippe Meteor, dann eine Figur.", praise: "Volltreffer!"),
         Step(kicker: "Erste Schlacht", title: "Bereit für Mila?",
-             text: "Setz Mila matt – dafür gibt es deine erste Truhe!"),
+             text: "Setz sie matt – ich zeige dir jeden Zug."),
     ]
 
     private var isLast: Bool { step == Self.steps.count - 1 }
@@ -127,10 +127,12 @@ struct IntroView: View {
                 .font(.system(size: 23, weight: .heavy, design: .rounded))
                 .foregroundColor(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(L(s.text))
-                .font(.system(size: 14.5, weight: .medium))
-                .foregroundColor(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if !s.text.isEmpty {
+                Text(L(s.text))
+                    .font(.system(size: 14.5, weight: .medium))
+                    .foregroundColor(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if done {
                 if let praise = s.praise {
                     Label(L(praise), systemImage: "checkmark.circle.fill")
@@ -418,23 +420,22 @@ private struct IntroRockyScene: View {
         _lines = State(initialValue: Self.makeLines(hello))
     }
     private static let baseLines = [
-        "Hi, ich bin Rocky! Ein Turm. Ich kann nur geradeaus – um die Ecke denken überlasse ich den Springern.",
-        "Normales Schach? Das ist mir zu langweilig. Hier gibt's Superkräfte! Der König hat sich beschwert – aber auf den hört eh keiner.",
-        "Du sammelst Mana, spielst Karten und lässt Meteore regnen. Die Bauern hassen diesen Trick!",
+        "Hi, ich bin Rocky – ein Turm!",
+        "Hier hat Schach Superkräfte:",
     ]
 
     /// Wie `rockyLines` in Intro.tsx
     private static let levelLines: [ChessLevel: String] = [
-        .new: "Neu im Schach? Kein Problem – in der ersten Schlacht zeige ich dir jeden Zug.",
-        .rules: "Du kennst die Regeln? Super – dann zeige ich dir nur die Superkräfte.",
-        .pro: "Ein Profi! Dann pass gut auf – hier wird dich einiges überraschen.",
+        .new: "Neu im Schach? Ich zeige dir jeden Zug.",
+        .rules: "Du kennst die Regeln? Dann nur die Superkräfte.",
+        .pro: "Ein Profi? Hier wird's trotzdem wild.",
     ]
 
     private static func makeLines(_ hello: WelcomeHello?) -> [String] {
         var lines = baseLines.map { L($0) }
         let name = ProfileStore.shared.profile.name
         if hello?.named == true, !WelcomeView.isDefaultName(name) {
-            lines[0] = L("Hi {0}, ich bin Rocky! Ein Turm. Ich kann nur geradeaus – um die Ecke denken überlasse ich den Springern.", name)
+            lines[0] = L("Hi {0}, ich bin Rocky – ein Turm!", name)
         }
         if let level = hello?.level, let extra = levelLines[level] { lines.insert(L(extra), at: 1) }
         return lines
@@ -447,7 +448,7 @@ private struct IntroRockyScene: View {
         VStack(spacing: 18) {
             RockyTalk(text: text, big: true, bounce: line, typed: chars, lines: lines.count, line: line, more: chars >= text.count && !isLast)
             HStack(spacing: 8) {
-                if line >= lines.count - 2 {
+                if isLast {
                     power(PieceImage(type: .king, color: .white).frame(width: 26, height: 26), L("Schach"))
                         .transition(.scale(scale: 0.4).combined(with: .opacity))
                 }
@@ -609,7 +610,7 @@ private struct IntroCardsScene: View {
                         Text(c.shortText).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.textSecondary)
                     }
                 } else {
-                    Text(L("Tippe eine Karte an, um zu sehen, was sie kann."))
+                    Text(L("Tippe eine Karte an."))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(Theme.textMuted)
                         .multilineTextAlignment(.center)
@@ -766,7 +767,7 @@ private struct IntroBattleScene: View {
                 .offset(x: shown ? 0 : 120)
             }
             .opacity(shown ? 1 : 0)
-            RockyTalk(text: L("Keine Sorge: Ich bin die ganze Zeit dabei und zeige dir jeden Zug."))
+            RockyTalk(text: L("Ich bin die ganze Zeit dabei!"))
         }
         .onAppear {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.65).delay(0.1)) { shown = true }
