@@ -3,7 +3,7 @@
 **Chess with cards, mana and ultimates.** Every turn charges mana, mana pays for spell cards, and a full bar unlocks an
 ultimate. Play the bots offline, or ranked 5-minute games online against people and bot players.
 
-- **Version:** 1.0.0 Beta (iOS build 48)
+- **Version:** 1.0.1 Beta (iOS build 49)
 - **Platforms:** iPhone app (SwiftUI, iOS 16+) and browser version (React PWA) at **https://rookraid.com**
 - **Backend:** Supabase (Postgres, Auth, Edge Functions, pg_cron), region Frankfurt
 - **Languages:** German (source), English, Spanish, French, Italian, Russian, Chinese
@@ -277,7 +277,7 @@ supabase functions deploy push-dispatch --no-verify-jwt --workdir "$PWD/Backend"
 2. Create `Config/Secrets.xcconfig` (git-ignored) with `RR_SUPABASE_URL` and `RR_SUPABASE_ANON_KEY`. Without it, the app runs fully offline.
 3. Choose your team under *Signing & Capabilities*, pick an iPhone, and press ⌘R.
 
-The version is set in the project (`MARKETING_VERSION` 1.0.0, `CURRENT_PROJECT_VERSION` 48). The stage label "Beta" is
+The version is set in the project (`MARKETING_VERSION` 1.0.1, `CURRENT_PROJECT_VERSION` 49). The stage label "Beta" is
 `SettingsSheet.stage` in `UI/ProfileViews.swift`.
 
 ### Browser version
