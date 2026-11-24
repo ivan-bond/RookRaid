@@ -10,7 +10,7 @@
     "upload-zip": "node scripts/upload-zip.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.78.0",
+    "@supabase/supabase-js": "^2.119.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
