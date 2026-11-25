@@ -106,7 +106,8 @@ const ok = (cond, msg, got) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg + 
   }
   const repeats = seen.filter((b, i) => seen.slice(Math.max(0, i - 3), i).includes(b)).length;
   ok(repeats === 0, 'kein Bot-Spieler aus den letzten drei Partien', seen);
-  ok(new Set(seen).size >= 8, 'viele verschiedene Gegner', new Set(seen).size);
+  // Picks are random: with ~25 bot players in reach, 12 games give 6+ different opponents in all but ~1 in 10,000 runs (8+ failed ~7%).
+  ok(new Set(seen).size >= 6, 'viele verschiedene Gegner', new Set(seen).size);
   await allOffline();
   r = await startBot(A, 600);
   ok(r.bot_player === null && r.bot_card.title === 'Trainingsgegner', 'niemand online: Trainingsgegner wie bisher', r);
